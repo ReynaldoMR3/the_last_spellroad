@@ -20,7 +20,7 @@ Docker is the preferred boundary for agents and local development. Run package i
 Start the dev server:
 
 ```bash
-docker compose up game
+docker-compose up game
 ```
 
 Open the game at:
@@ -32,19 +32,19 @@ http://localhost:5173
 Install or update packages inside Docker:
 
 ```bash
-docker compose run --rm game npm install
+docker-compose run --rm game npm install
 ```
 
 Typecheck:
 
 ```bash
-docker compose run --rm game npm run typecheck
+docker-compose run --rm game npm run typecheck
 ```
 
 Build the static game:
 
 ```bash
-docker compose run --rm game npm run build
+docker-compose run --rm game npm run build
 ```
 
 Build the production image:
@@ -58,6 +58,17 @@ Run the production image:
 ```bash
 docker run --rm -p 8080:80 the-last-spellroad
 ```
+
+## Project Layout And Code Ownership
+
+| Path | Ownership |
+| --- | --- |
+| `src/main.ts` | Application bootstrap and Phaser game configuration. |
+| `src/scenes/` | Phaser scene composition and scene-local presentation logic. |
+| `src/gameplay/` | Future player, spell, enemy, and encounter gameplay systems. |
+| `src/systems/` | Future shared systems, including AI encounter-data integration. |
+| `public/` | Static assets served unchanged by Vite. |
+| `dist/` | Generated production build output; do not edit or commit. |
 
 ## Course Scope
 

@@ -99,7 +99,7 @@ export class SpellroadScene extends Phaser.Scene {
       fontSize: "28px"
     });
 
-    this.add.text(32, 64, "Phaser + TypeScript running in Docker", {
+    this.add.text(32, 64, "Phaser + TypeScript foundation ready", {
       color: "#9fb0d8",
       fontFamily: "Arial, sans-serif",
       fontSize: "16px"

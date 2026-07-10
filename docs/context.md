@@ -20,7 +20,7 @@ The project prioritizes lore, tactical spell mechanics, and an AI-assisted encou
 
 ## Next Actions
 
-- Build the Phaser + TypeScript scaffold.
-- Verify the Docker development and production build workflow.
-- Define the first playable Spellroad movement and spellcasting loop.
-- Define the AI Encounter Director output format after the course requirements are clearer.
+- Define and implement the first playable Spellroad movement and spellcasting loop.
+- Build the first enemy encounter with readable ranges, cooldowns, and spell geometry.
+- Create the initial Spellroad tileset and short progression path for the vertical slice.
+- Define the AI Encounter Director output format and import it into the game.
