@@ -112,17 +112,18 @@ For targeted spells, pressing a spell hotkey should show a clear targeting previ
 
 This control model should avoid turning the game into a reaction-heavy action RPG. The intended fantasy is that the player reads the battlefield, chooses the right prepared spell, places it well, and wins through planning rather than twitch execution.
 
-## Unreal Engine 5 Constraints
+## Phaser And Web Constraints
 
-The project should be designed for a Mac M1-friendly workflow.
+The project should be designed for a low-spec browser-playable workflow.
 
-- Use stylized low-detail graphics.
+- Use Phaser + TypeScript as the current implementation stack.
+- Use Docker as the preferred boundary for dependency installation, development, typechecking, and builds.
+- Prefer stylized 2D graphics and readable silhouettes.
 - Prefer compact maps and modular tiles.
-- Avoid Nanite-dependent assets.
-- Avoid hardware ray tracing.
-- Use simple or baked lighting where possible.
+- Avoid expensive real-time effects that make the game harder to run or publish.
 - Keep enemy counts modest.
 - Use lightweight VFX with strong silhouettes.
+- Keep the production build publishable as static files.
 
 ## Course AI Feature
 

@@ -9,14 +9,18 @@ This folder stores durable design, planning, lore, and implementation notes for 
 | Path | Purpose | Status |
 | --- | --- | --- |
 | `game/` | Game design, lore, AI system notes, and GDD material. | Started |
+| `superpowers/specs/` | Approved technical and design specs. | Started |
+| `superpowers/plans/` | Implementation plans for agentic execution. | Started |
 
 ## Current Direction
 
-The Last Spellroad is a low-spec top-down magical roguelite designed for a Mac M1-friendly Unreal Engine 5 workflow. The project prioritizes lore, tactical spell mechanics, and an AI-assisted encounter pipeline over expensive visuals.
+The Last Spellroad is a low-spec top-down magical roguelite designed as a browser-playable Phaser + TypeScript project. Docker is the preferred development boundary so AI agents can install dependencies, run tools, and build the game without polluting the host machine.
+
+The project prioritizes lore, tactical spell mechanics, and an AI-assisted encounter pipeline over expensive visuals.
 
 ## Next Actions
 
-- Refine the GDD after course templates are shared.
-- Define the AI Encounter Director output format.
-- Decide the first UE5 project structure after the engine setup is confirmed.
-
+- Build the Phaser + TypeScript scaffold.
+- Verify the Docker development and production build workflow.
+- Define the first playable Spellroad movement and spellcasting loop.
+- Define the AI Encounter Director output format after the course requirements are clearer.
