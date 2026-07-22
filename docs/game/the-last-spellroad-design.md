@@ -2,7 +2,7 @@
 
 ## Summary
 
-The Last Spellroad is a low-spec, top-down, Tibia-like magical roguelite built around short single-lane expeditions. The player controls a long-lived wandering mage who discovers an ancient Spellroad between worlds and becomes trapped inside it.
+The Last Spellroad is a low-spec, top-down, Tibia-like magical roguelite built around short single-lane expeditions. ("Tibia-like" refers to *Tibia*, a late-1990s top-down MMORPG — the reference is to its minimalist, low-spec 2D presentation and unhurried pacing, not to any multiplayer or MMO structure, which this game does not have.) The player controls a long-lived wandering mage who discovers an ancient Spellroad between worlds and becomes trapped inside it.
 
 The game is inspired by the feeling of melancholic long-lived mage journeys, school-of-magic spellcraft, sacred geometry, and tactical tile-based RPG combat. It must remain original: no copied names, factions, spells, characters, schools, or direct lore from existing works.
 
@@ -195,6 +195,8 @@ The Mana numbers above stay fixed everywhere. What changes is the encounter itse
 - **The mini-boss or Director trial** (Gameplay Loop step 7) is tuned to be a genuinely long, higher-HP, possibly multi-phase fight — long enough that careless spending catches up with the player mid-fight. This is where cooldown timing, spell choice, and Mana budgeting across the whole encounter actually matter.
 
 This gives the AI Encounter Director a concrete target when generating wave compositions and boss modifiers: waves should be sized to resolve before Mana pressure kicks in, and boss/trial encounters should be sized to outlast a careless Mana budget. That target did not exist before; the Course AI Feature section can generate against it.
+
+**Where the Mana gate actually binds, stated precisely:** every weight class is authored at or below its cost-to-cooldown ratio matching the 5/sec regen rate (Light: 10 Mana / 2s = 5/sec; Standard: 20 Mana / 4s = 5/sec; Heavy: 35 Mana / 8s = 4.375/sec). This is deliberate — it means repeatedly casting any *single* spell alone, on cooldown, forever, never actually drains the pool, in a wave or in a boss/trial fight alike. The Mana gate does not bind against solo spam by design; it binds only when the player casts multiple different spells whose cooldown windows overlap (bursting two or more spells back-to-back to answer a threat immediately, rather than one spell repeatedly), which draws the shared pool down faster than the flat regen replaces it. This makes it a hard, explicit constraint on Warden's encounter design, not just a target for encounter length: a boss/trial fight only creates real Mana pressure if its phases force the player to answer multiple simultaneous or rapid-fire threats that a single repeated spell cannot resolve alone (e.g., a fast add needing an immediate Light response while a Heavy spell is still on cooldown from the last cast) — length alone, without that forced spell-mixing, does not make solo-spam attrition happen.
 
 ## Core Controls And Casting
 
