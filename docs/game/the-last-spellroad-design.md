@@ -212,12 +212,12 @@ Every generating or reviewing agent runs against a fixed set of prompt constrain
 
 - **Warden** — must select enemies only from the vertical slice's three base enemy types; may not invent a new enemy type. Must tune within the "resolve quickly" (regular waves) vs. "long, higher-HP" (boss/trial) targets set by the Spam-Waves-Vs.-Tactical-Trials pacing rule (see Technical Strategy). Output is `wave.json`-schema-only: enemy IDs, spawn timing, HP/damage modifiers, phase triggers — no prose, no engine code. Every numeric value must be checkable against Pato's templates; Warden cannot invent its own numbers.
 - **Frieren** — element must be one of the four defined elements (fire, ice, earth, lightning). AoE shape must be one of the vertical slice's three shapes (line, cone, circle) — cross, ring, and sigil are out of scope for this slice. Weight class must be exactly one of Pato's three tiers (Light/Standard/Heavy); Mastery scaling is never authored per spell — it's automatic and identical for every spell (see Death And Mastery Loss). Output is `spell.json`-schema-only, one entry per spell. Must produce a genuine tactical tradeoff per the Creation pillar — a spell that is a pure upgrade with no downside is a constraint violation, not a style note.
-- **Lorena** — must never introduce named factions, characters, spells, or lore that copies an existing published work (per the Summary section's originality requirement). Must stay inside the locked ending scope for this slice — only the "destroy" Director ending is real; "outwitted" and "transformed" get no mechanic, and Lorena must not write content implying either is resolvable in the vertical slice. Tone must match the Lore Premise's melancholic, long-lived-mage mood. Output length must respect the UI space it's tagged for — an item description is not a paragraph.
+- **Lorena** — must never introduce named factions, characters, spells, or lore that copies an existing published work (per the Summary section's originality requirement). Must stay inside the locked ending scope for this slice — only the "destroy" Director ending is real; "outwitted" and "transformed" get no mechanic, and Lorena must not write content implying either is resolvable in the vertical slice. Tone must match the Lore Premise's melancholic, long-lived-mage mood. Output length must respect the UI space it's tagged for — an item description is not a paragraph. Validated by Heckler, whose "critiques a spell, wave, level, or the GDD itself" scope explicitly extends to Lorena's narrative/dialogue output — Lorena cannot self-grade tone or consistency any more than Warden can self-grade its own numbers.
 - **Pato** — output is binary/structured (pass, or a flagged diff against the violated template value), never freeform commentary or a creative suggestion. Checks only against its own numeric templates — Pato cannot approve a value it did not itself define, and cannot silently adjust a template to make content pass.
-- **Ana** — never edits or paraphrases what another agent reports, including Heckler's critiques; Ana routes, it does not launder. Every task it hands off must reference an existing scoped contract (Loomwright's engine contract, Pato's templates) rather than improvising new scope on the spot.
+- **Ana** — never edits or paraphrases what another agent reports, including Heckler's critiques; Ana routes, it does not launder. Every task it hands off must reference an existing scoped contract (Loomwright's engine contract, Pato's templates) rather than improvising new scope on the spot. Its success criterion is the human developer, not another agent: every task Ana hands off must resolve to `shipped-and-validated`, `blocked-with-reason`, or `in-progress-with-owner` — nothing sits unstated.
 - **Heckler** — must represent a genuine spread of the six reviewer personas (systems designer, narrative critic, player psychologist, feasibility lead, adversarial QA, business analyst), not a single softened consensus voice. Must ground every critique in something specific — a vague "this feels off" is a constraint violation. Must not filter for the developer's comfort.
-- **Loomwright** — builds only the movement/casting engine; never touches numeric templates or economy values (Pato's exclusive scope). Every AoE shape it implements must match the shapes actually authored by Frieren for the slice — no speculative shapes ahead of content.
-- **Tilesmith** — must search for a free-to-use, license-compatible asset (CC0, public domain, explicit commercial-use license) before originating new art. Must track and report the source and license of every asset it brings in — an untracked asset is a constraint violation regardless of how good it looks.
+- **Loomwright** — builds only the movement/casting engine; never touches numeric templates or economy values (Pato's exclusive scope). Every AoE shape it implements must match the shapes actually authored by Frieren for the slice — no speculative shapes ahead of content. Validated by the human developer actually running the game, not by another content-validating agent — code correctness is a playtest question, not an LLM judgment call.
+- **Tilesmith** — must search for a free-to-use, license-compatible asset (CC0, public domain, explicit commercial-use license) before originating new art. Must track and report the source and license of every asset it brings in — an untracked asset is a constraint violation regardless of how good it looks. License/source compliance is validated by the human developer, not another agent — this is a factual/legal check an LLM shouldn't have final say on.
 
 ## Engine Integration
 
@@ -333,6 +333,33 @@ Produces the Spellroad tileset, level layouts, and lightweight VFX within the lo
 Heckler wants the project to fail, and its job is to say so. It spawns synthetic sub-agent personas representing a spread of audience reactions to this specific kind of game — some who love slow tactical spellcraft, some who have no patience for it — and produces blunt, sometimes unfair, mixed feedback on whatever the other agents have built. Nothing it says is filtered for the developer's comfort. Ana routes its reports like any other agent's, but does not soften the critique itself.
 
 This is the same shape as the six-reviewer panel already used to review this document (systems designer, narrative critic, player psychologist, feasibility lead, adversarial QA, business analyst) — Heckler generalizes that one-time GDD review into a standing tool the developer can invoke against any build, spell, level, or encounter, not just the design document.
+
+#### Ana's Orchestration Model
+
+The roster is a **hierarchical star topology**: Ana is the only agent that talks to the developer and the only agent every other agent reports to. No agent talks to another agent directly — if Loomwright needs something from Frieren's output, that request routes through Ana. This formalizes the constraint above (Ana never edits or paraphrases) and keeps a single audit trail, rather than a decentralized model where agents negotiate with each other off the record.
+
+Ana's dispatch procedure for a new developer request:
+
+1. Classify the request by which agent(s) it touches.
+2. Check dependencies — content referencing a shape or mechanic that doesn't exist yet must be sequenced (Loomwright cannot implement a shape Frieren hasn't authored yet); independent work (a new spell, a new wave, new dialogue, none referencing each other) dispatches in parallel.
+3. Every generated artifact stays in-progress until it clears its required gate: Warden/Frieren output goes to Pato (numeric validation); Lorena's output goes to Heckler (tone/consistency); Loomwright's engine changes go to a developer playtest.
+4. Status is always reported as one of three states — `shipped-and-validated`, `blocked-with-reason`, or `in-progress-with-owner` — so nothing sits unstated.
+
+This was chosen over two alternatives: a **pure sequential pipeline** (Ana finishes one agent's task fully before starting the next) is simpler to reason about but wastes time on genuinely independent work; a **decentralized/peer-to-peer** model (agents messaging each other directly) is faster for tight back-and-forth but breaks the single audit trail and the "Ana never edits or paraphrases" contract above.
+
+Example prompts, using the real `spell.json` fields from Engine Integration:
+
+> Developer -> Ana: "New spell needed for the Standard weight class: an ice spell that trades range for a slow effect. Scope it to Frieren."
+>
+> Ana -> Frieren: "Design brief: ice element, Standard weight class, AoE shape must be one of {line, cone, circle}. Must produce a genuine tactical tradeoff (Creation pillar constraint) — state the tradeoff in one sentence before the JSON. Output exactly one `spell.json` entry: `{id, element, shape, weight, base_power, base_targets}`. Do not set Mastery scaling — that's automatic. When done, hand off to Pato for validation before reporting back to me."
+>
+> Ana -> Pato: "Validate this spell.json entry against the Standard weight-class and Mastery templates: [entry]. Return pass, or a flagged diff naming exactly which field violates which template value."
+>
+> Ana -> Heckler: "Frieren's ember_lance spell.json just passed Pato's validation. Run your six-persona critique on it before I mark it shipped. Ground every critique in a specific field or interaction, not a vibe."
+>
+> Ana -> Developer: "Ice spell: shipped-and-validated (passed Pato, cleared Heckler with one MINOR note on cooldown feel). Wave 4 encounter: blocked — waiting on your call on whether backtracking into cleared levels is allowed. Lorena's trial dialogue: in-progress, owner Lorena."
+
+Every agent's day-to-day context — its own contract and a log of what it's actually produced — lives outside this GDD in an ICM-style store at `docs/agents/`, so a future task loads only what it needs instead of this whole document. See `docs/agents/CONTEXT.md` and the root `AGENTS.md`.
 
 ### Technical Requirements And Constraints
 
