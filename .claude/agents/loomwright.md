@@ -1,0 +1,1 @@
+../../docs/agents/loomwright/AGENT.md

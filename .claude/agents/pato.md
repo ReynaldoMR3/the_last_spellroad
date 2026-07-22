@@ -1,0 +1,1 @@
+../../docs/agents/pato/AGENT.md

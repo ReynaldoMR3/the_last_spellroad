@@ -1,0 +1,1 @@
+../../docs/agents/tilesmith/AGENT.md

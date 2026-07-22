@@ -179,6 +179,8 @@ This control model should avoid turning the game into a reaction-heavy action RP
 
 ## Phaser And Web Constraints
 
+**Tech stack:** Phaser 3 + TypeScript, Docker-first dev workflow, static-file browser build. This is the foundation every other technical decision in this document builds on, including the Prompt Constraints, Engine Integration, and Technical Strategy sections below.
+
 The project should be designed for a low-spec browser-playable workflow.
 
 - Use Phaser + TypeScript as the current implementation stack.
@@ -204,47 +206,194 @@ In development, the Director generates structured encounter content:
 
 In the fiction, the Director is the force generating the Spellroad. This connects the course architecture directly to the game's story.
 
-## Development Team: AI Agent Roster
+## Prompt Constraints
+
+Every generating or reviewing agent runs against a fixed set of prompt constraints — the guardrails that keep its output consistent and repeatable across runs, rather than improvised fresh each time. These are what make the roster's outputs safe to validate against Pato's numeric templates and safe to bundle into the engine without a human re-checking every field by hand.
+
+- **Warden** — must select enemies only from the vertical slice's three base enemy types; may not invent a new enemy type. Must tune within the "resolve quickly" (regular waves) vs. "long, higher-HP" (boss/trial) targets set by the Spam-Waves-Vs.-Tactical-Trials pacing rule (see Technical Strategy). Output is `wave.json`-schema-only: enemy IDs, spawn timing, HP/damage modifiers, phase triggers — no prose, no engine code. Every numeric value must be checkable against Pato's templates; Warden cannot invent its own numbers.
+- **Frieren** — element must be one of the four defined elements (fire, ice, earth, lightning). AoE shape must be one of the vertical slice's three shapes (line, cone, circle) — cross, ring, and sigil are out of scope for this slice. Weight class must be exactly one of Pato's three tiers (Light/Standard/Heavy); Mastery scaling is never authored per spell — it's automatic and identical for every spell (see Death And Mastery Loss). Output is `spell.json`-schema-only, one entry per spell. Must produce a genuine tactical tradeoff per the Creation pillar — a spell that is a pure upgrade with no downside is a constraint violation, not a style note.
+- **Lorena** — must never introduce named factions, characters, spells, or lore that copies an existing published work (per the Summary section's originality requirement). Must stay inside the locked ending scope for this slice — only the "destroy" Director ending is real; "outwitted" and "transformed" get no mechanic, and Lorena must not write content implying either is resolvable in the vertical slice. Tone must match the Lore Premise's melancholic, long-lived-mage mood. Output length must respect the UI space it's tagged for — an item description is not a paragraph. Validated by Heckler, whose "critiques a spell, wave, level, or the GDD itself" scope explicitly extends to Lorena's narrative/dialogue output — Lorena cannot self-grade tone or consistency any more than Warden can self-grade its own numbers.
+- **Pato** — output is binary/structured (pass, or a flagged diff against the violated template value), never freeform commentary or a creative suggestion. Checks only against its own numeric templates — Pato cannot approve a value it did not itself define, and cannot silently adjust a template to make content pass.
+- **Ana** — never edits or paraphrases what another agent reports, including Heckler's critiques; Ana routes, it does not launder. Every task it hands off must reference an existing scoped contract (Loomwright's engine contract, Pato's templates) rather than improvising new scope on the spot. Its success criterion is the human developer, not another agent: every task Ana hands off must resolve to `shipped-and-validated`, `blocked-with-reason`, or `in-progress-with-owner` — nothing sits unstated.
+- **Heckler** — must represent a genuine spread of the six reviewer personas (systems designer, narrative critic, player psychologist, feasibility lead, adversarial QA, business analyst), not a single softened consensus voice. Must ground every critique in something specific — a vague "this feels off" is a constraint violation. Must not filter for the developer's comfort.
+- **Loomwright** — builds only the movement/casting engine; never touches numeric templates or economy values (Pato's exclusive scope). Every AoE shape it implements must match the shapes actually authored by Frieren for the slice — no speculative shapes ahead of content. Validated by the human developer actually running the game, not by another content-validating agent — code correctness is a playtest question, not an LLM judgment call.
+- **Tilesmith** — must search for a free-to-use, license-compatible asset (CC0, public domain, explicit commercial-use license) before originating new art. Must track and report the source and license of every asset it brings in — an untracked asset is a constraint violation regardless of how good it looks. License/source compliance is validated by the human developer, not another agent — this is a factual/legal check an LLM shouldn't have final say on.
+
+## Engine Integration
+
+The course template assumes Unity or Unreal; The Last Spellroad's stack is Phaser + TypeScript (see the Tech Stack callout in Phaser And Web Constraints), so this section describes how that specific stack ingests AI-generated content, not a generic engine-agnostic pipeline.
+
+**The pipeline, end to end:**
+
+1. Raw text (a design brief, the Lore Premise, Pato's numeric templates, the pacing target — all plain markdown) goes into an AI node: Warden, Frieren, or Lorena, run at dev-time.
+2. The AI node's output is a JSON file in one of three schemas: `wave.json`, `spell.json`, or `lore.json`.
+3. Pato validates that JSON against its numeric templates before it's allowed to ship.
+4. The validated JSON files live under a dedicated data folder (e.g. `src/data/spells/`, `src/data/waves/`, `src/data/lore/`) and are bundled into the static build Phaser ships — there is no live API call during play.
+5. At scene preload, Phaser's asset loader (`this.load.json(key, path)`) reads each file into its data cache; game systems then read `this.cache.json.get(key)` to construct actual game objects — the encounter system reads a `wave.json` entry to call Loomwright's spawn API, the hotbar/casting system reads a `spell.json` entry to construct a castable Spell instance.
+6. Each schema has a matching TypeScript interface (e.g. `SpellDefinition`, `WaveDefinition`) that the loader casts to and validates against. A malformed file fails at load/compile time, not silently mid-combat — this is the integration guarantee the whole pipeline exists to provide.
+7. The player experiences the result as enemy behavior, spell behavior, or in-game text.
+
+**Why JSON:** Phaser already loads JSON natively (`this.load.json()`, and its own tilemap format is JSON), so no adapter layer is needed. TypeScript's compile-time schema check is what makes step 6 catch a bad file before it ever reaches a player, instead of breaking silently mid-session. JSON is also plain text, so it stays diffable and human-editable, matching every other hand-off in this project.
+
+Illustrative schema shapes (not final — Loomwright's engine contract and Pato's templates govern the authoritative fields):
+
+```
+// spell.json (one entry per spell)
+{
+  "id": "ember_lance",
+  "element": "fire",
+  "shape": "line",
+  "weight": "standard",
+  "base_power": 5,
+  "base_targets": 1
+}
+```
+
+```
+// wave.json (one entry per wave)
+{
+  "level": 3,
+  "wave_index": 1,
+  "enemies": [
+    { "type": "warden_hound", "count": 4, "spawn_delay_ms": 1500 }
+  ],
+  "hp_modifier": 1.0,
+  "damage_modifier": 1.0
+}
+```
+
+Ana and Heckler sit outside this raw-text-to-JSON flow itself — Ana assigns and tracks the work that produces it, Heckler critiques whatever gets built from it — see Agent Role Definitions below for their scope.
+
+## Technical Strategy
+
+This section formalizes agent roles, technical constraints, and token budgets into one actionable strategy — the most critical section of this GDD, since it's what keeps the AI dev pipeline sustainable in practice rather than just described.
+
+### Agent Role Definitions
 
 The team building The Last Spellroad is one person working with a roster of named AI agents. This is the answer to "what is the team size" that a from-scratch schedule risk assessment would otherwise be missing: capacity is one human plus a scoped agent roster, not an undefined number of people.
 
 The roster follows the One Agent, One Wow rule: each agent does one thing extraordinarily well rather than several things adequately. Bundling unrelated responsibilities onto a single agent is what produces broken logic and unpredictable output that can't ship — so every agent below owns exactly one job, and agents that generate content are never also the ones validating it.
 
-### The Scholar — Orchestration
+**One Wow agent: Frieren.** Of the whole roster, Frieren's output is what the player has the most sustained, hands-on contact with — every cast, every hotbar choice, and every Mastery promotion is a spell Frieren authored (element, AoE shape, cooldown, Power/target scaling). This matches the Forms Of Fun section's framing of spellcraft as the primary form of player expression: Creation is what the player feels every time they act, not just at discovery or promotion moments.
 
-The Scholar is the only agent that talks directly to the developer. It receives all direction, context, and decisions from the developer and translates them into scoped work for the other agents, tracks what each agent owes and has delivered, and follows up when work stalls. The other agents do not need to interface with the developer at all — they act on what the Scholar hands them, which keeps their own context limited to the task in front of them.
+**Trigger map.** Agent roles aren't improvised at runtime — each agent's scope, and the specific event that puts it to work, is fixed here:
 
-The Scholar organizes and routes; it does not edit or soften what any agent reports back, including the Heckler's critiques (see below). Its job is coordination and follow-through, not editorial filtering.
+| Agent | Does X when [trigger] |
+| --- | --- |
+| Ana | Scopes and tracks work when the developer hands off a new task, or follows up when a stalled task needs it. |
+| Loomwright | Builds or extends the movement/casting engine when a new control, targeting rule, or AoE shape needs implementing. |
+| Pato | Validates numbers when Warden or Frieren submits new wave, boss, or spell content for review. |
+| Frieren | Authors a new spell when a spell design brief is scoped against Loomwright's engine contract and Pato's templates. |
+| Warden | Generates a wave composition or boss/trial modifier when a new encounter needs content against the Spam-Waves-Vs.-Tactical-Trials pacing target. |
+| Lorena | Writes flavor text or dialogue when a new NPC, item, or trial event needs content consistent with the Lore Premise. |
+| Tilesmith | Sources or creates art/level assets when a new tileset, level layout, or VFX needs to fit the low-spec, stylized direction. |
+| Heckler | Critiques a build when a spell, wave, level, or the GDD itself is ready for adversarial review. |
 
-### Loomwright — Movement & Casting Engine
+**Formalized inputs and outputs.** Every agent that touches shipped content runs at **dev-time only** — through Claude Code or the API, authored and reviewed by the developer — never as a live call during a player's session (see Technical Requirements And Constraints, API Limits below). For each agent: what it takes in, what it produces, and what the player actually experiences as a result.
 
-One job: the interactive movement and targeting/casting engine — WASD tile-aware movement, the preview-and-confirm casting pipeline, and the three AoE shapes shipping in the slice (line, cone, circle). Nothing about numbers or economy lives here; Loomwright builds the engine that Actuary's numbers run through. This was the single largest schedule risk item the design review found, and trimming its scope down to only the engine (numbers moved out to Actuary below) is the direct response to that finding.
+- **Warden** (encounter generation) takes Pato's Mana/weight-class/Mastery templates plus the Spam-Waves-Vs.-Tactical-Trials pacing target and the three base enemy stat blocks, and produces wave-composition and boss/trial-modifier JSON — enemy counts, spawn timing, HP/damage modifiers, phase triggers. The player sees this as the actual enemy waves and mini-boss/Director trial fought in Gameplay Loop steps 2 and 7.
+- **Frieren** (spell content) takes a spell design brief plus Pato's weight-class (Light/Standard/Heavy) and three-tier Mastery templates, and produces a spell-definition JSON — element, AoE shape, weight class, base Power/target-count values. The player sees this as a castable spell in their hotbar, with its visual effect, cooldown, and Mastery growth.
+- **Lorena** (narrative & lore) takes the Lore Premise plus companion/ending-path consistency rules, and produces flavor-text and dialogue strings tagged to NPCs, items, and trial events. The player sees this as in-game text: NPC lines, item descriptions, trial intro/outro narration.
+- **Pato** (validation, not generation) takes Warden's and Frieren's JSON output plus its own numeric templates, and produces a pass/fail or flagged-diff validation report. The player never sees Pato directly — its gatekeeping is what the player experiences as spells and waves that feel numerically consistent, instead of a broken outlier slipping through.
+- **Ana** (orchestration, not generation) takes developer direction plus the current state of every other agent's in-flight work, and produces scoped task assignments and a tracked status of what's owed and delivered. The player never sees Ana directly — its coordination is what keeps Warden's, Frieren's, Lorena's, and Pato's output landing as one coherent build instead of four disconnected pieces.
+- **Heckler** (adversarial review, not generation) takes built content — a spell, a wave, a level, or the GDD itself — and produces blunt, unfiltered critique from synthetic audience personas. The player never sees Heckler directly — its critique is what catches a spell or wave that plays badly before a real player ever does.
 
-### Actuary — Economy & Validation
+#### Ana — Orchestration
 
-One job: owns every numeric template in the game — the Mana pool (pool size, regen rate), the Mastery tier table, and the Hexcoin economy (earn rate, the 100-Hexcoin fee) — and checks that everyone else's output actually complies with those numbers. Spellforge's authored spells and Warden's generated encounters both get checked against Actuary's templates before they ship. Actuary never writes engine code and never generates creative content; it only sets and enforces numbers. This split exists specifically so the agent that generates encounter content (Warden) is never the same agent that validates it — the review board's finding that the AI Director's generated content had no independent validation layer is what this agent is for.
+Ana is the only agent that talks directly to the developer. It receives all direction, context, and decisions from the developer and translates them into scoped work for the other agents, tracks what each agent owes and has delivered, and follows up when work stalls. The other agents do not need to interface with the developer at all — they act on what Ana hands them, which keeps their own context limited to the task in front of them.
 
-### Spellforge — Spell Content
+Ana organizes and routes; it does not edit or soften what any agent reports back, including Heckler's critiques (see below). Its job is coordination and follow-through, not editorial filtering.
 
-Authors each of the 12-20 spells — element, AoE shape, weight class assignment — against Loomwright's engine contract and Actuary's weight-class and Mastery templates. Never touches engine code and never sets the numeric templates itself, which lets spell authoring run in parallel with engine work once both contracts are set.
+#### Loomwright — Movement & Casting Engine
 
-### Warden — Encounter Generation
+One job: the interactive movement and targeting/casting engine — WASD tile-aware movement, the preview-and-confirm casting pipeline, and the three AoE shapes shipping in the slice (line, cone, circle). Nothing about numbers or economy lives here; Loomwright builds the engine that Pato's numbers run through. This was the single largest schedule risk item the design review found, and trimming its scope down to only the engine (numbers moved out to Pato below) is the direct response to that finding.
 
-One job: generates wave compositions and boss/trial modifiers against the Spam-Waves-Vs.-Tactical-Trials pacing target (see Mana And Spell Costs). Warden does not validate its own output — Actuary does that independently, so the same agent is never both author and grader of the same content. Warden is, in effect, a working development-time prototype of the in-fiction AI Encounter Director's generative half, with Actuary standing in for the validation layer the shipped Director will eventually need too.
+#### Pato — Economy & Validation
 
-### Loreweaver — Narrative & Lore
+One job: owns every numeric template in the game — the Mana pool (pool size, regen rate), the Mastery tier table, and the Hexcoin economy (earn rate, the 100-Hexcoin fee) — and checks that everyone else's output actually complies with those numbers. Frieren's authored spells and Warden's generated encounters both get checked against Pato's templates before they ship. Pato never writes engine code and never generates creative content; it only sets and enforces numbers. This split exists specifically so the agent that generates encounter content (Warden) is never the same agent that validates it — the review board's finding that the AI Director's generated content had no independent validation layer is what this agent is for.
+
+#### Frieren — Spell Content
+
+Authors each of the 12-20 spells — element, AoE shape, weight class assignment — against Loomwright's engine contract and Pato's weight-class and Mastery templates. Never touches engine code and never sets the numeric templates itself, which lets spell authoring run in parallel with engine work once both contracts are set.
+
+#### Warden — Encounter Generation
+
+One job: generates wave compositions and boss/trial modifiers against the Spam-Waves-Vs.-Tactical-Trials pacing target (see Mana And Spell Costs). Warden does not validate its own output — Pato does that independently, so the same agent is never both author and grader of the same content. Warden is, in effect, a working development-time prototype of the in-fiction AI Encounter Director's generative half, with Pato standing in for the validation layer the shipped Director will eventually need too.
+
+#### Lorena — Narrative & Lore
 
 Keeps the Lore Premise, companion authenticity, and ending-path scope (destroy, outwit, or transform the Director) consistent across every other agent's output, and writes flavor text and dialogue.
 
-### Tilesmith — Art & Level Layout
+#### Tilesmith — Art & Level Layout
 
 Produces the Spellroad tileset, level layouts, and lightweight VFX within the low-spec constraint. Tilesmith is not required to build every asset from scratch: it should first look for free-to-use art (tilesets, sprites, VFX) that fits the low-spec, stylized, readable-silhouette direction, and only originate new art where nothing suitable exists. Any sourced asset must carry a license that permits use in a shipped project (e.g. CC0, public domain, or an explicit free-for-commercial-use license), and Tilesmith tracks the source and license of everything it brings in so attribution requirements are never lost track of.
 
-### Heckler — Adversarial Review
+#### Heckler — Adversarial Review
 
-The Heckler wants the project to fail, and its job is to say so. It spawns synthetic sub-agent personas representing a spread of audience reactions to this specific kind of game — some who love slow tactical spellcraft, some who have no patience for it — and produces blunt, sometimes unfair, mixed feedback on whatever the other agents have built. Nothing it says is filtered for the developer's comfort. The Scholar routes its reports like any other agent's, but does not soften the critique itself.
+Heckler wants the project to fail, and its job is to say so. It spawns synthetic sub-agent personas representing a spread of audience reactions to this specific kind of game — some who love slow tactical spellcraft, some who have no patience for it — and produces blunt, sometimes unfair, mixed feedback on whatever the other agents have built. Nothing it says is filtered for the developer's comfort. Ana routes its reports like any other agent's, but does not soften the critique itself.
 
-This is the same shape as the six-reviewer panel already used to review this document (systems designer, narrative critic, player psychologist, feasibility lead, adversarial QA, business analyst) — the Heckler generalizes that one-time GDD review into a standing tool the developer can invoke against any build, spell, level, or encounter, not just the design document.
+This is the same shape as the six-reviewer panel already used to review this document (systems designer, narrative critic, player psychologist, feasibility lead, adversarial QA, business analyst) — Heckler generalizes that one-time GDD review into a standing tool the developer can invoke against any build, spell, level, or encounter, not just the design document.
+
+#### Ana's Orchestration Model
+
+The roster is a **hierarchical star topology**: Ana is the only agent that talks to the developer and the only agent every other agent reports to. No agent talks to another agent directly — if Loomwright needs something from Frieren's output, that request routes through Ana. This formalizes the constraint above (Ana never edits or paraphrases) and keeps a single audit trail, rather than a decentralized model where agents negotiate with each other off the record.
+
+Ana's dispatch procedure for a new developer request:
+
+1. Classify the request by which agent(s) it touches.
+2. Check dependencies — content referencing a shape or mechanic that doesn't exist yet must be sequenced (Loomwright cannot implement a shape Frieren hasn't authored yet); independent work (a new spell, a new wave, new dialogue, none referencing each other) dispatches in parallel.
+3. Every generated artifact stays in-progress until it clears its required gate: Warden/Frieren output goes to Pato (numeric validation); Lorena's output goes to Heckler (tone/consistency); Loomwright's engine changes go to a developer playtest.
+4. Status is always reported as one of three states — `shipped-and-validated`, `blocked-with-reason`, or `in-progress-with-owner` — so nothing sits unstated.
+
+This was chosen over two alternatives: a **pure sequential pipeline** (Ana finishes one agent's task fully before starting the next) is simpler to reason about but wastes time on genuinely independent work; a **decentralized/peer-to-peer** model (agents messaging each other directly) is faster for tight back-and-forth but breaks the single audit trail and the "Ana never edits or paraphrases" contract above.
+
+Example prompts, using the real `spell.json` fields from Engine Integration:
+
+> Developer -> Ana: "New spell needed for the Standard weight class: an ice spell that trades range for a slow effect. Scope it to Frieren."
+>
+> Ana -> Frieren: "Design brief: ice element, Standard weight class, AoE shape must be one of {line, cone, circle}. Must produce a genuine tactical tradeoff (Creation pillar constraint) — state the tradeoff in one sentence before the JSON. Output exactly one `spell.json` entry: `{id, element, shape, weight, base_power, base_targets}`. Do not set Mastery scaling — that's automatic. When done, hand off to Pato for validation before reporting back to me."
+>
+> Ana -> Pato: "Validate this spell.json entry against the Standard weight-class and Mastery templates: [entry]. Return pass, or a flagged diff naming exactly which field violates which template value."
+>
+> Ana -> Heckler: "Frieren's ember_lance spell.json just passed Pato's validation. Run your six-persona critique on it before I mark it shipped. Ground every critique in a specific field or interaction, not a vibe."
+>
+> Ana -> Developer: "Ice spell: shipped-and-validated (passed Pato, cleared Heckler with one MINOR note on cooldown feel). Wave 4 encounter: blocked — waiting on your call on whether backtracking into cleared levels is allowed. Lorena's trial dialogue: in-progress, owner Lorena."
+
+Every agent's day-to-day context — its own contract and a log of what it's actually produced — lives outside this GDD in an ICM-style store at `docs/agents/`, so a future task loads only what it needs instead of this whole document. See `docs/agents/CONTEXT.md` and the root `AGENTS.md`.
+
+### Technical Requirements And Constraints
+
+The biggest constraint is a Mac M1 — it can't build or run AAA-scale games, so The Last Spellroad is built to what the M1 can actually do, not to a hypothetical bigger machine. That constraint is already locked in as the Tech Stack callout at the top of Phaser And Web Constraints (Phaser + TypeScript, Docker-first dev workflow, static-file browser build); this section covers the constraints specific to the AI layer on top of that stack.
+
+- **API limits.** Because every content-generation call happens at dev-time (see Engine Integration), the shipped game has zero runtime exposure to Claude API rate limits — a player's session never calls the API. The dev-time generation passes (Warden, Frieren, Lorena) share whatever RPM/TPM limits the developer's account/tier allows, but since this is batch, not live-service, traffic, a slow or retried call costs the developer iteration time, never a player's experience.
+- **Context window.** Lorena needs enough context to hold the Lore Premise plus prior lore output to stay consistent across the vertical slice's handful of lore snippets and 12-20 spells — trivially small against any current Claude context window (200K tokens minimum). This is not a binding constraint for the seven-week slice. It becomes one only if the full game's "infinite Spellroad" scope is ever built, at which point holding the entire lore history in context stops scaling and needs retrieval/summarization instead.
+- **Processing latency.** Because generation is offline/dev-time, there is no player-facing latency budget — nothing the player does waits on an API call. The only latency that matters is the developer's own iteration speed: the target is that one level's worth of content (a handful of waves, its boss/trial, its share of the 12-20 spells) generates within a single working session, not that any individual call returns in milliseconds.
+
+### Token Budget And Projections
+
+Two budgets, tracked separately, because they answer different questions.
+
+**Content-generation budget** — the cost of the JSON that actually ships in the vertical slice (Warden's waves/bosses, Frieren's spells, Lorena's flavor text):
+
+| Generation action | Est. calls (vertical slice) | Est. tokens/call | Est. total tokens |
+| --- | --- | --- | --- |
+| Wave/boss-modifier generation (Warden) | ~20-35 (5-10 levels × 2-3 waves + 1 boss/trial each) | ~2,000-4,500 | ~50,000-150,000 |
+| Spell authoring (Frieren) | ~15-20 (12-20 spells) | ~1,500-2,500 | ~25,000-50,000 |
+| Lore/flavor text (Lorena) | ~10-20 | ~800-1,500 | ~10,000-30,000 |
+
+Each wave/boss-generation action costs approximately 2,000-4,500 tokens, which means generating the full vertical slice's roughly 20-35 encounters costs approximately $0.20-$0.65 at current Claude Sonnet 5 intro pricing ($2.00/$10.00 per million input/output tokens, through 2026-08-31; $3.00/$15.00 per million after). Across all three content-generating agents, one full authoring pass of the vertical slice is roughly 85,000-230,000 tokens — under $1 even redone five or six times during iteration. These are planning estimates, not measured usage — Pato and Ana should replace them with actuals once Warden and Frieren start generating real content.
+
+**Roster/orchestration budget** — the cost of running the whole agent roster (Ana orchestrating, Pato validating, Heckler reviewing, plus everyone's Claude Code sessions) across the seven-week course. This is too variable to project honestly from zero — it depends on how many review and iteration rounds actually happen. Rather than invent a number, track real spend after week 1 and project the remaining six weeks off that actual.
+
+**Model-selection governance.** Ana assigns a model per task rather than the GDD hard-coding one model for everything, and re-tunes the assignment against real usage rather than a one-time guess:
+
+| Task type | Default model | Why |
+| --- | --- | --- |
+| Structured/deterministic (Pato's rule-checking against numeric templates) | Claude Haiku 4.5 ($1.00/$5.00 per million tokens) | Validation is pattern-matching against a fixed template, not creative judgment — cheapest tier that reliably does the job |
+| Generative/creative (Warden's pacing, Frieren's spell design, Lorena's prose, Heckler's critique) | Claude Sonnet 5 ($2.00/$10.00 intro through 2026-08-31, $3.00/$15.00 standard, per million tokens) | Needs judgment calls a deterministic checker can't make; Sonnet 5 is the default balance of quality and cost for this work |
+| Orchestration (Ana's task tracking and routing) | Claude Sonnet 5 | Coordination work benefits from the same judgment tier as the agents it's coordinating |
+
+Ana reviews this table against actual per-agent token usage (visible in Claude Code session logs / API usage) at the end of each week and re-tunes it rather than treating it as fixed at design time.
 
 ## Seven-Week Vertical Slice
 
