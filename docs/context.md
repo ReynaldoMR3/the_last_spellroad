@@ -4,6 +4,8 @@
 
 This folder stores durable design, planning, lore, and implementation notes for The Last Spellroad.
 
+Agent-generated context (per-agent contracts and logs, ICM-style) lives at `agents/` — see `agents/CONTEXT.md` for the index. Load that instead of this whole folder when working on a specific agent's task.
+
 ## Scope
 
 | Path | Purpose | Status |
