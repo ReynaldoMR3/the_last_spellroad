@@ -42,6 +42,8 @@ The seven-week vertical slice scopes only the "defeated" path: the mini-boss/Dir
 
 The lore says the Spellroad is infinite. The course prototype ships a finite vertical slice that makes that infinity feel possible.
 
+The road is strictly forward-only: once a road segment is cleared, the mage cannot backtrack into it. This is a permanent rule, not a vertical-slice simplification — it keeps Hexcoin earned within a single expedition (see Hexcoin) a bounded, predictable amount instead of an open-ended farm, which is what lets Pato tune fees against a real number instead of an unbounded economy. It does not mean a given NPC, shop, or vendor archetype is a one-time encounter: the same recurring archetype can reappear as a new instance further down the road. Forward-only constrains revisiting a specific cleared segment, not reusing a character or location type.
+
 Trapped adventurer NPCs (step 5) are invulnerable in this MVP — AoE spells cannot kill or harm them, so there is no friendly-fire or griefing edge case to resolve. The richer version of this beat that the lore invites — some adventurers preferring captivity, a real choice about whether "rescue" is wanted — is a next-step for a future pass on the lore, not built for the vertical slice.
 
 ## Death And Mastery Loss
@@ -66,6 +68,27 @@ When the mage dies, mastery is what is set back, not the spell itself:
 - Death drops one Mastery tier on a random equipped spell. This is the default, free outcome.
 - Mastery is recovered the same way it was built: by using the affected spell in combat again. There is no separate grind system for buying mastery back.
 
+### HP Pool And The Death Trigger
+
+Mastery loss is what death *costs* the mage; HP is what actually *triggers* a death. The mage has a 100-point HP pool, separate from Mana, that does not regenerate during combat — unlike Mana's constant passive regen (see Mana And Spell Costs), HP holds steady between hits until the encounter ends, then resets in full to 100 at the start of every wave and at every expedition/road-segment checkpoint. Reaching 0 HP fires the Mastery-loss death trigger above; the mage then respawns at the last checkpoint with a full HP pool.
+
+Enemy archetypes deal fixed per-hit damage that Warden tunes wave composition and hit frequency around — Warden may not invent a different per-hit number:
+
+| Archetype | Per-Hit Damage | Effect |
+| --- | --- | --- |
+| Melee | 7 (7% of pool) | Direct HP damage |
+| Ranged | 4 (4% of pool) | Direct HP damage |
+| Debuffer | 0 direct damage | Drains speed or Mana regen instead (see below) |
+
+A Debuffer applies either a 12%-per-application speed drain or a 1.5 Mana/sec regen drain (off the 5/sec base — see Mana And Spell Costs), never both from the same instance, each capped at 2 applications (24% max speed loss; 3.0/sec max regen loss, with regen never dropping below a 2/sec floor). The tighter 2-application cap, versus the 2-3 originally considered, exists specifically because HP has no in-combat regen: a compounding drain that extends exposure time or removes a Mana-fueled escape option carries more downside against a pool that can't recover mid-fight than it would against one that can.
+
+Regular waves and boss/trial fights are tuned to different shares of this pool, matching the Spam Waves Vs. Tactical Trials pacing split:
+
+| Encounter type | Competent play | Careless play |
+| --- | --- | --- |
+| Regular wave | 10-15% of the pool | 25-35% of the pool |
+| Boss/trial | 40-60% of the pool, cumulative across phases | 70-90%+ of the pool |
+
 ### Hexcoin
 
 Hexcoin is a currency the mage earns from combat: defeating an enemy grants 1 Hexcoin, flat across enemy types for now. Hexcoin persists through death like every other form of permanent progression — it is never part of what is lost.
@@ -74,9 +97,24 @@ The name is a deliberate double meaning, and it is part of the lore, not just fl
 
 Hexcoin exists to give the mage a way to soften the mastery hit on death: paying 100 Hexcoin (roughly the return from 100 defeated enemies) lets the player choose which equipped spell takes the Mastery-tier loss, instead of it being decided at random. The fee is deliberately steep enough to be a real tradeoff, not a formality.
 
-Beyond this fee, Hexcoin is the intended foundation for a future item and upgrade economy — the same resource-cost gap the design review flagged as missing now has a named, earnable currency to build numbers on top of.
+A second fee draws on the same currency: paying a flat Hexcoin cost at a boss/trial phase-break restores part of the HP pool mid-fight (see Phase-Transition Recovery, below). Because the road is forward-only (see Gameplay Loop), Hexcoin earned since the current expedition began is a bounded, trackable sub-total — the 100-Hexcoin Mastery-choice fee and the phase-transition recovery fee both draw against that same limited per-expedition pool, so spending on one is a real tradeoff against affording the other, not two independent budgets.
+
+Beyond these fees, Hexcoin is the intended foundation for a future item and upgrade economy — the same resource-cost gap the design review flagged as missing now has a named, earnable currency to build numbers on top of.
 
 This also resolves the tension between the Creation and Power pillars: Creation is about which spells and shapes the mage owns and how they trade off against each other, and that layer never regresses. Power is about mastery and hierarchy rank, and that is the layer death sets back.
+
+### Phase-Transition Recovery
+
+A long, multi-phase boss/trial fight has no in-combat HP regen (see HP Pool And The Death Trigger), so one bad early phase could otherwise compound into a death spiral no later play can fix. The fix is a paid recovery, not a free one: at each phase-break in a multi-phase boss/trial fight (regular waves have no phases to break between), the mage may pay a flat Hexcoin fee to restore 15% of the HP pool (15 HP), or decline and continue at current HP.
+
+The fee and its limits are deliberately shaped so skill, not money, still decides the fight:
+
+- **Cap:** the number of recoveries available across a single fight is (that boss's total phase-breaks − 1), capped at 3 recoveries no matter how long the fight runs. A boss with only one phase-break — the shortest possible multi-phase fight — offers zero recoveries, by design, since the death-spiral risk this mechanic protects against only exists in longer fights. Warden sets each boss's phase-break count as part of its own encounter design; Pato validates every submission against the next rule before it ships.
+- **Money ceiling:** total HP recoverable via fee across the whole fight can never exceed 33% of that boss's competent-play threat budget (see HP Pool And The Death Trigger). This is what actually guarantees money can only ever cover a minority of a well-played fight's damage — Pato rejects any Warden phase design that would let purchased recovery exceed this share.
+- **Fee:** a flat Hexcoin cost, the same price every time rather than scaled to how well the run is going — set by Pato per boss/expedition tier, sized to be a real, stinging cost rather than pocket change, but reachable by a player who has been reasonably active. Because the price never scales with performance, a struggling player and a thriving player face the identical choice.
+- **Basis:** the fee draws from Hexcoin earned since the current expedition began (see Hexcoin), not the mage's full lifetime balance. Hexcoin earned mid-fight (from adds or summons killed during the boss encounter) is frozen out of this calculation — it banks toward the expedition total for later, but cannot be spent on that same fight's own recovery fee. This closes off farming adds specifically to afford the next phase-break's fee.
+
+The choice this creates is deliberate: pay because the fight is understood and a mistake is worth buying back, or decline, treat the attempt as a lesson, and come back better prepared. Neither path is the "correct" one.
 
 ## Forms Of Fun
 
@@ -413,5 +451,6 @@ The first course target should include:
 - Should the Director have a human-readable voice, or should it communicate only through generated trials?
 - Should adventurers be allies, memories, merchants, or temporary summons in the first prototype?
 - Should hierarchy rank (Power pillar) ever drop on death too, or is Mastery loss on a single spell the entire death cost?
-- What else can Hexcoin buy beyond paying the 100-Hexcoin fee to choose the Mastery hit (see Hexcoin) — items, relics, and their prices are not yet defined.
+- Beyond the 100-Hexcoin Mastery-choice fee and the Phase-Transition Recovery fee (see Hexcoin), what else can Hexcoin buy — items, relics, and their prices are still undefined.
 - Should the 1-Hexcoin-per-kill rate ever vary by enemy toughness, or stay flat for the whole vertical slice?
+- What is the exact flat Hexcoin amount for the Phase-Transition Recovery fee, and does it vary by boss/expedition tier? This is Pato's numeric call against the design rules already fixed in Phase-Transition Recovery, not an open design question for the developer.
