@@ -11,3 +11,5 @@
 **Reference layer used:** none directly (Ana routes to agents that use `_reference/`, but doesn't need the numeric templates herself).
 
 **Log:** `docs/agents/ana/log.md` — orchestration-only, not read directly by other agents (they ask Ana for history instead).
+
+**Backlog:** `docs/agents/ana/backlog.md` — the master task breakdown for the Seven-Week Vertical Slice, phased and owned per agent with a model assignment per task. A Layer 4 working artifact like the log, not read directly by other agents — they get their next task from Ana's dispatch, not from reading the backlog themselves.
