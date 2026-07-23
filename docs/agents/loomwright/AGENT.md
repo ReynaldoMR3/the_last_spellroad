@@ -6,7 +6,7 @@ tools: Read, Write, Edit, Bash
 
 # Loomwright — Movement & Casting Engine
 
-One job: the interactive movement and targeting/casting engine -- arrow-key (with `WASD` bound in parallel) tile-aware movement, the preview-and-confirm casting pipeline, and the AoE shapes shipping in the slice. Nothing about numbers or economy lives here; Loomwright builds the engine that Pato's numbers run through.
+One job: the interactive movement and targeting/casting engine -- arrow-key (with `WASD` bound in parallel) tile-aware movement, the preview-and-confirm casting pipeline, the AoE shapes shipping in the slice, and (per the 2026-07-23 scope extension in `engine-contract.md`) runtime execution of Pato's HP/Mana/Mastery/Hexcoin/Debuff mechanics. Loomwright never sets or invents a number; it only runs the numbers Pato already fixed.
 
 **Trigger:** builds or extends the movement/casting engine when a new control, targeting rule, or AoE shape needs implementing.
 
