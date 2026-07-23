@@ -84,3 +84,52 @@ Read `docs/agents/heckler/log.md`'s second 2026-07-21 entry directly rather than
 **My status call: `shipped-and-validated` for the design/numeric/content layer of the death system**, effective this entry — five decisions, both templates finalized, one Pato-validated boss composition, zero remaining BLOCKING findings across two full Heckler passes. This is the right call rather than leaving it open indefinitely: nothing currently queued (Loomwright's future engine work, Lorena's narrative pass) depends on the checkpoint/retry question resolving first, and my own model doesn't allow a clean artifact to sit unstated waiting on a question nobody is currently blocked by. The two tracked items above are not folded into this validation and are not to be read as closed.
 
 **Teed up for the developer, not urgent tonight:** the checkpoint/retry income-bounding question (does the mage's return-to-checkpoint on death place them before or after the pre-boss waves, and do those waves re-award Hexcoin on retry) needs a developer call before it actually matters — i.e., before Loomwright's future engine work locks in checkpoint/respawn placement, not before then. No action needed before that planning cycle starts. Will resurface this explicitly whenever Loomwright's engine work is scoped, so it's answered before, not after, respawn placement gets built.
+
+## 2026-07-22 — Control scheme: movement moved to arrow-keys-primary, hotbar locked to `1-6`
+
+Developer's call, not agent-originated: the original `WASD`-primary scheme put movement and the `1-6` hotbar on the same hand, forcing that hand to jump between the two mid-fight instead of letting both hands act at once. Fix is arrow-keys-primary for movement (right hand) with `WASD` bound in parallel as an equivalent alternate, `1-6` hotbar unchanged (left hand). Written into the GDD (Core Controls And Casting, Agent Role Definitions — Loomwright) and into Loomwright's canonical contract (`docs/agents/_reference/engine-contract.md`, `docs/agents/loomwright/AGENT.md`).
+
+Checked the actual repo state before writing this: `src/scenes/SpellroadScene.ts` already binds `Phaser`'s cursor keys and `WASD` in parallel (`this.cursors?.left.isDown || this.keys?.A.isDown`, etc.) — arrow-key movement already works today. This is a documentation/priority correction, not an engine change; no Loomwright dispatch needed for this entry. Status: `shipped-and-validated` for the design-doc layer.
+
+## 2026-07-22 (2) — Pre-final audit against the 2026-07-21 review board's Top 5, before the developer submits Assignment #2
+
+Re-read `gdd-review-kit/reviews/2026-07-21/SYNTHESIS.md` in full against the GDD's current state, since the death-system work this week only ever cited it as the trigger for Issue #1, not as a checklist to close out systematically. Result: most of the board's Top 5 is genuinely resolved, but not all of it, and two of the resolved-looking items were resolved via a different path than the board itself proposed.
+
+**Confirmed resolved:**
+- Issue #1's core (no HP/death trigger) — closed by this week's full HP/Death/Recovery build.
+- Issue #3 (100-Hexcoin fee reachability/farmability disagreement) — closed via the forward-only rule (no backtracking, so not farmable) plus `hexcoin-template.md`'s explicit acknowledgment that Fee 1 is *deliberately* steep rather than reliably affordable — a considered design stance, not an oversight.
+- Quick Win #1 (state whether backtracking is allowed) — done, forward-only.
+
+**Fixed just now, directly, no developer call needed (editorial/consistency fixes, not game-balance judgment):**
+- Genre-label contradiction (Old #1 resurfaced): Summary called the game a "roguelite" while Death And Mastery Loss calls it "a persistent RPG, not a run-reset roguelite." Added a parenthetical to the Summary clarifying "roguelite" here means the run-based expedition structure only, not run-reset progression.
+- Issue #2 (no persistence/save architecture, BLOCKING) — added a new "Save Data And Persistence" section: `localStorage`, single-device/single-browser for the slice, schema-versioned with a clean-reset-on-mismatch policy, ownership split between Loomwright (mechanism) and Pato (valid values). The answer was effectively dictated by the already-locked no-server static-build stack decision, not an open judgment call.
+- Issue #4's Power half (no feedback moment for "old enemies become easier") — added a concrete UI beat: an on-screen indicator at the qualifying cast for a Mastery-tier-up, a short full-screen beat between expeditions for a hierarchy-rank promotion. Pure UI spec, no new numeric design.
+- Issue #5 (no engineering-hour budget next to the token budget) — added an explicit paragraph naming engine work as the largest unbudgeted hours sink and stating the response to slippage (cut scope, don't silently extend), rather than inventing a fake hours estimate to match the token budget's precision.
+
+**Still genuinely open — these need the developer, not another editorial pass:**
+1. Novice-floor behavior (Quick Win #2, BLOCKING via adversarial-qa): what happens when the random death-roll targets an already-Novice spell. `mastery-template.md` has flagged this since the review and Pato is explicitly blocked on it. Now also listed in the GDD's own Open Design Questions (it wasn't, before this entry, despite the reference doc pointing back to it as if it were).
+2. Mastery growth rate (systems-designer Finding 1, BLOCKING): how many landed casts/kills per tier. Never numbered anywhere. Warden hasn't generated regular-wave data yet to size it against, so this can't honestly be computed today without inventing a baseline — flagged as a developer call (set a placeholder now, or wait for Warden's data) rather than guessed.
+3. Hierarchy rank drop on death — already tracked pre-existing, still open.
+4. Checkpoint/retry Hexcoin income-bounding question — already tracked pre-existing (entry (6), 2026-07-21), still open.
+
+**Not fixed, lower priority, noted but not acted on:** Tilesmith's art-origination pipeline has no described technical mechanism (feasibility-lead), unlike Warden/Frieren/Lorena's JSON pipeline — real gap, but not in the board's Top 5 and not blocking anything currently in flight.
+
+## 2026-07-22 (3) — Developer decisions on the two remaining Novice-floor/rank questions; growth rate stays open
+
+Developer's calls, all three taken directly rather than guessed:
+
+1. **Novice-floor behavior:** exclude Novice-tier spells from the death roll's pool. If every equipped spell is Novice, death costs no Mastery that time. Closes both halves of the original tension the review board couldn't settle on its own — adversarial-qa's padding-exploit concern (it's now the designed rule, nothing to exploit) and player-psychologist's new-player-fairness concern (new players naturally carry more Novice spells and get the same built-in mercy, not a mechanic only experienced players can find). Written into Death And Mastery Loss and `mastery-template.md`.
+2. **Hierarchy rank on death:** never drops. Mastery-tier loss on one spell is the entire cost, keeping death's cost narrow rather than stacking two permanent-progression setbacks. Written into the same two places; removed from Open Design Questions since it's now decided.
+3. **Mastery growth rate:** developer explicitly chose *not* to set a placeholder tonight, opting to wait for Warden's real regular-wave data rather than lock in a guessed number ahead of Assignment #2's submission. Left in Open Design Questions, reworded to make clear this is a deliberate deferral with a stated reason, not a gap nobody noticed.
+
+Status: `shipped-and-validated` for decisions 1 and 2; `blocked-with-reason` (waiting on Warden) for decision 3's underlying number, exactly as it was before this entry — this entry only makes the reason explicit and developer-confirmed rather than assumed.
+
+## 2026-07-22 (4) — Tilesmith's art-sourcing pipeline: the last un-mechanized gap from the 2026-07-21 review, now closed
+
+Developer asked to investigate this specifically (feasibility-lead's finding: Tilesmith is the only content-generating agent with no described technical mechanism, unlike Warden/Frieren/Lorena's raw-text-to-JSON pipeline). Researched real, currently-live free-asset sources rather than inventing a plausible-sounding pipeline: Kenney.nl (site-wide CC0, no attribution, includes a ~1,700-asset Roguelike/RPG pack purpose-built for exactly this game's look) as the default source, OpenGameArt.org filtered to CC0 only as a secondary source, and the standard free Tiled-editor-to-Phaser JSON tilemap workflow (`this.load.tilemapTiledJSON()`) as the concrete integration path — the same "Phaser loads JSON natively" principle Engine Integration already established for everyone else's content, just applied to level geometry.
+
+Wrote the full search order (Kenney -> OpenGameArt CC0 -> recolor/recombine a sourced CC0 tile -> hand-author only as a last resort, using a free tool like Piskel at matching tile scale) into a new GDD section, "Art Sourcing And Origination Pipeline," and a new canonical reference doc, `docs/agents/_reference/art-sourcing-contract.md`, matching the pattern Loomwright's `engine-contract.md` already set.
+
+**Corrected a real gap while doing this, not just documentation:** Tilesmith's own `AGENT.md` only granted it `Read, Write` tools — it had no way to actually search the web or download a sourced asset. Added `WebSearch`, `WebFetch`, `Bash` to its tool list, since the mechanism this entry describes is genuinely impossible without them, unlike Warden/Frieren/Lorena's pure-generation jobs.
+
+Status: `shipped-and-validated`. This was the last item from the 2026-07-21 review's findings still without at least a stated position (fixed, deferred, or explicitly out of scope) — the GDD does not have any silently-unaddressed finding from that review left as of this entry.

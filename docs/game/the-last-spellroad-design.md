@@ -2,7 +2,7 @@
 
 ## Summary
 
-The Last Spellroad is a low-spec, top-down, Tibia-like magical roguelite built around short single-lane expeditions. The player controls a long-lived wandering mage who discovers an ancient Spellroad between worlds and becomes trapped inside it.
+The Last Spellroad is a low-spec, top-down, Tibia-like magical roguelite built around short single-lane expeditions. ("Tibia-like" refers to *Tibia*, a late-1990s top-down MMORPG — the reference is to its minimalist, low-spec 2D presentation and unhurried pacing, not to any multiplayer or MMO structure, which this game does not have. "Roguelite" here means the run-based *expedition* structure only — enter, fight, retreat or advance — not run-reset progression: see Death And Mastery Loss for why nothing about a death or a completed expedition resets the mage's permanent progress.) The player controls a long-lived wandering mage who discovers an ancient Spellroad between worlds and becomes trapped inside it.
 
 The game is inspired by the feeling of melancholic long-lived mage journeys, school-of-magic spellcraft, sacred geometry, and tactical tile-based RPG combat. It must remain original: no copied names, factions, spells, characters, schools, or direct lore from existing works.
 
@@ -66,6 +66,8 @@ When the mage dies, mastery is what is set back, not the spell itself:
 
 - The mage keeps every spell they have ever discovered and can still equip and cast all of them.
 - Death drops one Mastery tier on a random equipped spell. This is the default, free outcome.
+- The random roll only considers spells above Novice tier. An already-Novice equipped spell has nothing left to lose and is excluded from the roll pool; if every equipped spell is Novice, death costs no Mastery that time. This is a deliberate rule, not an overlooked edge case: it closes off padding a hotbar with a throwaway Novice spell as an exploit (there is nothing to exploit — the same outcome is just the designed floor), and it doubles as a built-in mercy for new players, who naturally carry more Novice-tier spells and can least afford an unmitigated random penalty.
+- Hierarchy rank (see Power, under Forms Of Fun) never drops on death. Mastery-tier loss on a single spell is the entire cost death imposes — this keeps the cost narrow and specific rather than stacking two separate permanent-progression setbacks on one death.
 - Mastery is recovered the same way it was built: by using the affected spell in combat again. There is no separate grind system for buying mastery back.
 
 ### HP Pool And The Death Trigger
@@ -139,6 +141,8 @@ The mage grows in strength with every meaningful discovery and victory. New spel
 
 Power should be visible in combat and in status. The player should notice that old enemies become easier, new enemy types require better spell choices, and each promotion marks a step deeper into the Spellroad's hierarchy. Mechanically, this pillar is carried by per-spell Mastery and hierarchy rank (see Death And Mastery Loss) — the layer of progression that death sets back, while the spellbook itself never regresses.
 
+This has to be a felt moment, not just a true fact players could infer from numbers if they looked closely enough: a spell reaching a new Mastery tier fires a brief on-screen indicator at the moment of the qualifying cast (not buried in a menu), and a hierarchy-rank promotion — being rarer and more significant — gets a short full-screen beat between expeditions rather than a toast. Both are UI work for Loomwright to build against once Frieren's and Pato's Mastery-tier data exists to trigger off of; neither needs new numeric design, only a moment that surfaces numbers the game already tracks.
+
 ### Discovery
 
 The Spellroad should keep pulling the player forward through unknown spaces and hidden knowledge.
@@ -196,13 +200,15 @@ The Mana numbers above stay fixed everywhere. What changes is the encounter itse
 
 This gives the AI Encounter Director a concrete target when generating wave compositions and boss modifiers: waves should be sized to resolve before Mana pressure kicks in, and boss/trial encounters should be sized to outlast a careless Mana budget. That target did not exist before; the Course AI Feature section can generate against it.
 
+**Where the Mana gate actually binds, stated precisely:** every weight class is authored at or below its cost-to-cooldown ratio matching the 5/sec regen rate (Light: 10 Mana / 2s = 5/sec; Standard: 20 Mana / 4s = 5/sec; Heavy: 35 Mana / 8s = 4.375/sec). This is deliberate — it means repeatedly casting any *single* spell alone, on cooldown, forever, never actually drains the pool, in a wave or in a boss/trial fight alike. The Mana gate does not bind against solo spam by design; it binds only when the player casts multiple different spells whose cooldown windows overlap (bursting two or more spells back-to-back to answer a threat immediately, rather than one spell repeatedly), which draws the shared pool down faster than the flat regen replaces it. This makes it a hard, explicit constraint on Warden's encounter design, not just a target for encounter length: a boss/trial fight only creates real Mana pressure if its phases force the player to answer multiple simultaneous or rapid-fire threats that a single repeated spell cannot resolve alone (e.g., a fast add needing an immediate Light response while a Heavy spell is still on cooldown from the last cast) — length alone, without that forced spell-mixing, does not make solo-spam attrition happen.
+
 ## Core Controls And Casting
 
 The first playable version should use a keyboard-first tactical control model with mouse-assisted targeting. The goal is to keep the nostalgic clarity of Tibia-style hotkeys while reducing complexity for the course prototype.
 
-Movement should support `WASD` as the primary control scheme. The mage moves in a grid-aware way, either tile-by-tile or with short continuous movement that still respects tile positioning, enemy ranges, and spell geometry. Mouse click movement can be added as a secondary convenience if time allows, but it should not be required for the prototype.
+Movement should support the **arrow keys** as the primary control scheme, with `WASD` bound in parallel as an equivalent alternate (both control the same movement, not two separate schemes to choose between). The mage moves in a grid-aware way, either tile-by-tile or with short continuous movement that still respects tile positioning, enemy ranges, and spell geometry. Mouse click movement can be added as a secondary convenience if time allows, but it should not be required for the prototype.
 
-The player should equip a small spell hotbar, starting with `1-4` or `1-6`. Each hotkey maps to one prepared spell. Full hotkey customization can be a later feature, but the prototype should use fixed bindings so the team can focus on combat readability and spell behavior.
+The player should equip a small spell hotbar on the number row, `1-6`, one hotkey per prepared spell. This split is deliberate, not incidental: arrow keys sit under the right hand and the `1-6` hotbar sits under the left, so movement and casting are each a single hand's job the whole fight — the player never has to move one hand off its key the instant the other needs to act. (An earlier version of this document specified `WASD` as the sole movement scheme, which put movement and the hotbar on the same hand and forced that hand to jump between the two mid-fight; arrow-keys-primary is the fix.) Full hotkey customization can be a later feature, but the prototype should use fixed bindings so the team can focus on combat readability and spell behavior.
 
 A spell, once discovered, is known forever (see Death And Mastery Loss) regardless of whether it is equipped. The player can freely change which known spells fill the hotbar, but only between expeditions or at a road-segment checkpoint, never mid-combat. This turns loadout selection into a deliberate planning moment — picking spells for the fight ahead — rather than something that needs a mid-fight swap UI.
 
@@ -272,6 +278,32 @@ The course template assumes Unity or Unreal; The Last Spellroad's stack is Phase
 7. The player experiences the result as enemy behavior, spell behavior, or in-game text.
 
 **Why JSON:** Phaser already loads JSON natively (`this.load.json()`, and its own tilemap format is JSON), so no adapter layer is needed. TypeScript's compile-time schema check is what makes step 6 catch a bad file before it ever reaches a player, instead of breaking silently mid-session. JSON is also plain text, so it stays diffable and human-editable, matching every other hand-off in this project.
+
+## Save Data And Persistence
+
+"Persistent RPG, not a run-reset roguelite" (see Death And Mastery Loss) is only a real promise if something actually remembers the mage's progress after the browser tab closes — this section is that mechanism, distinct from the dev-time content pipeline above (that pipeline ships static game data; this one saves a specific player's live progress).
+
+For the vertical slice, the mage's progress is saved to the browser's `localStorage`, as a single versioned JSON blob written on every state-changing event (Mastery-tier change, new spell discovered, Hexcoin earned or spent, hierarchy-rank promotion, checkpoint reached) and read back on load. This follows directly from the stack decision already locked in Phaser And Web Constraints: a static-file, no-server build has no backend to hold an account-based save, so the browser itself is the only place state can live for this slice. Concretely:
+
+- **Scope:** single browser, single device — no account system, no cloud sync, no cross-device continuation. This is an explicit vertical-slice limit, not a lost requirement; a real account-based save is future scope if the full game is ever built past the course prototype.
+- **What's saved:** every spell's Mastery tier, the set of discovered spells, hierarchy rank, the Hexcoin balance, and lore/discovery flags — the full list of things Death And Mastery Loss and Hexcoin promise carry forward permanently.
+- **Schema versioning:** the saved blob carries a schema-version field. A version mismatch on load (e.g., after a save-format change mid-development) triggers a clean reset with a one-time notice, rather than attempting a silent, error-prone migration of an old shape into a new one — acceptable for a pre-release vertical slice where no player has an install base to protect yet.
+- **Ownership:** this is Loomwright's engine scope — the read/write mechanism itself, alongside movement and casting — while Pato's templates continue to own what values are valid to write (a Mastery tier outside Novice/Adept/Master, for instance, is a Pato-template violation regardless of where it's read from).
+
+## Art Sourcing And Origination Pipeline
+
+Warden, Frieren, and Lorena generate structured data at dev-time with no external dependency beyond the model itself (see Engine Integration). Tilesmith's job is fundamentally different in kind, not just content: art can't be generated as a JSON value checked against a numeric template — it has to be found, license-checked, and fitted to this game's look, and only *originated* from scratch as a last resort. This section is the technical mechanism that was missing; without it, "search for a free asset first" was direction with no described process behind it.
+
+**Search order, cheapest and safest first:**
+
+1. **Kenney.nl.** Every asset on the entire site is CC0 (public domain equivalent) — no attribution required, commercial use and modification both unrestricted, which removes per-asset license-checking overhead entirely. Its "Roguelike/RPG Pack" (~1,700 assets) and "RPG Base" pack are stylistically consistent with each other and purpose-built for exactly this kind of low-spec, tile-based, top-down fantasy game, which is why this is the first and default source. This should cover the vertical slice's tileset, base enemy sprites (as a starting point Frieren/Warden's element and archetype choices can reskin), and simple VFX placeholders.
+2. **OpenGameArt.org, filtered to CC0 only.** Used only for a specific need Kenney's packs don't cover — Tilesmith searches with a CC0 filter specifically (never CC-BY or a share-alike license) to keep every sourced asset at the same no-attribution-required bar as source 1, simplifying the license log to a single license type across the whole project.
+3. **Recolor or recombine an already-sourced CC0 asset.** Because CC0 imposes no restriction on derivatives, this is the actual mechanism behind "originate new art" for most of this vertical slice's needs — a bespoke fire/ice/earth/lightning VFX palette, or the Director's road-and-hexagram motif, built by editing an existing CC0 base tile rather than drawing one from nothing. This keeps new art visually consistent with the sourced base (same pixel scale, same silhouette language) essentially for free.
+4. **Hand-author new pixel art, only if no CC0 base exists to start from.** Reserved for something with no sourced equivalent at all (the Director's unique in-fiction sigil, say). Authored at the same tile scale as the sourced assets (16x16 or 32x32, matching whichever Kenney pack anchors the tileset) using a free, cross-platform tool (e.g. Piskel, browser-based, no install) so it fits the low-spec/Mac M1 constraint the same way every other technical decision in this document does.
+
+**Getting sourced art into Phaser:** level layouts are authored or edited in the free Tiled map editor and exported as a Tiled-format JSON map, loaded the same way every other data file in this project loads — `this.load.image()` for the tileset spritesheet, `this.load.tilemapTiledJSON()` for the layout — then built into a scene with `this.make.tilemap()`, `map.addTilesetImage()`, and `map.createLayer()`. This isn't a special case bolted on for art; it's the same "Phaser already loads JSON natively" principle Engine Integration already established for Warden's, Frieren's, and Lorena's content, just applied to level geometry instead of gameplay data.
+
+**Logging, regardless of license:** every asset Tilesmith brings in — sourced or hand-authored — gets one entry in `docs/agents/tilesmith/log.md`: source URL, license, and which of the four steps above produced it. CC0 assets need no attribution to ship, but Tilesmith logs them anyway, so a human license audit later doesn't have to reconstruct sourcing decisions from memory.
 
 Illustrative schema shapes (not final — Loomwright's engine contract and Pato's templates govern the authoritative fields):
 
@@ -344,7 +376,7 @@ Ana organizes and routes; it does not edit or soften what any agent reports back
 
 #### Loomwright — Movement & Casting Engine
 
-One job: the interactive movement and targeting/casting engine — WASD tile-aware movement, the preview-and-confirm casting pipeline, and the three AoE shapes shipping in the slice (line, cone, circle). Nothing about numbers or economy lives here; Loomwright builds the engine that Pato's numbers run through. This was the single largest schedule risk item the design review found, and trimming its scope down to only the engine (numbers moved out to Pato below) is the direct response to that finding.
+One job: the interactive movement and targeting/casting engine — arrow-key (with `WASD` bound in parallel) tile-aware movement, the preview-and-confirm casting pipeline, and the three AoE shapes shipping in the slice (line, cone, circle). Nothing about numbers or economy lives here; Loomwright builds the engine that Pato's numbers run through. This was the single largest schedule risk item the design review found, and trimming its scope down to only the engine (numbers moved out to Pato below) is the direct response to that finding.
 
 #### Pato — Economy & Validation
 
@@ -364,7 +396,7 @@ Keeps the Lore Premise, companion authenticity, and ending-path scope (destroy, 
 
 #### Tilesmith — Art & Level Layout
 
-Produces the Spellroad tileset, level layouts, and lightweight VFX within the low-spec constraint. Tilesmith is not required to build every asset from scratch: it should first look for free-to-use art (tilesets, sprites, VFX) that fits the low-spec, stylized, readable-silhouette direction, and only originate new art where nothing suitable exists. Any sourced asset must carry a license that permits use in a shipped project (e.g. CC0, public domain, or an explicit free-for-commercial-use license), and Tilesmith tracks the source and license of everything it brings in so attribution requirements are never lost track of.
+Produces the Spellroad tileset, level layouts, and lightweight VFX within the low-spec constraint. Tilesmith is not required to build every asset from scratch: it should first look for free-to-use art (tilesets, sprites, VFX) that fits the low-spec, stylized, readable-silhouette direction, and only originate new art where nothing suitable exists. Any sourced asset must carry a license that permits use in a shipped project (e.g. CC0, public domain, or an explicit free-for-commercial-use license), and Tilesmith tracks the source and license of everything it brings in so attribution requirements are never lost track of. See Art Sourcing And Origination Pipeline for the concrete search order, license-compliance rule, and how sourced art actually loads into Phaser — this was previously undescribed at the technical level every other content-generating agent already had.
 
 #### Heckler — Adversarial Review
 
@@ -423,6 +455,8 @@ Each wave/boss-generation action costs approximately 2,000-4,500 tokens, which m
 
 **Roster/orchestration budget** — the cost of running the whole agent roster (Ana orchestrating, Pato validating, Heckler reviewing, plus everyone's Claude Code sessions) across the seven-week course. This is too variable to project honestly from zero — it depends on how many review and iteration rounds actually happen. Rather than invent a number, track real spend after week 1 and project the remaining six weeks off that actual.
 
+**The developer's own hours are the real constraint, and this document does not forecast them the way it forecasts token spend.** The token and dollar figures above can be projected precisely because API pricing is fixed and call counts are estimable; a solo developer's build/review/iteration hours across seven weeks cannot be honestly forecast the same way this early, and this GDD does not pretend otherwise by inventing a number. What is fixed instead: engine implementation (Loomwright's scope — movement, casting, save/load, the AoE shapes) is the single largest hours sink and has not started as of this writing, while every agent-generated content layer (Warden, Frieren, Pato, Lorena's death-system pass) is comparatively cheap in developer time because validation is automated. If week-by-week hours tracking shows engine work slipping the seven-week window, the response is to cut scope (fewer levels, fewer spells, defer a shape) rather than silently extend the timeline — the same principle the vertical slice's own bullet list already applies to endings and control features.
+
 **Model-selection governance.** Ana assigns a model per task rather than the GDD hard-coding one model for everything, and re-tunes the assignment against real usage rather than a one-time guess:
 
 | Task type | Default model | Why |
@@ -450,7 +484,7 @@ The first course target should include:
 
 - Should the Director have a human-readable voice, or should it communicate only through generated trials?
 - Should adventurers be allies, memories, merchants, or temporary summons in the first prototype?
-- Should hierarchy rank (Power pillar) ever drop on death too, or is Mastery loss on a single spell the entire death cost?
+- What is the Mastery growth rate — how many landed casts (or kills, or some other countable event) does it take a spell to advance one tier? Nothing in this document gives a number. This is a deliberate deferral, not an oversight: Warden has not yet generated regular-wave data to size it against, and the developer's call (2026-07-22) was to wait for that real data rather than lock in a guessed placeholder. Pato picks this up as soon as Warden's regular-wave compositions exist.
 - Beyond the 100-Hexcoin Mastery-choice fee and the Phase-Transition Recovery fee (see Hexcoin), what else can Hexcoin buy — items, relics, and their prices are still undefined.
 - Should the 1-Hexcoin-per-kill rate ever vary by enemy toughness, or stay flat for the whole vertical slice?
 - What is the exact flat Hexcoin amount for the Phase-Transition Recovery fee, and does it vary by boss/expedition tier? This is Pato's numeric call against the design rules already fixed in Phase-Transition Recovery, not an open design question for the developer.

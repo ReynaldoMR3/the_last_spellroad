@@ -4,8 +4,8 @@ Source of truth: `docs/game/the-last-spellroad-design.md`, "Core Controls And Ca
 
 Loomwright owns exactly one job: the movement and targeting/casting engine. It never touches Mana, Mastery, or Hexcoin numbers (Pato's exclusive scope).
 
-- Movement: `WASD` primary, grid/tile-aware (tile-by-tile or short continuous movement that still respects tile positioning, enemy ranges, and spell geometry). Mouse-click movement is an optional secondary convenience, never required.
-- Hotbar: fixed bindings, `1-4` or `1-6`, one hotkey per prepared spell. Loadout can only be changed between expeditions or at a road-segment checkpoint, never mid-combat.
+- Movement: **arrow keys** primary, `WASD` bound in parallel as an equivalent alternate (same movement, not a separate scheme), grid/tile-aware (tile-by-tile or short continuous movement that still respects tile positioning, enemy ranges, and spell geometry). Mouse-click movement is an optional secondary convenience, never required. Arrow-keys-primary is deliberate: it puts movement on the right hand and the hotbar (below) on the left, so neither hand has to leave its keys mid-fight.
+- Hotbar: fixed bindings, `1-6`, one hotkey per prepared spell. Loadout can only be changed between expeditions or at a road-segment checkpoint, never mid-combat.
 - Casting patterns:
   - Immediate casting for self-targeted spells, buffs, defensive effects, simple centered-area spells.
   - Preview-and-confirm casting for targeted spells: hotkey shows a targeting preview communicating the spell's shape before commit; left-click or the same hotkey again confirms; right-click or `Esc` cancels.
