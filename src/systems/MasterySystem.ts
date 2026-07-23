@@ -1,5 +1,4 @@
 import type { MasteryTier } from "../data/types";
-import { MASTER_DISCOUNT } from "./ManaSystem";
 
 const TIER_ORDER: MasteryTier[] = ["novice", "adept", "master"];
 
@@ -20,7 +19,6 @@ export interface MasteryState {
 export interface MasteryScaling {
   powerBonus: number;
   targetsBonus: number;
-  costCooldownMultiplier: number;
 }
 
 /** Per-spell Mastery tracking. Scaling is identical for every spell (mastery-template.md) — never authored per spell. */
@@ -56,12 +54,12 @@ export class MasterySystem {
   getScaling(spellId: string): MasteryScaling {
     const tier = this.getTier(spellId);
     if (tier === "novice") {
-      return { powerBonus: 0, targetsBonus: 0, costCooldownMultiplier: 1 };
+      return { powerBonus: 0, targetsBonus: 0 };
     }
     if (tier === "adept") {
-      return { powerBonus: 1, targetsBonus: 1, costCooldownMultiplier: 1 };
+      return { powerBonus: 1, targetsBonus: 1 };
     }
-    return { powerBonus: 2, targetsBonus: 2, costCooldownMultiplier: 1 - MASTER_DISCOUNT };
+    return { powerBonus: 2, targetsBonus: 2 };
   }
 
   /**

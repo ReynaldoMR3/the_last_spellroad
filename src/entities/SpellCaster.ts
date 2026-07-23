@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import type { SpellDefinition } from "../data/types";
-import { WEIGHT_CLASS } from "../systems/ManaSystem";
+import { MASTER_DISCOUNT, WEIGHT_CLASS } from "../systems/ManaSystem";
 import type { ManaSystem } from "../systems/ManaSystem";
 import type { MasterySystem } from "../systems/MasterySystem";
 
@@ -21,10 +21,11 @@ const CIRCLE_RADIUS = 90;
 const CIRCLE_MAX_PLACEMENT_RANGE = 250;
 
 /**
- * Executes a validated cast: spends Mana (with the Master-tier discount already folded
- * in via MasterySystem), starts the per-spell cooldown, and builds a geometry hit-test
- * for the confirmed shape/placement — engine-contract.md's three shapes (line, cone,
- * circle), each per Frieren's authored spells.
+ * Executes a validated cast: spends Mana (applying the spell's own Master-tier
+ * cost-or-cooldown discount, per its `master_discount` field), starts the per-spell
+ * cooldown, and builds a geometry hit-test for the confirmed shape/placement —
+ * engine-contract.md's three shapes (line, cone, circle), each per Frieren's authored
+ * spells.
  */
 export class SpellCaster {
   private readonly cooldownsMs = new Map<string, number>();
@@ -57,11 +58,20 @@ export class SpellCaster {
     }
     const base = WEIGHT_CLASS[spell.weight];
     const scaling = this.mastery.getScaling(spell.id);
-    const cost = Math.round(base.cost * scaling.costCooldownMultiplier);
+    const isMaster = this.mastery.getTier(spell.id) === "master";
+    // mana-template.md: Master gets -10% off cost OR cooldown, whichever the spell's
+    // design leans on more — a per-spell choice (spell.master_discount), never both.
+    const cost =
+      isMaster && spell.master_discount === "cost"
+        ? Math.round(base.cost * (1 - MASTER_DISCOUNT))
+        : base.cost;
+    const cooldownMs =
+      isMaster && spell.master_discount === "cooldown"
+        ? Math.round(base.cooldownMs * (1 - MASTER_DISCOUNT))
+        : base.cooldownMs;
     if (!this.mana.spend(cost)) {
       return null;
     }
-    const cooldownMs = Math.round(base.cooldownMs * scaling.costCooldownMultiplier);
     this.cooldownsMs.set(spell.id, cooldownMs);
 
     return {

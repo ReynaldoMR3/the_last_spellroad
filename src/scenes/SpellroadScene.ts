@@ -338,6 +338,10 @@ export class SpellroadScene extends Phaser.Scene {
       return;
     }
     this.waveIndex = index;
+    // hp-template.md: "full reset to 100 at the start of every wave" — every wave is a
+    // clean HP budget, not cumulative damage carried in from the previous one.
+    this.health.reset();
+    this.debuff.clear();
     this.enemiesRemainingToSpawn = wave.enemies.reduce((sum, e) => sum + e.count, 0);
     spawnWave(this, wave, { x: 820, y: 270 }, (enemy) => {
       this.enemies.push(enemy);
