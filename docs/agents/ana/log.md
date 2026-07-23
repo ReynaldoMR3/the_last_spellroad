@@ -133,3 +133,27 @@ Wrote the full search order (Kenney -> OpenGameArt CC0 -> recolor/recombine a so
 **Corrected a real gap while doing this, not just documentation:** Tilesmith's own `AGENT.md` only granted it `Read, Write` tools — it had no way to actually search the web or download a sourced asset. Added `WebSearch`, `WebFetch`, `Bash` to its tool list, since the mechanism this entry describes is genuinely impossible without them, unlike Warden/Frieren/Lorena's pure-generation jobs.
 
 Status: `shipped-and-validated`. This was the last item from the 2026-07-21 review's findings still without at least a stated position (fixed, deferred, or explicitly out of scope) — the GDD does not have any silently-unaddressed finding from that review left as of this entry.
+
+## 2026-07-23 — Full re-run of the gdd-review-kit board against this week's changes; four fixes applied
+
+Ran a full fresh review (Round 1 → Round 2 cross-exam → my own Round 3 synthesis, per `gdd-review-kit/CLAUDE.md`) against the current GDD, to check whether this week's death-system build, control-scheme change, and 07-21-gap cleanup actually held up rather than assuming they did. Full synthesis: `gdd-review-kit/reviews/2026-07-23/SYNTHESIS.md`.
+
+**Result, honestly stated:** the death system's HP/trigger/persistence gaps from the 07-21 review are genuinely resolved. But this week's own new work introduced two fresh contradictions, and the review surfaced one real pre-existing gap that couldn't be seen until the death system existed to have it:
+
+1. **"Expedition" was never sized** — Token Budget implied 5-10 bosses (one per level), the Vertical Slice bullet said 1. Systems-designer ranked this the board's single highest-leverage issue, since four other findings depend on the answer.
+2. **Phase-Transition Recovery's fee math didn't hold in general** — a flat 15-HP recovery exceeded the 33% money ceiling for any boss below ~45.5 HP threat budget; only Warden's one composed boss (51 HP) happened to clear it. Five of six reviewers independently converged on this subsystem.
+3. **This week's own new Mana clarification ("solo-spam never drains the pool... in a boss/trial fight alike") was falsified by the pre-existing Debuffer regen-drain mechanic**, which can push effective regen low enough that solo-spam does drain the pool.
+4. **This week's Novice-floor decision (closing the 07-21 Novice-padding finding) opened a sharper exploit**: an all-Novice hotbar makes death free, letting a player farm boss-pattern knowledge at zero cost — taxing honest, varied-loadout play harder than deliberate exploitation.
+
+Also surfaced, not yet acted on: no agent actually owns the runtime code implementing HP/Mana/Mastery/Hexcoin/Debuff logic (Pato validates numbers, Loomwright's scope is movement/casting/save only) — a real structural gap, likely present since the roster was first defined, only visible now that this logic exists to be unowned.
+
+**Developer decisions on the two judgment calls the board split on:**
+- Phase-Transition Recovery: **fix the numbers, keep the mechanic** (not cut/simplify, which feasibility-lead/business-analyst/player-psychologist leaned toward). Systems-designer's counter-argument — a small, precisely-bounded economy is fine design discipline once internally consistent — is the position taken.
+- The other two disagreements (random-Mastery-loss: narrate vs. make-causal; "roguelite": relabel vs. lean into the tension) are **not yet decided** — carried forward, not silently dropped.
+
+**Fixes written in this entry's session:**
+- Sized "expedition" explicitly in Gameplay Loop (one full attempt at the road, ending at the boss or an earlier death) and corrected the Token Budget table's math to match (it no longer implies one boss per level).
+- Added a caveat to the Mana section's "never drains the pool" guarantee, scoping out Debuffer's regen-drain effect explicitly rather than leaving the contradiction standing.
+- Revised Phase-Transition Recovery's numbers so the cap is actually reachable across the stated budget range instead of only at one lucky boss composition: restore amount 15%→10%, money ceiling 33%→35%, cap 3→2 recoveries. Written into the GDD, `hp-template.md`, and `hexcoin-template.md`; Warden's existing boss composition re-checked against the new numbers in a fresh dated log entry (not rewritten in place) — conclusion unchanged (still 1 recovery for that boss), only the HP amount restored changes.
+
+**Not yet fixed, explicitly carried forward, not silently dropped:** the all-Novice-hotbar exploit (Issue 4) and the runtime-ownership gap (Issue 5) still need a design/roster decision each — teed up for the next session rather than guessed at here.
