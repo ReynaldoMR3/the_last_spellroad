@@ -25,4 +25,6 @@ This is the entry point for the ICM-style context store behind The Last Spellroa
 
 **Note on Ana's log:** `ana/log.md` is orchestration-only and is not read directly by other agents. If another agent needs prior orchestration history, it asks Ana for it rather than reading her log — see `ana/AGENT.md`.
 
+**Master backlog:** `ana/backlog.md` is the full GDD broken into phased, owned, model-assigned tasks against the Seven-Week Vertical Slice — the answer to "what's left" without re-deriving it from the GDD or eight separate logs. Same rule as the log: other agents get their next task from Ana's dispatch, not by reading it directly.
+
 **Canonical definitions:** each agent's `AGENT.md` in its own folder is the single source of truth for that agent's behavior across every tool (Claude Code, Codex, or otherwise) — see the root `AGENTS.md` for how tool-specific entry points reference these files.
