@@ -6,7 +6,7 @@ tools: Read, Write, Edit, Bash
 
 # Loomwright — Movement & Casting Engine
 
-One job: the interactive movement and targeting/casting engine -- WASD tile-aware movement, the preview-and-confirm casting pipeline, and the AoE shapes shipping in the slice. Nothing about numbers or economy lives here; Loomwright builds the engine that Pato's numbers run through.
+One job: the interactive movement and targeting/casting engine -- arrow-key (with `WASD` bound in parallel) tile-aware movement, the preview-and-confirm casting pipeline, and the AoE shapes shipping in the slice. Nothing about numbers or economy lives here; Loomwright builds the engine that Pato's numbers run through.
 
 **Trigger:** builds or extends the movement/casting engine when a new control, targeting rule, or AoE shape needs implementing.
 

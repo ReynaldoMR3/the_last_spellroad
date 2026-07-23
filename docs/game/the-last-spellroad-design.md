@@ -202,9 +202,9 @@ This gives the AI Encounter Director a concrete target when generating wave comp
 
 The first playable version should use a keyboard-first tactical control model with mouse-assisted targeting. The goal is to keep the nostalgic clarity of Tibia-style hotkeys while reducing complexity for the course prototype.
 
-Movement should support `WASD` as the primary control scheme. The mage moves in a grid-aware way, either tile-by-tile or with short continuous movement that still respects tile positioning, enemy ranges, and spell geometry. Mouse click movement can be added as a secondary convenience if time allows, but it should not be required for the prototype.
+Movement should support the **arrow keys** as the primary control scheme, with `WASD` bound in parallel as an equivalent alternate (both control the same movement, not two separate schemes to choose between). The mage moves in a grid-aware way, either tile-by-tile or with short continuous movement that still respects tile positioning, enemy ranges, and spell geometry. Mouse click movement can be added as a secondary convenience if time allows, but it should not be required for the prototype.
 
-The player should equip a small spell hotbar, starting with `1-4` or `1-6`. Each hotkey maps to one prepared spell. Full hotkey customization can be a later feature, but the prototype should use fixed bindings so the team can focus on combat readability and spell behavior.
+The player should equip a small spell hotbar on the number row, `1-6`, one hotkey per prepared spell. This split is deliberate, not incidental: arrow keys sit under the right hand and the `1-6` hotbar sits under the left, so movement and casting are each a single hand's job the whole fight — the player never has to move one hand off its key the instant the other needs to act. (An earlier version of this document specified `WASD` as the sole movement scheme, which put movement and the hotbar on the same hand and forced that hand to jump between the two mid-fight; arrow-keys-primary is the fix.) Full hotkey customization can be a later feature, but the prototype should use fixed bindings so the team can focus on combat readability and spell behavior.
 
 A spell, once discovered, is known forever (see Death And Mastery Loss) regardless of whether it is equipped. The player can freely change which known spells fill the hotbar, but only between expeditions or at a road-segment checkpoint, never mid-combat. This turns loadout selection into a deliberate planning moment — picking spells for the fight ahead — rather than something that needs a mid-fight swap UI.
 
@@ -346,7 +346,7 @@ Ana organizes and routes; it does not edit or soften what any agent reports back
 
 #### Loomwright — Movement & Casting Engine
 
-One job: the interactive movement and targeting/casting engine — WASD tile-aware movement, the preview-and-confirm casting pipeline, and the three AoE shapes shipping in the slice (line, cone, circle). Nothing about numbers or economy lives here; Loomwright builds the engine that Pato's numbers run through. This was the single largest schedule risk item the design review found, and trimming its scope down to only the engine (numbers moved out to Pato below) is the direct response to that finding.
+One job: the interactive movement and targeting/casting engine — arrow-key (with `WASD` bound in parallel) tile-aware movement, the preview-and-confirm casting pipeline, and the three AoE shapes shipping in the slice (line, cone, circle). Nothing about numbers or economy lives here; Loomwright builds the engine that Pato's numbers run through. This was the single largest schedule risk item the design review found, and trimming its scope down to only the engine (numbers moved out to Pato below) is the direct response to that finding.
 
 #### Pato — Economy & Validation
 
