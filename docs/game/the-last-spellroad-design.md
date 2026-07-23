@@ -66,6 +66,8 @@ When the mage dies, mastery is what is set back, not the spell itself:
 
 - The mage keeps every spell they have ever discovered and can still equip and cast all of them.
 - Death drops one Mastery tier on a random equipped spell. This is the default, free outcome.
+- The random roll only considers spells above Novice tier. An already-Novice equipped spell has nothing left to lose and is excluded from the roll pool; if every equipped spell is Novice, death costs no Mastery that time. This is a deliberate rule, not an overlooked edge case: it closes off padding a hotbar with a throwaway Novice spell as an exploit (there is nothing to exploit — the same outcome is just the designed floor), and it doubles as a built-in mercy for new players, who naturally carry more Novice-tier spells and can least afford an unmitigated random penalty.
+- Hierarchy rank (see Power, under Forms Of Fun) never drops on death. Mastery-tier loss on a single spell is the entire cost death imposes — this keeps the cost narrow and specific rather than stacking two separate permanent-progression setbacks on one death.
 - Mastery is recovered the same way it was built: by using the affected spell in combat again. There is no separate grind system for buying mastery back.
 
 ### HP Pool And The Death Trigger
@@ -467,9 +469,7 @@ The first course target should include:
 
 - Should the Director have a human-readable voice, or should it communicate only through generated trials?
 - Should adventurers be allies, memories, merchants, or temporary summons in the first prototype?
-- Should hierarchy rank (Power pillar) ever drop on death too, or is Mastery loss on a single spell the entire death cost?
-- What happens when the random death-roll (see Death And Mastery Loss) targets a spell that is already Novice tier — is there a floor below which it cannot drop, and if so, does the roll no-op, reroll onto another equipped spell, or exclude Novice spells from the pool entirely? Flagged in `docs/agents/_reference/mastery-template.md` since the 2026-07-21 review board; Pato is explicitly blocked from writing a rule here without a developer call.
-- What is the Mastery growth rate — how many landed casts (or kills, or some other countable event) does it take a spell to advance one tier? Nothing in this document gives a number; Warden has not yet generated regular-wave data to size it against, so this needs either a developer-set placeholder now or a short Warden-then-Pato pass once that data exists.
+- What is the Mastery growth rate — how many landed casts (or kills, or some other countable event) does it take a spell to advance one tier? Nothing in this document gives a number. This is a deliberate deferral, not an oversight: Warden has not yet generated regular-wave data to size it against, and the developer's call (2026-07-22) was to wait for that real data rather than lock in a guessed placeholder. Pato picks this up as soon as Warden's regular-wave compositions exist.
 - Beyond the 100-Hexcoin Mastery-choice fee and the Phase-Transition Recovery fee (see Hexcoin), what else can Hexcoin buy — items, relics, and their prices are still undefined.
 - Should the 1-Hexcoin-per-kill rate ever vary by enemy toughness, or stay flat for the whole vertical slice?
 - What is the exact flat Hexcoin amount for the Phase-Transition Recovery fee, and does it vary by boss/expedition tier? This is Pato's numeric call against the design rules already fixed in Phase-Transition Recovery, not an open design question for the developer.

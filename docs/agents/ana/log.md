@@ -113,3 +113,13 @@ Re-read `gdd-review-kit/reviews/2026-07-21/SYNTHESIS.md` in full against the GDD
 4. Checkpoint/retry Hexcoin income-bounding question — already tracked pre-existing (entry (6), 2026-07-21), still open.
 
 **Not fixed, lower priority, noted but not acted on:** Tilesmith's art-origination pipeline has no described technical mechanism (feasibility-lead), unlike Warden/Frieren/Lorena's JSON pipeline — real gap, but not in the board's Top 5 and not blocking anything currently in flight.
+
+## 2026-07-22 (3) — Developer decisions on the two remaining Novice-floor/rank questions; growth rate stays open
+
+Developer's calls, all three taken directly rather than guessed:
+
+1. **Novice-floor behavior:** exclude Novice-tier spells from the death roll's pool. If every equipped spell is Novice, death costs no Mastery that time. Closes both halves of the original tension the review board couldn't settle on its own — adversarial-qa's padding-exploit concern (it's now the designed rule, nothing to exploit) and player-psychologist's new-player-fairness concern (new players naturally carry more Novice spells and get the same built-in mercy, not a mechanic only experienced players can find). Written into Death And Mastery Loss and `mastery-template.md`.
+2. **Hierarchy rank on death:** never drops. Mastery-tier loss on one spell is the entire cost, keeping death's cost narrow rather than stacking two permanent-progression setbacks. Written into the same two places; removed from Open Design Questions since it's now decided.
+3. **Mastery growth rate:** developer explicitly chose *not* to set a placeholder tonight, opting to wait for Warden's real regular-wave data rather than lock in a guessed number ahead of Assignment #2's submission. Left in Open Design Questions, reworded to make clear this is a deliberate deferral with a stated reason, not a gap nobody noticed.
+
+Status: `shipped-and-validated` for decisions 1 and 2; `blocked-with-reason` (waiting on Warden) for decision 3's underlying number, exactly as it was before this entry — this entry only makes the reason explicit and developer-confirmed rather than assumed.
