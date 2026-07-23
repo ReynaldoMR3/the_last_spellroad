@@ -123,3 +123,13 @@ Developer's calls, all three taken directly rather than guessed:
 3. **Mastery growth rate:** developer explicitly chose *not* to set a placeholder tonight, opting to wait for Warden's real regular-wave data rather than lock in a guessed number ahead of Assignment #2's submission. Left in Open Design Questions, reworded to make clear this is a deliberate deferral with a stated reason, not a gap nobody noticed.
 
 Status: `shipped-and-validated` for decisions 1 and 2; `blocked-with-reason` (waiting on Warden) for decision 3's underlying number, exactly as it was before this entry — this entry only makes the reason explicit and developer-confirmed rather than assumed.
+
+## 2026-07-22 (4) — Tilesmith's art-sourcing pipeline: the last un-mechanized gap from the 2026-07-21 review, now closed
+
+Developer asked to investigate this specifically (feasibility-lead's finding: Tilesmith is the only content-generating agent with no described technical mechanism, unlike Warden/Frieren/Lorena's raw-text-to-JSON pipeline). Researched real, currently-live free-asset sources rather than inventing a plausible-sounding pipeline: Kenney.nl (site-wide CC0, no attribution, includes a ~1,700-asset Roguelike/RPG pack purpose-built for exactly this game's look) as the default source, OpenGameArt.org filtered to CC0 only as a secondary source, and the standard free Tiled-editor-to-Phaser JSON tilemap workflow (`this.load.tilemapTiledJSON()`) as the concrete integration path — the same "Phaser loads JSON natively" principle Engine Integration already established for everyone else's content, just applied to level geometry.
+
+Wrote the full search order (Kenney -> OpenGameArt CC0 -> recolor/recombine a sourced CC0 tile -> hand-author only as a last resort, using a free tool like Piskel at matching tile scale) into a new GDD section, "Art Sourcing And Origination Pipeline," and a new canonical reference doc, `docs/agents/_reference/art-sourcing-contract.md`, matching the pattern Loomwright's `engine-contract.md` already set.
+
+**Corrected a real gap while doing this, not just documentation:** Tilesmith's own `AGENT.md` only granted it `Read, Write` tools — it had no way to actually search the web or download a sourced asset. Added `WebSearch`, `WebFetch`, `Bash` to its tool list, since the mechanism this entry describes is genuinely impossible without them, unlike Warden/Frieren/Lorena's pure-generation jobs.
+
+Status: `shipped-and-validated`. This was the last item from the 2026-07-21 review's findings still without at least a stated position (fixed, deferred, or explicitly out of scope) — the GDD does not have any silently-unaddressed finding from that review left as of this entry.
