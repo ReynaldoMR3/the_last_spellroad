@@ -2,7 +2,7 @@
 
 ## Summary
 
-The Last Spellroad is a low-spec, top-down, Tibia-like magical roguelite built around short single-lane expeditions. ("Tibia-like" refers to *Tibia*, a late-1990s top-down MMORPG — the reference is to its minimalist, low-spec 2D presentation and unhurried pacing, not to any multiplayer or MMO structure, which this game does not have.) The player controls a long-lived wandering mage who discovers an ancient Spellroad between worlds and becomes trapped inside it.
+The Last Spellroad is a low-spec, top-down, Tibia-like magical roguelite built around short single-lane expeditions. ("Tibia-like" refers to *Tibia*, a late-1990s top-down MMORPG — the reference is to its minimalist, low-spec 2D presentation and unhurried pacing, not to any multiplayer or MMO structure, which this game does not have. "Roguelite" here means the run-based *expedition* structure only — enter, fight, retreat or advance — not run-reset progression: see Death And Mastery Loss for why nothing about a death or a completed expedition resets the mage's permanent progress.) The player controls a long-lived wandering mage who discovers an ancient Spellroad between worlds and becomes trapped inside it.
 
 The game is inspired by the feeling of melancholic long-lived mage journeys, school-of-magic spellcraft, sacred geometry, and tactical tile-based RPG combat. It must remain original: no copied names, factions, spells, characters, schools, or direct lore from existing works.
 
@@ -139,6 +139,8 @@ The mage grows in strength with every meaningful discovery and victory. New spel
 
 Power should be visible in combat and in status. The player should notice that old enemies become easier, new enemy types require better spell choices, and each promotion marks a step deeper into the Spellroad's hierarchy. Mechanically, this pillar is carried by per-spell Mastery and hierarchy rank (see Death And Mastery Loss) — the layer of progression that death sets back, while the spellbook itself never regresses.
 
+This has to be a felt moment, not just a true fact players could infer from numbers if they looked closely enough: a spell reaching a new Mastery tier fires a brief on-screen indicator at the moment of the qualifying cast (not buried in a menu), and a hierarchy-rank promotion — being rarer and more significant — gets a short full-screen beat between expeditions rather than a toast. Both are UI work for Loomwright to build against once Frieren's and Pato's Mastery-tier data exists to trigger off of; neither needs new numeric design, only a moment that surfaces numbers the game already tracks.
+
 ### Discovery
 
 The Spellroad should keep pulling the player forward through unknown spaces and hidden knowledge.
@@ -274,6 +276,17 @@ The course template assumes Unity or Unreal; The Last Spellroad's stack is Phase
 7. The player experiences the result as enemy behavior, spell behavior, or in-game text.
 
 **Why JSON:** Phaser already loads JSON natively (`this.load.json()`, and its own tilemap format is JSON), so no adapter layer is needed. TypeScript's compile-time schema check is what makes step 6 catch a bad file before it ever reaches a player, instead of breaking silently mid-session. JSON is also plain text, so it stays diffable and human-editable, matching every other hand-off in this project.
+
+## Save Data And Persistence
+
+"Persistent RPG, not a run-reset roguelite" (see Death And Mastery Loss) is only a real promise if something actually remembers the mage's progress after the browser tab closes — this section is that mechanism, distinct from the dev-time content pipeline above (that pipeline ships static game data; this one saves a specific player's live progress).
+
+For the vertical slice, the mage's progress is saved to the browser's `localStorage`, as a single versioned JSON blob written on every state-changing event (Mastery-tier change, new spell discovered, Hexcoin earned or spent, hierarchy-rank promotion, checkpoint reached) and read back on load. This follows directly from the stack decision already locked in Phaser And Web Constraints: a static-file, no-server build has no backend to hold an account-based save, so the browser itself is the only place state can live for this slice. Concretely:
+
+- **Scope:** single browser, single device — no account system, no cloud sync, no cross-device continuation. This is an explicit vertical-slice limit, not a lost requirement; a real account-based save is future scope if the full game is ever built past the course prototype.
+- **What's saved:** every spell's Mastery tier, the set of discovered spells, hierarchy rank, the Hexcoin balance, and lore/discovery flags — the full list of things Death And Mastery Loss and Hexcoin promise carry forward permanently.
+- **Schema versioning:** the saved blob carries a schema-version field. A version mismatch on load (e.g., after a save-format change mid-development) triggers a clean reset with a one-time notice, rather than attempting a silent, error-prone migration of an old shape into a new one — acceptable for a pre-release vertical slice where no player has an install base to protect yet.
+- **Ownership:** this is Loomwright's engine scope — the read/write mechanism itself, alongside movement and casting — while Pato's templates continue to own what values are valid to write (a Mastery tier outside Novice/Adept/Master, for instance, is a Pato-template violation regardless of where it's read from).
 
 Illustrative schema shapes (not final — Loomwright's engine contract and Pato's templates govern the authoritative fields):
 
@@ -425,6 +438,8 @@ Each wave/boss-generation action costs approximately 2,000-4,500 tokens, which m
 
 **Roster/orchestration budget** — the cost of running the whole agent roster (Ana orchestrating, Pato validating, Heckler reviewing, plus everyone's Claude Code sessions) across the seven-week course. This is too variable to project honestly from zero — it depends on how many review and iteration rounds actually happen. Rather than invent a number, track real spend after week 1 and project the remaining six weeks off that actual.
 
+**The developer's own hours are the real constraint, and this document does not forecast them the way it forecasts token spend.** The token and dollar figures above can be projected precisely because API pricing is fixed and call counts are estimable; a solo developer's build/review/iteration hours across seven weeks cannot be honestly forecast the same way this early, and this GDD does not pretend otherwise by inventing a number. What is fixed instead: engine implementation (Loomwright's scope — movement, casting, save/load, the AoE shapes) is the single largest hours sink and has not started as of this writing, while every agent-generated content layer (Warden, Frieren, Pato, Lorena's death-system pass) is comparatively cheap in developer time because validation is automated. If week-by-week hours tracking shows engine work slipping the seven-week window, the response is to cut scope (fewer levels, fewer spells, defer a shape) rather than silently extend the timeline — the same principle the vertical slice's own bullet list already applies to endings and control features.
+
 **Model-selection governance.** Ana assigns a model per task rather than the GDD hard-coding one model for everything, and re-tunes the assignment against real usage rather than a one-time guess:
 
 | Task type | Default model | Why |
@@ -453,6 +468,8 @@ The first course target should include:
 - Should the Director have a human-readable voice, or should it communicate only through generated trials?
 - Should adventurers be allies, memories, merchants, or temporary summons in the first prototype?
 - Should hierarchy rank (Power pillar) ever drop on death too, or is Mastery loss on a single spell the entire death cost?
+- What happens when the random death-roll (see Death And Mastery Loss) targets a spell that is already Novice tier — is there a floor below which it cannot drop, and if so, does the roll no-op, reroll onto another equipped spell, or exclude Novice spells from the pool entirely? Flagged in `docs/agents/_reference/mastery-template.md` since the 2026-07-21 review board; Pato is explicitly blocked from writing a rule here without a developer call.
+- What is the Mastery growth rate — how many landed casts (or kills, or some other countable event) does it take a spell to advance one tier? Nothing in this document gives a number; Warden has not yet generated regular-wave data to size it against, so this needs either a developer-set placeholder now or a short Warden-then-Pato pass once that data exists.
 - Beyond the 100-Hexcoin Mastery-choice fee and the Phase-Transition Recovery fee (see Hexcoin), what else can Hexcoin buy — items, relics, and their prices are still undefined.
 - Should the 1-Hexcoin-per-kill rate ever vary by enemy toughness, or stay flat for the whole vertical slice?
 - What is the exact flat Hexcoin amount for the Phase-Transition Recovery fee, and does it vary by boss/expedition tier? This is Pato's numeric call against the design rules already fixed in Phase-Transition Recovery, not an open design question for the developer.
