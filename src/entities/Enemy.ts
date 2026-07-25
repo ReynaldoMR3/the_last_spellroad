@@ -47,6 +47,7 @@ export interface EnemyCallbacks {
 
 export class Enemy extends Phaser.Physics.Arcade.Sprite {
   public readonly archetype: EnemyArchetype;
+  public readonly maxHp: number;
   public hp: number;
   private attackCooldownMs = 0;
   private readonly debuffVariant: DebuffVariant;
@@ -60,7 +61,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   ) {
     super(scene, x, y, Enemy.ensureTexture(scene, archetype));
     this.archetype = archetype;
-    this.hp = PLACEHOLDER_ENEMY_HP[archetype];
+    this.maxHp = PLACEHOLDER_ENEMY_HP[archetype];
+    this.hp = this.maxHp;
     this.debuffVariant = debuffVariant;
     scene.add.existing(this);
     scene.physics.add.existing(this);

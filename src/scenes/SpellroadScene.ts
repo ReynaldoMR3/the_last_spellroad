@@ -18,6 +18,8 @@ const MAGE_START = { x: 180, y: 270 };
 /** Ranged attacks apply damage after a short simulated travel delay rather than a full projectile-physics sprite — a scoped-down visual, not a change to the 4-damage-per-hit number. */
 const RANGED_TRAVEL_MS = 280;
 const HOTBAR_KEYS = ["ONE", "TWO", "THREE"] as const;
+/** backlog 2.9 — hit-feedback color bands, keyed off the target's *remaining* HP% after the hit (not an HP bar, per the developer's clash concern with per-enemy bars). */
+const DAMAGE_NUMBER_COLOR = { healthy: "#4caf50", wounded: "#f4c430", critical: "#e05252" } as const;
 
 export class SpellroadScene extends Phaser.Scene {
   private mage?: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -246,7 +248,10 @@ export class SpellroadScene extends Phaser.Scene {
         continue;
       }
       hits += 1;
+      const enemyX = enemy.x;
+      const enemyY = enemy.y;
       const killed = enemy.takeDamage(result.power);
+      this.spawnDamageNumber(enemyX, enemyY, result.power, enemy.hp, enemy.maxHp);
       if (killed) {
         this.removeEnemy(enemy);
         this.hexcoin.earn(1);
@@ -383,6 +388,31 @@ export class SpellroadScene extends Phaser.Scene {
   private removeEnemy(enemy: Enemy): void {
     this.enemies = this.enemies.filter((e) => e !== enemy);
     enemy.destroy();
+  }
+
+  /** backlog 2.9: a landed hit previously produced zero visible signal. Floating number
+   * shows the damage dealt; its color bands the target's remaining HP% (>80% green,
+   * 30-80% yellow, <30% red) rather than a per-enemy HP bar, per the developer's call
+   * that stacked bars would clash when enemies overlap. */
+  private spawnDamageNumber(x: number, y: number, amount: number, remainingHp: number, maxHp: number): void {
+    const percent = Math.max(0, remainingHp) / maxHp;
+    const color =
+      percent > 0.8 ? DAMAGE_NUMBER_COLOR.healthy : percent > 0.3 ? DAMAGE_NUMBER_COLOR.wounded : DAMAGE_NUMBER_COLOR.critical;
+    const label = this.add.text(x, y - 14, `-${amount}`, {
+      color,
+      fontFamily: "Georgia, serif",
+      fontStyle: "bold",
+      fontSize: "18px"
+    });
+    label.setOrigin(0.5, 0.5);
+    this.tweens.add({
+      targets: label,
+      y: y - 44,
+      alpha: 0,
+      duration: 700,
+      ease: "Cubic.Out",
+      onComplete: () => label.destroy()
+    });
   }
 
   // ----- death -----
