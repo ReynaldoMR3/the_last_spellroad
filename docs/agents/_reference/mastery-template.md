@@ -16,6 +16,6 @@ Every spell uses this same template — Mastery scaling is never authored per sp
 
 **Resolved 2026-07-22 (developer decision):** hierarchy rank never drops on death. Mastery-tier loss on a single spell is the entire cost death imposes.
 
-**Still open, not yet resolved:** the Mastery growth rate — how many landed casts/kills advance a spell one tier. Developer's explicit call (2026-07-22) was to wait for Warden's regular-wave data rather than guess a placeholder. Do not invent this number; pick it up once that data exists.
+**Still open, not yet resolved:** the Mastery growth rate — how many landed casts/kills advance a spell one tier. Developer's explicit call (2026-07-22) was to wait for Warden's regular-wave data rather than guess a placeholder. **Clarified 2026-07-23:** "wait for Warden's data" means enough wave data across multiple levels to size a real curve, not just the first wave batch — Level 1's 3 waves (18 enemies total) checked and found too small a sample; naive sizing off it alone would cap most of the spellbook at Master within a single level of a 5-10-level slice. Pick this up once 2-3 levels' worth of wave data exist (roughly 40-60+ enemies). Do not invent this number in the meantime — `src/systems/MasterySystem.ts` carries an explicitly-flagged engine-testing placeholder (5 landed casts/tier) for development purposes only, not a design number.
 
 Only Pato edits this file. Frieren and Warden read it; they never invent their own scaling.

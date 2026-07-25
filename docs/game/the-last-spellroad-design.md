@@ -189,7 +189,7 @@ Rather than tuning a unique cost and cooldown for each of the 12-20 spells indiv
 | Standard | 20 | 4s |
 | Heavy | 35 | 8s |
 
-At Master Mastery (see Death And Mastery Loss), a spell's cost or cooldown drops by 10% from its weight-class baseline. A Standard spell, for example, would cost 5 Mana at Master, or its 4-second cooldown, whichever the spell's design leans on more.
+At Master Mastery (see Death And Mastery Loss), a spell's cost or cooldown drops by 10% from its weight-class baseline. A Standard spell, for example, would cost 5 Mana at Master, or its 4-second cooldown, whichever the spell's design leans on more. **This choice is a `spell.json` field, not an engine judgment call:** every spell's entry names which one it leans on (`master_discount: "cost" | "cooldown"`), added to the schema 2026-07-23 after Heckler caught the engine applying the discount to both at once (see Engine Integration).
 
 Example: the starting fire spell used earlier (Novice Power 5 / 1 enemy) is a Standard-weight spell, so it costs 20 Mana on a 4-second cooldown regardless of Mastery tier, only the cooldown/cost trimming at Master and the Power/target numbers change with Mastery.
 
@@ -257,12 +257,12 @@ In the fiction, the Director is the force generating the Spellroad. This connect
 Every generating or reviewing agent runs against a fixed set of prompt constraints — the guardrails that keep its output consistent and repeatable across runs, rather than improvised fresh each time. These are what make the roster's outputs safe to validate against Pato's numeric templates and safe to bundle into the engine without a human re-checking every field by hand.
 
 - **Warden** — must select enemies only from the vertical slice's three base enemy types; may not invent a new enemy type. Must tune within the "resolve quickly" (regular waves) vs. "long, higher-HP" (boss/trial) targets set by the Spam-Waves-Vs.-Tactical-Trials pacing rule (see Technical Strategy). Output is `wave.json`-schema-only: enemy IDs, spawn timing, HP/damage modifiers, phase triggers — no prose, no engine code. Every numeric value must be checkable against Pato's templates; Warden cannot invent its own numbers.
-- **Frieren** — element must be one of the four defined elements (fire, ice, earth, lightning). AoE shape must be one of the vertical slice's three shapes (line, cone, circle) — cross, ring, and sigil are out of scope for this slice. Weight class must be exactly one of Pato's three tiers (Light/Standard/Heavy); Mastery scaling is never authored per spell — it's automatic and identical for every spell (see Death And Mastery Loss). Output is `spell.json`-schema-only, one entry per spell. Must produce a genuine tactical tradeoff per the Creation pillar — a spell that is a pure upgrade with no downside is a constraint violation, not a style note.
+- **Frieren** — element must be one of the four defined elements (fire, ice, earth, lightning). AoE shape must be one of the vertical slice's three shapes (line, cone, circle) — cross, ring, and sigil are out of scope for this slice. Weight class must be exactly one of Pato's three tiers (Light/Standard/Heavy); Mastery scaling is never authored per spell — it's automatic and identical for every spell (see Death And Mastery Loss). Every spell must also name which stat its Master-tier discount leans on (`master_discount: "cost" | "cooldown"`, see Mana And Spell Costs) — omitting this is not a valid submission. Output is `spell.json`-schema-only, one entry per spell. Must produce a genuine tactical tradeoff per the Creation pillar — a spell that is a pure upgrade with no downside is a constraint violation, not a style note.
 - **Lorena** — must never introduce named factions, characters, spells, or lore that copies an existing published work (per the Summary section's originality requirement). Must stay inside the locked ending scope for this slice — only the "destroy" Director ending is real; "outwitted" and "transformed" get no mechanic, and Lorena must not write content implying either is resolvable in the vertical slice. Tone must match the Lore Premise's melancholic, long-lived-mage mood. Output length must respect the UI space it's tagged for — an item description is not a paragraph. Validated by Heckler, whose "critiques a spell, wave, level, or the GDD itself" scope explicitly extends to Lorena's narrative/dialogue output — Lorena cannot self-grade tone or consistency any more than Warden can self-grade its own numbers.
 - **Pato** — output is binary/structured (pass, or a flagged diff against the violated template value), never freeform commentary or a creative suggestion. Checks only against its own numeric templates — Pato cannot approve a value it did not itself define, and cannot silently adjust a template to make content pass.
 - **Ana** — never edits or paraphrases what another agent reports, including Heckler's critiques; Ana routes, it does not launder. Every task it hands off must reference an existing scoped contract (Loomwright's engine contract, Pato's templates) rather than improvising new scope on the spot. Its success criterion is the human developer, not another agent: every task Ana hands off must resolve to `shipped-and-validated`, `blocked-with-reason`, or `in-progress-with-owner` — nothing sits unstated.
 - **Heckler** — must represent a genuine spread of the six reviewer personas (systems designer, narrative critic, player psychologist, feasibility lead, adversarial QA, business analyst), not a single softened consensus voice. Must ground every critique in something specific — a vague "this feels off" is a constraint violation. Must not filter for the developer's comfort.
-- **Loomwright** — builds only the movement/casting engine; never touches numeric templates or economy values (Pato's exclusive scope). Every AoE shape it implements must match the shapes actually authored by Frieren for the slice — no speculative shapes ahead of content. Validated by the human developer actually running the game, not by another content-validating agent — code correctness is a playtest question, not an LLM judgment call.
+- **Loomwright** — builds the movement/casting engine and, per the 2026-07-23 scope extension (see Ana's Orchestration Model), the runtime execution of Pato's HP/Mana/Mastery/Hexcoin/Debuff mechanics; never sets or invents a numeric template or economy value itself (Pato's exclusive scope) — it only runs the numbers Pato already fixed. Every AoE shape it implements must match the shapes actually authored by Frieren for the slice — no speculative shapes ahead of content. Validated by the human developer actually running the game, not by another content-validating agent — code correctness is a playtest question, not an LLM judgment call.
 - **Tilesmith** — must search for a free-to-use, license-compatible asset (CC0, public domain, explicit commercial-use license) before originating new art. Must track and report the source and license of every asset it brings in — an untracked asset is a constraint violation regardless of how good it looks. License/source compliance is validated by the human developer, not another agent — this is a factual/legal check an LLM shouldn't have final say on.
 
 ## Engine Integration
@@ -317,7 +317,8 @@ Illustrative schema shapes (not final — Loomwright's engine contract and Pato'
   "shape": "line",
   "weight": "standard",
   "base_power": 5,
-  "base_targets": 1
+  "base_targets": 1,
+  "master_discount": "cooldown"
 }
 ```
 
@@ -378,7 +379,9 @@ Ana organizes and routes; it does not edit or soften what any agent reports back
 
 #### Loomwright — Movement & Casting Engine
 
-One job: the interactive movement and targeting/casting engine — arrow-key (with `WASD` bound in parallel) tile-aware movement, the preview-and-confirm casting pipeline, and the three AoE shapes shipping in the slice (line, cone, circle). Nothing about numbers or economy lives here; Loomwright builds the engine that Pato's numbers run through. This was the single largest schedule risk item the design review found, and trimming its scope down to only the engine (numbers moved out to Pato below) is the direct response to that finding.
+One job: the interactive movement and targeting/casting engine — arrow-key (with `WASD` bound in parallel) tile-aware movement, the preview-and-confirm casting pipeline, and the three AoE shapes shipping in the slice (line, cone, circle). This was the single largest schedule risk item the design review found, and trimming its scope down to only the engine (numbers moved out to Pato below) is the direct response to that finding.
+
+**Scope extension, 2026-07-23:** Loomwright's engine also covers the *runtime execution* of Pato's HP/Mana/Mastery/Hexcoin/Debuff mechanics — reading and applying the numbers Pato's templates already fix. This mirrors the split Save Data And Persistence already established (Loomwright owns the read/write mechanism, Pato owns which values are valid) rather than opening a new, unowned "who writes this runtime code" gap once that logic actually needed building. Loomwright still never sets or invents a number — that stays Pato's exclusive scope.
 
 #### Pato — Economy & Validation
 
@@ -423,7 +426,7 @@ Example prompts, using the real `spell.json` fields from Engine Integration:
 
 > Developer -> Ana: "New spell needed for the Standard weight class: an ice spell that trades range for a slow effect. Scope it to Frieren."
 >
-> Ana -> Frieren: "Design brief: ice element, Standard weight class, AoE shape must be one of {line, cone, circle}. Must produce a genuine tactical tradeoff (Creation pillar constraint) — state the tradeoff in one sentence before the JSON. Output exactly one `spell.json` entry: `{id, element, shape, weight, base_power, base_targets}`. Do not set Mastery scaling — that's automatic. When done, hand off to Pato for validation before reporting back to me."
+> Ana -> Frieren: "Design brief: ice element, Standard weight class, AoE shape must be one of {line, cone, circle}. Must produce a genuine tactical tradeoff (Creation pillar constraint) — state the tradeoff in one sentence before the JSON. Output exactly one `spell.json` entry: `{id, element, shape, weight, base_power, base_targets, master_discount}`. Do not set Mastery scaling — that's automatic. When done, hand off to Pato for validation before reporting back to me."
 >
 > Ana -> Pato: "Validate this spell.json entry against the Standard weight-class and Mastery templates: [entry]. Return pass, or a flagged diff naming exactly which field violates which template value."
 >

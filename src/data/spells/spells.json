@@ -1,0 +1,29 @@
+[
+  {
+    "id": "arc_lance",
+    "element": "lightning",
+    "shape": "line",
+    "weight": "light",
+    "base_power": 3,
+    "base_targets": 2,
+    "master_discount": "cooldown"
+  },
+  {
+    "id": "flame_sweep",
+    "element": "fire",
+    "shape": "cone",
+    "weight": "standard",
+    "base_power": 5,
+    "base_targets": 2,
+    "master_discount": "cost"
+  },
+  {
+    "id": "frost_nova",
+    "element": "ice",
+    "shape": "circle",
+    "weight": "heavy",
+    "base_power": 7,
+    "base_targets": 3,
+    "master_discount": "cooldown"
+  }
+]
