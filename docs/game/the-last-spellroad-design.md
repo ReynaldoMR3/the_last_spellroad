@@ -472,6 +472,21 @@ Each wave/boss-generation action costs approximately 2,000-4,500 tokens, which m
 
 Ana reviews this table against actual per-agent token usage (visible in Claude Code session logs / API usage) at the end of each week and re-tunes it rather than treating it as fixed at design time.
 
+**Per-agent cadence: which agent spends when.** The two budgets above total spend by content type; this table breaks the same spend down by agent and by when in the seven-week slice it happens, cross-referenced against `docs/agents/ana/backlog.md`'s phase schedule and each agent's own `log.md`. Est. tokens/action for Warden, Frieren, and Lorena repeat the table above; Pato, Heckler, Loomwright, Ana, and Tilesmith are new rows this table adds, since the original table only covered the three content-generating agents.
+
+| Agent | Model | Active phase (target week) | Task type | Est. tokens/action | Logged so far (as of 2026-07-24) |
+| --- | --- | --- | --- | --- | --- |
+| Ana | Sonnet 5 | All phases (Wk 1-7, continuous) | Orchestration: dispatch, status tracking, backlog upkeep | ~2,000-5,000/dispatch decision | Continuous since Wk 1; wrote the master backlog, ran 2 GDD review-board passes, dispatched every task below |
+| Warden | Sonnet 5 | Phase 2-3 (Wk 3-5) | Wave/boss-modifier generation | ~2,000-4,500/call | 1 design-intent proposal + 3 Level-1 waves + 1 boss composition |
+| Frieren | Sonnet 5 | Phase 2-3 (Wk 3-5) | Spell authoring | ~1,500-2,500/call | 3 spells (`arc_lance`, `flame_sweep`, `frost_nova`) |
+| Pato | Haiku 4.5 | Phase 2-5 (Wk 3-6) | Validation against numeric templates | ~500-1,200/call | HP/Hexcoin templates set + revised twice; both Frieren batches and Warden's waves/boss validated |
+| Loomwright | Sonnet 5 (Opus 4.8 for architecture calls) | Phase 1-3, 5 (Wk 3-6) | Engine implementation | ~15,000-40,000/session (reads/writes code across files, not a single short call) | First engine build (HP/Mana/Mastery/Hexcoin/Debuff, 3 AoE shapes) + 1 crash fix |
+| Heckler | Sonnet 5 | Phase 2, 4, 5 (Wk 3, 5-6) | Six-persona adversarial critique | ~3,000-6,000/pass (six personas run per pass) | 2 passes: HP/Hexcoin bundle (Wk 1-2), engine+content bundle (found 2 BLOCKING bugs, both fixed same-session) |
+| Tilesmith | Sonnet 5 | Phase 3 (Wk 4-5) | Agentic art sourcing (search + license judgment) | ~3,000-8,000/asset | Not started — only the sourcing pipeline is written |
+| Lorena | Sonnet 5 | Phase 4 (Wk 5-6) | Narrative/dialogue writing | ~800-1,500/call | Not started — scheduled after Phase 3 lands, per Ana's log (3) |
+
+Two honest limits on this table, stated rather than papered over: first, every agent above is a prompt persona inside the same Claude Code account, not a separate billing entity — there is no per-agent metering to read off, so "logged so far" comes from counting dated entries in each agent's `log.md`, not from a token counter. Second, the tokens/action figures for Pato, Heckler, Loomwright, Ana, and Tilesmith are this table's own first estimates (unlike Warden/Frieren/Lorena's, which restate the content-generation budget above) and haven't been checked against anything yet. The fix for both is procedural, not a new tool: starting this week, log the actual token/cost figure Claude Code already reports at the end of a session as part of that dispatch's `log.md` entry, so the "Logged so far" column becomes real numbers instead of a count of entries by the Week 3 and Week 5 re-tune checkpoints already scheduled above.
+
 ## Seven-Week Vertical Slice
 
 The first course target should include:
@@ -484,6 +499,31 @@ The first course target should include:
 - 5-10 short levels.
 - A simple generated encounter data format.
 - A visible in-game hint that the Director is adapting the road.
+
+### Developer Time Budget And Minimal-Build Priority
+
+The token budget above can be projected precisely because API pricing is fixed; the developer's own hours could not be forecast the same way at the start of the course (see Token Budget And Projections) — but the shape of that time is now known and worth stating explicitly, since it changes what "minimal" means for this solo project. The developer has **at most ~10 hours/week**, and almost none of it is hands-on-keyboard building — the agent roster builds under supervision; the developer's hours go to reviewing Ana's dispatch reports and ruling on whatever she's flagged `blocked-with-reason`, running the actual developer playtests no agent can stand in for, and course admin. That first real playtest already happened (2026-07-24, Phase 2 gate 2.6): confirmed playable end-to-end, ran out of Mana, felt a spell fail, and found one BLOCKING crash plus two UX gaps needing a developer call — exactly the review-hour spend this budget anticipates, not build-hour spend.
+
+Mapped against `docs/agents/ana/backlog.md`'s existing phase targets (Weeks 1-2 already spent on design/decisions, Weeks 3-7 production):
+
+| Week | Backlog phase(s) | What the ~10 hours actually goes to |
+| --- | --- | --- |
+| 3 | Phase 1 gate, Phase 2 | Review Phase 1/2 dispatch reports; one developer playtest (done); decide the two open UX calls (2.9 hit-feedback, 2.10 lane-clamp/targeting) so Loomwright can proceed |
+| 4 | Phase 2 close-out, Phase 3 start | Review Frieren/Warden/Tilesmith's parallel output as it lands; rule on checkpoint/retry (0.2) before Task 1.6 needs it |
+| 5 | Phase 3 finish, Wk-5 re-tune, Phase 4 start | One full playtest against the scaled-up content; review the model-selection re-tune; rule on the all-Novice exploit (0.3) before Lorena's pass needs an answer |
+| 6 | Phase 4 finish, Phase 5 | Review Heckler's full-build critique; route any BLOCKING findings; two playtests (one careless, one competent) |
+| 7 | Phase 6 | Final playtest(s); review the third GDD-review-kit board run; course submission support |
+
+**Minimal-build floor vs. stretch, if a week runs short:** restating this section's scope list with what can flex. Mage, tileset, the 3 enemy types, and the mini-boss are floor items already shipped or in progress (Phase 1) — not cuttable. Below that:
+
+| Item | Minimal (floor) | Stretch (time allowing) |
+| --- | --- | --- |
+| Spells | 12 | up to 20 |
+| Levels | 5 | up to 10 |
+| Narrative pass (Phase 4, Lorena) | Fee framing + Debuffer lore identity only (the two items already flagged MAJOR) | Full NPC/companion dialogue set across all levels + trial narration polish |
+| Targeting/lane UX (2.9, 2.10) | Basic fix — enemy/shape lane clamp, per-enemy hit feedback | Non-mouse targeting alternative (e.g. last-move-direction or nearest-enemy auto-target) |
+
+If the Week 5 re-tune shows a floor item isn't on track, the response is to cut a stretch item, per this GDD's own already-stated policy (Token Budget And Projections) — not to quietly extend past Week 7.
 
 ## Open Design Questions
 
