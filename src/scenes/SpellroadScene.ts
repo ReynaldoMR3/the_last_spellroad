@@ -353,7 +353,16 @@ export class SpellroadScene extends Phaser.Scene {
     if (!this.mage) {
       return;
     }
-    for (const enemy of this.enemies) {
+    // Snapshot before iterating, and skip anything destroyed mid-loop: a melee hit's
+    // onMeleeHit callback can synchronously kill the player and run handleDeath(), which
+    // destroys every enemy (including ones this loop hasn't reached yet) and reassigns
+    // `this.enemies`. Without both guards, the loop's next iteration calls .update() on an
+    // already-destroyed enemy whose Arcade body Phaser has nulled, throwing
+    // "Cannot read properties of undefined (reading 'setVelocity')" and freezing the game.
+    for (const enemy of [...this.enemies]) {
+      if (!enemy.active) {
+        continue;
+      }
       enemy.update(deltaMs, this.mage.x, this.mage.y, {
         onMeleeHit: () => this.health.applyDamage(ARCHETYPE_DAMAGE.melee),
         onRangedFire: () => {
