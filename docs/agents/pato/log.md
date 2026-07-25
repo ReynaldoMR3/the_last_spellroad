@@ -151,3 +151,34 @@ Also re-verified, now against real numbers, the batch-level claim from the origi
 **Verdict: PASS on all 9 entries, individually.** Zero flagged diffs.
 
 **Cleared:** this batch is now ship-ready numerically. Ana/Loomwright are clear to write all 9 entries into `src/data/spells/spells.json` (bringing the shipped roster from 3 to 12) — Pato has not written to that file itself, per standing practice (Pato validates, never authors the shipped data).
+
+## 2026-07-25 (3) — Part 1: Gate-check Warden's Level 2 + Level 3 wave batch (backlog 3.3/3.5); Part 2: Mastery growth rate sizing (backlog 0.4)
+
+### Part 1
+
+Read Warden's second 2026-07-25 log entry directly (`docs/agents/warden/log.md`, "Level 2 and Level 3, 3 waves each"). Independently re-ran the integer search over the fixed per-hit table (Melee 7, Ranged 4, Debuffer 0 direct) rather than accepting Warden's claim that (M=3,R=2) and (M=2,R=3) are the *only* pairs clearing both the competent (10-15%) and careless (25-35%) regular-wave bands: brute-forced M,R 0-6 and confirmed exactly those two pairs and no others — claim holds.
+
+**Level 2 wave 0** (M=3,R=2, 1 speed application): 29 careless / 12.2 competent — in-band. Speed 12% (1 app, cap 2/24%) — clear. **PASS.**
+**Level 2 wave 1** (M=2,R=3, 2 mana-regen applications): 26 / 14.8 — in-band, top-of-band margin reused from Level 1 wave 1, not exceeded. Mana-regen 1.5×2=3.0 drain, 5−3.0=2.0/sec — lands exactly on the floor ("never drop below 2" — 2.0 is not below 2.0, compliant, not a violation). **PASS.**
+**Level 2 wave 2** (M=3,R=2, 2 speed + 1 mana-regen applications): 29 / 12.2 — in-band. Speed 12×2=24% — exactly at the 24% hard cap, compliant (cap is "2 applications (24% max)," not exceeded). Mana-regen 1 app, 3.5/sec — clear. **PASS.**
+**Level 3 wave 0** (M=3,R=2, 1 mana-regen application): 29 / 12.2 — in-band. Regen 3.5/sec — clear. **PASS.**
+**Level 3 wave 1 — flagged by Warden for explicit check** (M=2,R=3, 2 speed + 2 mana-regen applications simultaneously): 26 / 14.8 — in-band. Speed 24% — at cap. Mana-regen 3.0/sec → 2.0/sec — at floor. Both caps hit in the same wave for the first time in the game, exactly as Warden flagged; independently confirmed both land ON their respective boundary, neither exceeds it — the template's wording ("max," "never drop below") treats the boundary itself as compliant, not a violation. **PASS**, not a rubber stamp: this is the tightest wave in the batch and it clears on the actual numbers, not on Warden's say-so.
+**Level 3 wave 2** (Total M=3 [2 spellbound_thug+1 dread_reaver], Total R=2 [1 hexbow_skirmisker+1 storm_lancer], 1 speed application): 29 / 12.2 — in-band, correctly re-verified with the two new names folded into the same M/R arithmetic as any other melee/ranged unit (they carry no debuff variant and no distinct stat line, per Warden's own statement). Speed 12% — clear. **PASS.**
+
+Enemy counts independently re-tallied per wave (not taken from Warden's summary): L2 = 6+7+8 = 21, L3 = 6+9+6 = 21, matching Warden's claim exactly. `hp_modifier`/`damage_modifier` held at 1.0 throughout — correct, no template field exists to scale against.
+
+**`dread_reaver`→melee and `storm_lancer`→ranged (both no debuff variant)** are correctly used in Warden's arithmetic above. Adding these two mappings to `src/data/enemyRegistry.ts` is Loomwright/Ana's action per the standing rule Warden herself states (Warden names the mapping, never edits the registry) — not something Pato edits either, since Pato validates numeric content, not engine data files. Flagging, not doing it.
+
+**Verdict: PASS on all 6 waves, individually, no flagged diffs.** Unblocked: Loomwright can build Level 2 and Level 3 against these compositions once the two new registry entries are added.
+
+### Part 2
+
+Part 1 cleared fully (all 6 waves passed), so backlog item 0.4 is unblocked per the task's own gate. Total enemies across the 3 validated levels: 18 (L1) + 21 (L2) + 21 (L3) = **60**, matching the developer's stated "2-3 levels' worth of wave data (40-60+ enemies)" threshold exactly.
+
+**Derivation.** `MasterySystem.recordLandedCast` increments per-spell per landed cast regardless of target count, so the spell that mathematically mastery-races fastest is the kit's lowest-target spell (base_targets=1: `stone_spike`, `magma_lance`) — one landed cast can equal one kill for those, unlike a 6-target spell (`tremor_field`) which needs far fewer casts to clear the same enemies. Worst-case bound: the largest single level in the data (L2 or L3, 21 enemies) could yield up to 21 landed casts of a 1-target spell if a player spammed it against every enemy that level alone. The failure mode to avoid (my own 2026-07-23 (4) finding) is exactly this: a rate that lets 2 tier-ups (Novice→Adept→Master, i.e. 2× the per-tier rate) complete inside that single-level ceiling.
+
+**Sized rate: 20 landed casts/tier (40 to fully master one spell).** 40 vs. the 21-enemy single-level ceiling gives ~1.9x headroom — mastering even a 1-target spell needs nearly 2 full levels of exclusive single-spell spam at minimum, a real margin past the single-level failure mode, not a razor-thin pass. Checked against the full 60-enemy, 3-level sample too: 40 ≤ 60, so a maximally dedicated specialist can just about master one favored spell by the end of Level 3 — a reachable, earned payoff — while ordinary varied play (kit-wide average 35 total base_targets / 12 spells = 2.92 targets/cast, → only ~60/2.92 ≈ 20.5 total landed casts available across all 3 levels if spread efficiently across the *whole* kit) leaves every spell far short of even one tier-up without deliberate focus. That asymmetry is the intended shape: most of the 12-spell kit stays Novice/Adept through the sampled levels; only actively-mained spells progress, and not before roughly level 2-3 — directly avoiding the "caps most of the spellbook at Master within a single level" failure this was deferred over.
+
+Updated `docs/agents/_reference/mastery-template.md` in place (Pato's own file) with this resolution and the full arithmetic, replacing the "still open" framing. Did not touch `src/systems/MasterySystem.ts` myself (engine code, Loomwright's territory) — recorded an explicit action item there instead: replace `PLACEHOLDER_LANDED_CASTS_PER_TIER = 5` with **20** and drop the placeholder comment, since this is now a sized design number.
+
+**Status: RESOLVED**, backlog item 0.4 closed pending Loomwright's constant update.

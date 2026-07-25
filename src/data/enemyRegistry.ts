@@ -16,5 +16,7 @@ export const ENEMY_REGISTRY: Record<string, EnemyRegistryEntry> = {
   spellbound_thug: { archetype: "melee" },
   hexbow_skirmisher: { archetype: "ranged" },
   murmur_wisp: { archetype: "debuffer", debuffVariant: "mana_regen" },
-  creeping_bramble: { archetype: "debuffer", debuffVariant: "speed" }
+  creeping_bramble: { archetype: "debuffer", debuffVariant: "speed" },
+  dread_reaver: { archetype: "melee" },
+  storm_lancer: { archetype: "ranged" }
 };

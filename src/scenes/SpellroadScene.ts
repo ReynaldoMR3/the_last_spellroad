@@ -73,13 +73,22 @@ export class SpellroadScene extends Phaser.Scene {
   preload(): void {
     this.load.json("spells", "src/data/spells/spells.json");
     this.load.json("waves-level-1", "src/data/waves/level-1.json");
+    this.load.json("waves-level-2", "src/data/waves/level-2.json");
+    this.load.json("waves-level-3", "src/data/waves/level-3.json");
   }
 
   create(): void {
     this.spells = this.cache.json.get("spells") as SpellDefinition[];
     // Fixed default loadout (see HOTBAR_KEYS comment) — the first 6 shipped spells.
     this.equippedSpells = this.spells.slice(0, HOTBAR_KEYS.length);
-    this.waves = this.cache.json.get("waves-level-1") as WaveDefinition[];
+    // backlog 3.3/3.8 — flatten all shipped levels into one sequential wave list; each
+    // entry already carries its own `level`/`wave_index`, so no extra bookkeeping needed
+    // to walk from Level 1's last wave straight into Level 2's first.
+    this.waves = [
+      ...(this.cache.json.get("waves-level-1") as WaveDefinition[]),
+      ...(this.cache.json.get("waves-level-2") as WaveDefinition[]),
+      ...(this.cache.json.get("waves-level-3") as WaveDefinition[])
+    ];
 
     this.health = new HealthSystem(
       () => this.handleDeath(),
@@ -386,10 +395,13 @@ export class SpellroadScene extends Phaser.Scene {
   private startWave(index: number): void {
     const wave = this.waves[index];
     if (!wave) {
-      this.flashMessage("Level 1 complete!", 3000);
+      this.flashMessage("Vertical slice complete!", 3000);
       return;
     }
     this.waveIndex = index;
+    if (wave.wave_index === 0) {
+      this.flashMessage(`Level ${wave.level}`, 1500);
+    }
     // hp-template.md: "full reset to 100 at the start of every wave" — every wave is a
     // clean HP budget, not cumulative damage carried in from the previous one.
     this.health.reset();
@@ -499,7 +511,10 @@ export class SpellroadScene extends Phaser.Scene {
     const hpLine = `HP    ${this.health.current}/${MAX_HP}`;
     const manaLine = `Mana  ${Math.floor(this.mana.current)}/${MAX_MANA}`;
     const hexLine = `Hexcoin ${this.hexcoin.balance}`;
-    const waveLine = `Wave  ${this.waveIndex + 1}/${this.waves.length}  (enemies: ${this.enemies.length})`;
+    const currentWave = this.waves[this.waveIndex];
+    const waveLine = currentWave
+      ? `Level ${currentWave.level}, Wave ${currentWave.wave_index + 1}  (enemies: ${this.enemies.length})`
+      : `Wave  ${this.waveIndex + 1}/${this.waves.length}  (enemies: ${this.enemies.length})`;
     const hotbarLine = this.equippedSpells
       .map((spell, index) => {
         const tier: MasteryTier = this.mastery.getTier(spell.id);
