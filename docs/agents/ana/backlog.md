@@ -27,7 +27,7 @@ Before any production task below can be dispatched, four standing gaps from the 
 
 **Action:** `docs/agents/_reference/engine-contract.md` and `docs/agents/loomwright/AGENT.md` need one sentence added extending scope to "runtime execution of HP, Mana, Mastery, Hexcoin, and Debuff mechanics per Pato's templates" before Task 1.1 below can be dispatched as in-scope work. Flagged here for the developer to veto or amend before Phase 1 starts; proceeding on this reading unless told otherwise.
 
-**Status:** `blocked-with-reason` — waiting on developer sign-off (or silence through the start of Phase 1, treated as implicit approval since this was surfaced explicitly here) before the engine-contract edit lands and Task 1.1 unblocks.
+**Status:** `shipped-and-validated` — engine-contract and `loomwright/AGENT.md` edited 2026-07-23; Phase 1 tasks below dispatched against the new scope. Still overridable by the developer at any time; nothing here forecloses that.
 
 ### 0.2 — Checkpoint/retry Hexcoin income-bounding (developer decision, genuinely open)
 
@@ -47,9 +47,11 @@ Does a death respawn place the mage *before or after* the pre-boss waves, and do
 
 ### 0.4 — Mastery growth rate (developer decision, sequenced not blocked)
 
-How many landed casts/kills per Mastery tier. Developer's 2026-07-22 call was to wait for Warden's real regular-wave data rather than guess a placeholder (GDD, "Open Design Questions"). This is naturally sequenced, not stuck: Task 2.2 (Warden's first wave batch) produces the data Task 2.5 (Pato sets the growth rate) needs.
+How many landed casts/kills per Mastery tier. Developer's 2026-07-22 call was to wait for Warden's real regular-wave data rather than guess a placeholder (GDD, "Open Design Questions").
 
-**Status:** `in-progress-with-owner` in the sense that its unblocking condition (Task 2.2) is already scheduled below, not an open-ended wait.
+**Corrected 2026-07-23, after Task 2.4's wave data actually landed:** "wait for Warden's data" means enough wave data across multiple levels to size a real curve — not literally the first wave batch. Level 1's 3 waves (18 enemies total) is too small a sample; Pato checked the arithmetic and found a naive rate sized off it alone would cap most of the spellbook at Master within a single level. See `docs/agents/pato/log.md` (2026-07-23 (4)) and `docs/agents/_reference/mastery-template.md` for the full reasoning. `src/systems/MasterySystem.ts` carries an explicitly-flagged engine-testing placeholder (5 landed casts/tier) in the meantime — not a design number.
+
+**Status:** `blocked-with-reason` — needs roughly 2-3 levels' worth of wave data (40-60+ enemies) before Pato can responsibly size this, not just Task 2.4's single-level batch. Re-raised at Phase 3 once Warden's remaining level compositions (Task 3.3) exist.
 
 ---
 
@@ -75,14 +77,16 @@ Owner throughout: **Loomwright**. Nothing in Phase 2+ that touches HP, Mana, Mas
 
 | ID | Task | Model | Depends on | Status |
 | --- | --- | --- | --- | --- |
-| 1.1 | Combat/enemy entity foundation: base enemy class, the 3 archetype stat blocks (Melee 7 dmg, Ranged 4 dmg, Debuffer 0 dmg + speed/regen drain), spawn/despawn lifecycle | Sonnet 5 (Opus 4.8 for the architecture call) | 0.1 resolved | `blocked-with-reason` |
-| 1.2 | HP pool + death trigger: 100-point pool, no in-combat regen, full reset per wave/checkpoint, 0-HP triggers Mastery-loss + respawn | Sonnet 5 | 1.1 | `blocked-with-reason` |
-| 1.3 | Mana pool runtime: 100 pool, 5/sec passive regen in and out of combat, weight-class (Light/Standard/Heavy) cost+cooldown application | Sonnet 5 | 1.1 | `blocked-with-reason` |
-| 1.4 | Mastery runtime: three-tier scaling (Novice/Adept/Master) applied per spell, death's random-tier-drop roll (Novice-excluded per the closed floor rule), the Master-tier UI beat (on-screen indicator at the qualifying cast) | Sonnet 5 | 1.2, 1.3 | `blocked-with-reason` |
-| 1.5 | Hexcoin runtime: 1/kill earn, expedition-scoped running total, the two fee flows (100-Hexcoin Mastery-choice fee, flat phase-transition-recovery fee with its cap/ceiling math from `hexcoin-template.md`/`hp-template.md`) | Sonnet 5 | 1.2 | `blocked-with-reason` |
-| 1.6 | Checkpoint/respawn placement + save schema v2 (extend the existing `localStorage` blob to Mastery tiers, discovered spells, hierarchy rank, Hexcoin balance, lore flags per "Save Data And Persistence"; schema-version bump, clean-reset-on-mismatch) | Sonnet 5 | 1.2, 1.5, **0.2** | `blocked-with-reason` |
+| 1.1 | Combat/enemy entity foundation: base enemy class, the 3 archetype stat blocks (Melee 7 dmg, Ranged 4 dmg, Debuffer 0 dmg + speed/regen drain), spawn/despawn lifecycle | Sonnet 5 (Opus 4.8 for the architecture call) | 0.1 resolved | `in-progress-with-owner` — built (`src/entities/Enemy.ts`, `src/systems/WaveLoader.ts`), enemy AI/damage confirmed live; enemy-HP values flagged as placeholders (no template exists yet) |
+| 1.2 | HP pool + death trigger: 100-point pool, no in-combat regen, full reset per wave/checkpoint, 0-HP triggers Mastery-loss + respawn | Sonnet 5 | 1.1 | `in-progress-with-owner` — built (`src/systems/HealthSystem.ts`), death trigger + Novice-floor exclusion confirmed live |
+| 1.3 | Mana pool runtime: 100 pool, 5/sec passive regen in and out of combat, weight-class (Light/Standard/Heavy) cost+cooldown application | Sonnet 5 | 1.1 | `in-progress-with-owner` — built (`src/systems/ManaSystem.ts`), not yet exercised by an interactive cast (playtest gap, see Loomwright's log) |
+| 1.4 | Mastery runtime: three-tier scaling (Novice/Adept/Master) applied per spell, death's random-tier-drop roll (Novice-excluded per the closed floor rule), the Master-tier UI beat (on-screen indicator at the qualifying cast) | Sonnet 5 | 1.2, 1.3 | `in-progress-with-owner` — built (`src/systems/MasterySystem.ts`), death-roll exclusion confirmed live; tier-up flash message built but not yet triggered by a real landed cast (playtest gap) |
+| 1.5 | Hexcoin runtime: 1/kill earn, expedition-scoped running total, the two fee flows (100-Hexcoin Mastery-choice fee, flat phase-transition-recovery fee with its cap/ceiling math from `hexcoin-template.md`/`hp-template.md`) | Sonnet 5 | 1.2 | `in-progress-with-owner` — built (`src/systems/HexcoinSystem.ts`) including the fight-start balance snapshot hp-template.md assigns to Loomwright; not yet exercised against a real boss fight (none wired in yet, that's Phase 3) |
+| 1.6 | Checkpoint/respawn placement + save schema v2 (extend the existing `localStorage` blob to Mastery tiers, discovered spells, hierarchy rank, Hexcoin balance, lore flags per "Save Data And Persistence"; schema-version bump, clean-reset-on-mismatch) | Sonnet 5 | 1.2, 1.5, **0.2** | `blocked-with-reason` — `src/systems/SaveSystem.ts` module built and typechecked, but deliberately not wired into the scene; checkpoint-placement policy (0.2) still needs the developer before wiring means anything real |
 
 **Gate for the whole phase:** developer playtest per `loomwright/AGENT.md`'s own success criterion ("validated by the human developer actually running the game... not by another content-validating agent"). Pato does **not** gate these — there's no generated content yet to validate, only engine mechanism. Pato's gate starts at Phase 2 once Frieren/Warden output exists to check.
+
+**2026-07-23 status:** all six tasks built and typechecked; gate not yet cleared. This session's own attempt at a developer-playtest stand-in ran into a real environment limitation (the sandboxed browser pane's `document.visibilityState` was `"hidden"` and keyboard input never reached the page, confirmed via a raw DOM listener that never fired) — passive systems (enemy AI/damage, death trigger, Novice-floor exclusion, wave sequencing) were confirmed live regardless, since they need no player input; the interactive cast-and-hit path was verified by code/geometry review and a clean build only. A real developer playtest (an actual keyboard) is still needed to close this phase's gate — see Loomwright's log for the full disclosure.
 
 ---
 
@@ -92,15 +96,17 @@ Goal: one spell of each of the 3 shipping AoE shapes (line, cone, circle) fully 
 
 | ID | Task | Owner | Model | Depends on | Status |
 | --- | --- | --- | --- | --- | --- |
-| 2.1 | Author 3 spells, one per AoE shape (line/cone/circle), spanning at least 2 of the 4 elements and at least 2 of the 3 weight classes, each with a stated tactical tradeoff | Frieren | Sonnet 5 | Phase 1 | `not-started` |
-| 2.2 | Pato validation gate on 2.1's three `spell.json` entries | Pato | Haiku 4.5 | 2.1 | `not-started` |
-| 2.3 | Implement the 3 AoE shapes' targeting-preview + confirm/cancel rendering and hit-detection against 2.2's validated spells | Loomwright | Sonnet 5 | 2.2 | `not-started` |
-| 2.4 | Generate first regular-wave batch: 2-3 waves for Level 1, using only the 3 base enemy archetypes | Warden | Sonnet 5 | Phase 1 | `not-started` |
-| 2.5 | Pato validation gate on 2.4's `wave.json` entries, **and** set the Mastery growth-rate number (closes Open Design Question / backlog item 0.4) using 2.4's real per-wave landed-cast counts as the sizing baseline | Pato | Haiku 4.5 | 2.4 | `not-started` |
-| 2.6 | Developer playtest: move, cast all 3 shapes, take damage from all 3 archetypes, die once, confirm Mastery-tier-drop and respawn-at-checkpoint both fire correctly | Developer | — | 2.3, 2.5 | `not-started` |
-| 2.7 | Heckler critique pass on the playable thread (engine feel + the 3 spells + the wave), first pass where there's an actual build to critique rather than a design doc | Heckler | Sonnet 5 | 2.6 | `not-started` |
+| 2.1 | Author 3 spells, one per AoE shape (line/cone/circle), spanning at least 2 of the 4 elements and at least 2 of the 3 weight classes, each with a stated tactical tradeoff | Frieren | Sonnet 5 | Phase 1 | `shipped-and-validated` — `arc_lance`/`flame_sweep`/`frost_nova`, see `docs/agents/frieren/log.md` |
+| 2.2 | Pato validation gate on 2.1's three `spell.json` entries | Pato | Haiku 4.5 | 2.1 | `shipped-and-validated` — PASS, one casing normalization applied, see `docs/agents/pato/log.md` (2026-07-23 (2)) |
+| 2.3 | Implement the 3 AoE shapes' targeting-preview + confirm/cancel rendering and hit-detection against 2.2's validated spells | Loomwright | Sonnet 5 | 2.2 | `in-progress-with-owner` — built (`src/entities/SpellCaster.ts`); Heckler found and Loomwright fixed a Master-tier cost/cooldown double-discount bug in this exact code (see `docs/agents/heckler/log.md` and `docs/agents/loomwright/log.md`, both 2026-07-23 (2)); one clean mouse-driven cast confirmed live, a confirmed kill/Hexcoin-earn/tier-up still needs a real developer session |
+| 2.4 | Generate first regular-wave batch: 2-3 waves for Level 1, using only the 3 base enemy archetypes | Warden | Sonnet 5 | Phase 1 | `shipped-and-validated` — 3 waves, see `docs/agents/warden/log.md` (2026-07-23) |
+| 2.5 | Pato validation gate on 2.4's `wave.json` entries, **and** set the Mastery growth-rate number (closes Open Design Question / backlog item 0.4) using 2.4's real per-wave landed-cast counts as the sizing baseline | Pato | Haiku 4.5 | 2.4 | `blocked-with-reason` (partial) — wave validation `shipped-and-validated` (PASS on all 3, Wave 1's tight 14.8% margin explicitly ruled on); growth-rate half NOT closed — one level's data is too small a sample, see item 0.4 |
+| 2.6 | Developer playtest: move, cast all 3 shapes, take damage from all 3 archetypes, die once, confirm Mastery-tier-drop and respawn-at-checkpoint both fire correctly | Developer | — | 2.3, 2.5 | `blocked-with-reason` — this session's sandboxed browser pane had unreliable keyboard/click delivery (confirmed via raw-listener probes); death/respawn/Novice-floor/enemy-AI and one full mouse-driven cast confirmed live, but a full arrow-key+hotbar playtest with a confirmed kill still needs a real developer session |
+| 2.7 | Heckler critique pass on the playable thread (engine feel + the 3 spells + the wave), first pass where there's an actual build to critique rather than a design doc | Heckler | Sonnet 5 | 2.6 | `shipped-and-validated` — ran 2026-07-23, found 2 real BLOCKING bugs (HP not reset per wave, Master-discount double-dip) by reading the code, both fixed same-session and confirmed via clean typecheck/build; see `docs/agents/heckler/log.md` (2026-07-23 (2)) |
 
 **Gate for the phase:** 2.6 (developer playtest) plus 2.7 (Heckler). This is the first point where Loomwright's engine-correctness gate and Heckler's playfeel gate both apply to the same artifact, matching the distinction already drawn in `loomwright/AGENT.md`.
+
+**2026-07-23 status:** 2.7 (Heckler) cleared and found real value doing it — two BLOCKING code bugs (HP not resetting per wave, a Master-tier discount applied to both cost and cooldown at once) caught by static code reading, fixed same-session. 2.6 (developer playtest) remains the one open item in this phase: one clean mouse-driven cast confirmed the fixed code path works, but a full keyboard-driven playtest (all 3 shapes, a confirmed kill, Mastery tier-up, Hexcoin earn) still needs a real developer session with working input.
 
 ---
 

@@ -4,7 +4,7 @@
 
 **Process:** author one spell within the element/shape/weight constraints, stating the tactical tradeoff explicitly, then hand off to Pato.
 
-**Outputs:** one `spell.json` entry -- `{id, element, shape, weight, base_power, base_targets}`.
+**Outputs:** one `spell.json` entry -- `{id, element, shape, weight, base_power, base_targets, master_discount}`.
 
 **Player-facing effect:** a castable spell in the hotbar, with its visual effect, cooldown, and Mastery growth.
 

@@ -27,7 +27,7 @@ Developer -> Ana:
 > "New spell needed for the Standard weight class: an ice spell that trades range for a slow effect. Scope it to Frieren."
 
 Ana -> Frieren:
-> "Design brief: ice element, Standard weight class, AoE shape must be one of {line, cone, circle}. Must produce a genuine tactical tradeoff (Creation pillar constraint) -- state the tradeoff in one sentence before the JSON. Output exactly one `spell.json` entry: `{id, element, shape, weight, base_power, base_targets}`. Do not set Mastery scaling -- that's automatic. When done, hand off to Pato for validation before reporting back to me."
+> "Design brief: ice element, Standard weight class, AoE shape must be one of {line, cone, circle}. Must produce a genuine tactical tradeoff (Creation pillar constraint) -- state the tradeoff in one sentence before the JSON. Output exactly one `spell.json` entry: `{id, element, shape, weight, base_power, base_targets, master_discount}`. Do not set Mastery scaling -- that's automatic. When done, hand off to Pato for validation before reporting back to me."
 
 Ana -> Pato:
 > "Validate this spell.json entry against the Standard weight-class and Mastery templates: [entry]. Return pass, or a flagged diff naming exactly which field violates which template value."

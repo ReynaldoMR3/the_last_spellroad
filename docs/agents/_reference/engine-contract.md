@@ -4,6 +4,8 @@ Source of truth: `docs/game/the-last-spellroad-design.md`, "Core Controls And Ca
 
 Loomwright owns exactly one job: the movement and targeting/casting engine. It never touches Mana, Mastery, or Hexcoin numbers (Pato's exclusive scope).
 
+**Scope extension, resolved 2026-07-23 (Ana's call, per `docs/agents/ana/backlog.md` item 0.1):** Loomwright's engine scope also covers *runtime execution* of the HP, Mana, Mastery, Hexcoin, and Debuff mechanics Pato defines in `hp-template.md`, `mana-template.md`, `mastery-template.md`, and `hexcoin-template.md` — reading and applying those numbers in code. This mirrors the split the GDD already sets for Save Data And Persistence ("Loomwright's engine scope — the read/write mechanism itself... while Pato's templates continue to own what values are valid to write"). Loomwright still never sets or invents a number; it only runs the numbers Pato already fixed.
+
 - Movement: **arrow keys** primary, `WASD` bound in parallel as an equivalent alternate (same movement, not a separate scheme), grid/tile-aware (tile-by-tile or short continuous movement that still respects tile positioning, enemy ranges, and spell geometry). Mouse-click movement is an optional secondary convenience, never required. Arrow-keys-primary is deliberate: it puts movement on the right hand and the hotbar (below) on the left, so neither hand has to leave its keys mid-fight.
 - Hotbar: fixed bindings, `1-6`, one hotkey per prepared spell. Loadout can only be changed between expeditions or at a road-segment checkpoint, never mid-combat.
 - Casting patterns:

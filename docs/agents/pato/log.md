@@ -52,3 +52,44 @@ Gate-check run against Warden's first real wave/boss composition (`docs/agents/w
 **Verdict: PASS.** No field diverges from `hp-template.md`. All four checks — cap formula, money ceiling, careless/competent damage-threat arithmetic, and Debuffer concurrency — independently reproduce Warden's claimed numbers exactly; nothing flagged.
 
 **Unblocked:** this composition is now ship-ready numerically. Loomwright can build the encounter (including the frozen-Hexcoin-snapshot recovery offer at each of the 2 phase-breaks) against these exact figures; Heckler can take this composition into its next adversarial pass without re-litigating the arithmetic Pato already cleared.
+
+## 2026-07-23 (2) — Gate-check: Frieren's first 3 spells (backlog Task 2.1/2.2)
+
+Checked `arc_lance` (lightning/line/light), `flame_sweep` (fire/cone/standard), `frost_nova` (ice/circle/heavy) against `mana-template.md` and `mastery-template.md`.
+
+**Constraint checks:**
+- Elements: lightning, fire, ice — all four of {fire, ice, earth, lightning} are valid; 3 distinct elements used, clearing the ≥2-element requirement. Not a violation that earth is unused — nothing requires every element in the first 3 spells.
+- Shapes: line, cone, circle — exactly one of each, matching the vertical slice's full shape set with no repeats.
+- Weight classes: light, standard, heavy — all three tiers used, clearing the ≥2-weight requirement with margin.
+- Mastery scaling: not authored per spell in any of the three (correct — it's automatic per `mastery-template.md`, never a per-spell field).
+- Tactical tradeoff: all three state a genuine cost, not a pure upgrade — arc_lance trades power for pierce+cheapness, flame_sweep is a deliberate generalist (no single best stat), frost_nova trades exposure time and Mana cost for its peak power/target count. None read as a strictly-dominant option over the other two.
+
+**One flagged diff, mechanical not creative — normalized before shipping:** Frieren's `weight` field values were submitted capitalized (`"Light"`, `"Standard"`, `"Heavy"`), matching the template's prose headings, but the GDD's own `spell.json` schema example uses lowercase (`"weight": "standard"`) and the engine's `Weight` type is lowercase-only. Normalized all three to `light`/`standard`/`heavy` in `src/data/spells/spells.json` — this is Pato checking Frieren's output against the fixed schema convention, not altering a template value, so it doesn't cross the "cannot silently adjust a template to make content pass" line; the numbers themselves (base_power, base_targets) are untouched.
+
+**Numeric sanity check** (not a hard template rule, since `mana-template.md` doesn't bound base_power/base_targets directly — Frieren has latitude here, this is just confirming nothing looks like an invented Mastery-scaling or weight-class number sneaking in): base_power values (3, 5, 7) and base_targets (2, 2, 3) are small integers in the same rough range as the GDD's own illustrative example (base_power 5, base_targets 1), and loosely track weight class (Light lowest power, Heavy highest) — no red flag.
+
+**Verdict: PASS**, one normalization applied (weight-field casing), zero numeric violations.
+
+## 2026-07-23 (3) — Gate-check: Warden's first regular-wave batch, Level 1 waves 0-2 (backlog Task 2.4/2.5)
+
+Independently recomputed every arithmetic claim in Warden's 2026-07-23 log entry against `hp-template.md`'s fixed per-hit table (Melee 7, Ranged 4, Debuffer 0 direct) and the regular-wave damage-threat band (competent 10-15%, careless 25-35%), rather than accepting Warden's numbers on inspection — same standard as the mini-boss gate-check above.
+
+**Wave 0** (spellbound_thug/Melee x3, hexbow_skirmisher/Ranged x2): careless 3×7 + 2×4 = 21 + 8 = **29** — matches, inside 25-35. Competent 2×4 + 0.2×3×7 = 8 + 4.2 = **12.2** — matches, inside 10-15.
+
+**Wave 1** (Melee x2, Ranged x3, murmur_wisp/Debuffer-mana_regen x1): careless 2×7 + 3×4 = 14 + 12 = **26** — matches, inside 25-35. Competent 3×4 + 0.2×2×7 = 12 + 2.8 = **14.8** — matches. Warden flagged this as close to the 15% ceiling and asked for an explicit call: **14.8 < 15, this passes**, margin is 0.2 percentage points — real but thin. Ruling: ship as-is; any future edit to this specific wave (adding a Ranged unit, in particular) must be re-checked against this ceiling before shipping, since there is no margin left to absorb one more Ranged unit (a 4th Ranged alone would add 0.8, landing at 15.6% and failing). Debuffer: 5 − 1.5 = 3.5 Mana/sec regen, above the 2/sec floor; 1 application, under the 2-application cap — clears.
+
+**Wave 2** (Melee x3, Ranged x2, creeping_bramble/Debuffer-speed x1, murmur_wisp/Debuffer-mana_regen x1): careless and competent arithmetic identical to Wave 0 (29 / 12.2) since both Debuffers contribute 0 direct HP — confirmed, not just restated. Debuffer stacking: one speed application (12%, under the 24%/2-application cap) and one separate mana-regen application (3.5/sec effective, under cap and above floor) — two different variants, not two of the same, so neither's own cap is anywhere near touched by this composition.
+
+**Enemy-registry mapping check:** all 4 invented names (spellbound_thug, hexbow_skirmisher, murmur_wisp, creeping_bramble) map to exactly one of the three valid archetypes each, no fourth archetype invented, no name reused across archetypes. `hp_modifier`/`damage_modifier` held at 1.0 across all three waves — consistent with the mini-boss precedent (no base-enemy-HP template exists to scale against).
+
+**Verdict: PASS on all three waves.** No field diverges from `hp-template.md`. Explicit ruling recorded on Wave 1's tight margin per Warden's own request, rather than a silent assumed pass.
+
+**Unblocked:** both Frieren's 3 spells and Warden's 3-wave Level 1 batch are ship-ready. Handed to Loomwright to wire into the engine (AoE shape implementation against the 3 spells, wave-loader against the 3 waves).
+
+## 2026-07-23 (4) — Mastery growth rate (backlog item 0.4): still not sizeable, even with Warden's first wave data now in hand
+
+The backlog's own task 2.5 framed Warden's first wave batch as the trigger to finally size this number. Checked the actual arithmetic before doing so: Level 1's three waves total 5 + 6 + 7 = 18 enemies. With Frieren's three spells hitting 2, 2, and 3 targets respectively at Novice, clearing an entire level plausibly takes something on the rough order of 7-8 total landed casts split across three spells — meaning a naive per-spell growth rate sized off this one level alone would land somewhere around 2-3 landed casts per tier, maxing most of the player's spellbook to Master within a single level of a 5-10-level slice. That's not a defensible number, it's an artifact of too small a sample: one level's data can't responsibly size a curve meant to span the whole vertical slice's progression arc, any more than one data point can fit a trend line.
+
+**Not setting a number now, for the same reason the developer originally deferred this on 2026-07-22** — the difference is the deferral condition needs restating more precisely: "wait for Warden's regular-wave data" meant enough data across multiple levels to see a real curve, not literally the first wave batch that happens to exist. Restating this in `mastery-template.md` so the next session doesn't mistake "Warden generated some wave data" for "the blocking condition cleared." Recommend picking this up once at least 2-3 levels' worth of wave data exist (roughly 40-60+ enemies), enough to size a rate that doesn't cap the spellbook in the first level.
+
+Status: `blocked-with-reason`, reason narrowed and corrected rather than left as originally (and now inaccurately) scoped.
