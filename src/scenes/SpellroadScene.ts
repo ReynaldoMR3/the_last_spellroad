@@ -34,6 +34,18 @@ const LANE_RECT = new Phaser.Geom.Rectangle(ROAD_LEFT, ROAD_TOP, ROAD_WIDTH, ROA
 /** backlog 2.10 — non-mouse aiming fallback: default cast placement distance along
  * last-move-direction when the pointer hasn't been touched yet this session. */
 const DEFAULT_AIM_DISTANCE = SHAPE_GEOMETRY.CIRCLE_MAX_PLACEMENT_RANGE / 2;
+/** backlog 3.1 fix (Heckler, 2026-07-25): `slice(0, 6)` on spell-authoring order silently
+ * orphaned all 3 Heavy spells and 2 of 3 Standard ones behind no swap UI — exactly the
+ * spells the new Level 2/3 escalation assumes are reachable. Curated instead: 2 per
+ * weight class, spanning shape and element as widely as 6 slots allow. Full loadout
+ * selection is still explicitly future work (see HOTBAR_KEYS comment) — this is only a
+ * better fixed default, not that feature. */
+const DEFAULT_LOADOUT_IDS = ["arc_lance", "flame_sweep", "frost_nova", "stone_spike", "thunder_dome", "magma_lance"];
+/** backlog 2.10 fix (Heckler, 2026-07-25): a plain "has the pointer ever moved" boolean
+ * never resets, so an incidental trackpad jitter (common — resting a finger, OS cursor
+ * accel) permanently defeats the fallback it was built for. A single pointermove event
+ * must cover at least this many pixels to count as real aiming intent, not noise. */
+const POINTER_JITTER_THRESHOLD_PX = 4;
 
 export class SpellroadScene extends Phaser.Scene {
   private mage?: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -79,8 +91,11 @@ export class SpellroadScene extends Phaser.Scene {
 
   create(): void {
     this.spells = this.cache.json.get("spells") as SpellDefinition[];
-    // Fixed default loadout (see HOTBAR_KEYS comment) — the first 6 shipped spells.
-    this.equippedSpells = this.spells.slice(0, HOTBAR_KEYS.length);
+    // Fixed default loadout (see HOTBAR_KEYS/DEFAULT_LOADOUT_IDS comments) — a curated
+    // 2-per-weight-class set, not just the first N in file order.
+    this.equippedSpells = DEFAULT_LOADOUT_IDS.map((id) => this.spells.find((s) => s.id === id)).filter(
+      (s): s is SpellDefinition => s !== undefined
+    );
     // backlog 3.3/3.8 — flatten all shipped levels into one sequential wave list; each
     // entry already carries its own `level`/`wave_index`, so no extra bookkeeping needed
     // to walk from Level 1's last wave straight into Level 2's first.
@@ -199,10 +214,19 @@ export class SpellroadScene extends Phaser.Scene {
       key.on("down", () => this.handleHotbarPress(index));
     });
 
-    // backlog 2.10 — non-mouse aiming fallback tracks whether the pointer has ever been
-    // touched this session; until it has, aiming defaults to last-move-direction instead.
-    this.input.on("pointermove", () => {
-      this.pointerHasMoved = true;
+    // backlog 2.10 — non-mouse aiming fallback tracks whether the pointer has genuinely
+    // moved this session (past the jitter threshold); until it has, aiming defaults to
+    // last-move-direction instead.
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+      const moved = Phaser.Math.Distance.Between(
+        pointer.prevPosition.x,
+        pointer.prevPosition.y,
+        pointer.position.x,
+        pointer.position.y
+      );
+      if (moved >= POINTER_JITTER_THRESHOLD_PX) {
+        this.pointerHasMoved = true;
+      }
     });
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {

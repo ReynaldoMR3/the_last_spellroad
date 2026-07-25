@@ -137,9 +137,19 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         // Retreat is blocked by the lane bounds — slide perpendicular to the retreat
         // vector (toward the lane's centerline) instead of pinning nose-first against
         // the wall, per Warden's wall-slide spec (backlog 2.10).
+        //
+        // Fix (Heckler, 2026-07-25): a fixed per-position sign flipped on this.y alone
+        // was correct for the left/right short-end case but wrong for top/bottom
+        // long-wall blocks, where the perpendicular candidate's own y-sign depends on
+        // direction.x — multiplying the whole vector by a single scalar could still
+        // drive the y-component away from center. Instead, pick whichever orientation of
+        // the perpendicular actually has a y-component pointing toward the centerline.
         const perpendicular = new Phaser.Math.Vector2(direction.y, -direction.x);
-        const towardCenter = this.y >= this.lane.centerY ? -1 : 1;
-        body.setVelocity(perpendicular.x * towardCenter * speed, perpendicular.y * towardCenter * speed);
+        const wantsNegativeY = this.y >= this.lane.centerY; // below/at center -> slide up
+        if ((wantsNegativeY && perpendicular.y > 0) || (!wantsNegativeY && perpendicular.y < 0)) {
+          perpendicular.negate();
+        }
+        body.setVelocity(perpendicular.x * speed, perpendicular.y * speed);
       } else {
         body.setVelocity(retreatX, retreatY);
       }

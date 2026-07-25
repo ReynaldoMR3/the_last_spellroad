@@ -3,15 +3,23 @@ import type { MasteryTier } from "../data/types";
 const TIER_ORDER: MasteryTier[] = ["novice", "adept", "master"];
 
 /**
- * backlog item 0.4, closed 2026-07-25: sized by Pato against the full 3-level Level 1-3
- * wave data (60 enemies total, clearing the developer's 40-60+ threshold). 20 puts the
- * 2-tier climb to Master (40 casts) at ~1.9x the largest single level's enemy count (21),
- * avoiding the exact failure mode flagged when only Level 1's 18-enemy sample existed
- * ("a naive rate sized off it alone would cap most of the spellbook at Master within a
- * single level") while staying reachable for one focused spell across a full playthrough.
- * See mastery-template.md and pato/log.md (2026-07-25 (3)) for the full arithmetic.
+ * backlog item 0.4, closed 2026-07-25, corrected same-day: the first sizing (20/tier)
+ * assumed 1 landed cast ~ 1 kill, which Heckler's critique disproved — a weak Novice spell
+ * needs several casts per kill, so raw enemy-count doesn't bound achievable casts. Pato's
+ * corrected derivation accounts for actual casts-to-kill (ceil(enemyHP/power)) against the
+ * kit's weakest spell (power 2), including Mastery's own power step-up mid-grind, and
+ * verified against Level 2's real 374 total enemy HP: ~185 casts are achievable spending
+ * this spell against every enemy in the level, short of the 360 needed for full Master.
+ * See mastery-template.md and pato/log.md (2026-07-25 (4), supersedes (3)'s Part 2).
+ *
+ * Known residual gap, not fixed here (tracked as a Phase 5 adversarial-QA item, not a
+ * numeric-sizing question): `recordLandedCast` fires on any hit, not a kill, so this bound
+ * only holds against "clear the level" play — a player who deliberately keeps landing
+ * hits on a single enemy without killing it isn't bounded by level content at all, only by
+ * real time. No finite per-tier number closes that on its own; it would need a mechanic
+ * change (e.g. gating progress on kills, not hits), which is a design call, not a resize.
  */
-const LANDED_CASTS_PER_TIER = 20;
+const LANDED_CASTS_PER_TIER = 180;
 
 export interface MasteryState {
   tier: MasteryTier;
