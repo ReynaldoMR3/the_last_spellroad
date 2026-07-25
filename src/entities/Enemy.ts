@@ -22,10 +22,20 @@ const ARCHETYPE_SPEED: Record<EnemyArchetype, number> = {
 
 const MELEE_RANGE = 34;
 const MELEE_COOLDOWN_MS = 1200;
-const RANGED_PREFERRED_RANGE = 220;
+/**
+ * backlog 2.10 — retuned 220->240 (Warden, 2026-07-25) so ranged/debuffer settle into
+ * non-overlapping bands: each archetype holds preferredRange +/- 20, so the old 220/200
+ * pair produced overlapping [200,240]/[180,220] bands (the actual cause of the reported
+ * stacking). Independently re-verified by Pato: 240/150 yields non-overlapping
+ * [220,260]/[130,170] bands, a real ~50px gap against the 26px sprite footprint.
+ */
+const RANGED_PREFERRED_RANGE = 240;
 const RANGED_COOLDOWN_MS = 1800;
-const DEBUFFER_PREFERRED_RANGE = 200;
+const DEBUFFER_PREFERRED_RANGE = 150;
 const DEBUFFER_COOLDOWN_MS = 2500;
+/** backlog 2.10 — how close to a lane wall a kiting retreat must get before it slides
+ * along the wall instead of pinning nose-first (Warden's spec, Pato-validated 2026-07-25). */
+const WALL_SLIDE_MARGIN = 50;
 
 /**
  * Enemy-side HP. hp-template.md only fixes the player's pool and the per-hit damage the
@@ -57,7 +67,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     x: number,
     y: number,
     archetype: EnemyArchetype,
-    debuffVariant: DebuffVariant = "speed"
+    debuffVariant: DebuffVariant = "speed",
+    private readonly lane: Phaser.Geom.Rectangle = new Phaser.Geom.Rectangle(0, 0, Infinity, Infinity)
   ) {
     super(scene, x, y, Enemy.ensureTexture(scene, archetype));
     this.archetype = archetype;
@@ -67,6 +78,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.setCollideWorldBounds(true);
+    // backlog 2.10 — mirror the mage's own lane clamp (SpellroadScene.createMage); enemies
+    // previously only had the full-canvas default, and could wander outside the visible lane.
+    (this.body as Phaser.Physics.Arcade.Body).setBoundsRectangle(this.lane);
   }
 
   private static ensureTexture(scene: Phaser.Scene, archetype: EnemyArchetype): string {
@@ -113,7 +127,22 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (distance > preferredRange + 20) {
       body.setVelocity(direction.x * speed, direction.y * speed);
     } else if (distance < preferredRange - 20) {
-      body.setVelocity(-direction.x * speed, -direction.y * speed);
+      const retreatX = -direction.x * speed;
+      const retreatY = -direction.y * speed;
+      const blockedRight = retreatX > 0 && this.x >= this.lane.right - WALL_SLIDE_MARGIN;
+      const blockedLeft = retreatX < 0 && this.x <= this.lane.left + WALL_SLIDE_MARGIN;
+      const blockedBottom = retreatY > 0 && this.y >= this.lane.bottom - WALL_SLIDE_MARGIN;
+      const blockedTop = retreatY < 0 && this.y <= this.lane.top + WALL_SLIDE_MARGIN;
+      if (blockedRight || blockedLeft || blockedBottom || blockedTop) {
+        // Retreat is blocked by the lane bounds — slide perpendicular to the retreat
+        // vector (toward the lane's centerline) instead of pinning nose-first against
+        // the wall, per Warden's wall-slide spec (backlog 2.10).
+        const perpendicular = new Phaser.Math.Vector2(direction.y, -direction.x);
+        const towardCenter = this.y >= this.lane.centerY ? -1 : 1;
+        body.setVelocity(perpendicular.x * towardCenter * speed, perpendicular.y * towardCenter * speed);
+      } else {
+        body.setVelocity(retreatX, retreatY);
+      }
     } else {
       body.setVelocity(0, 0);
     }

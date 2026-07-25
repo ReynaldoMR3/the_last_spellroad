@@ -93,3 +93,61 @@ The backlog's own task 2.5 framed Warden's first wave batch as the trigger to fi
 **Not setting a number now, for the same reason the developer originally deferred this on 2026-07-22** — the difference is the deferral condition needs restating more precisely: "wait for Warden's regular-wave data" meant enough data across multiple levels to see a real curve, not literally the first wave batch that happens to exist. Restating this in `mastery-template.md` so the next session doesn't mistake "Warden generated some wave data" for "the blocking condition cleared." Recommend picking this up once at least 2-3 levels' worth of wave data exist (roughly 40-60+ enemies), enough to size a rate that doesn't cap the spellbook in the first level.
 
 Status: `blocked-with-reason`, reason narrowed and corrected rather than left as originally (and now inaccurately) scoped.
+
+## 2026-07-25 — Gate-check: Warden's kiting/lane-containment retune (backlog 2.10)
+
+Warden's 2026-07-25 log entry (`docs/agents/warden/log.md`) proposes `RANGED_PREFERRED_RANGE` 220→240 and `DEBUFFER_PREFERRED_RANGE` 200→150, explicitly asking for Pato's independent check since `hp-template.md` has no kiting-range table to look this up against. Independently recomputed against the actual lane geometry (`SpellroadScene.ts`: `ROAD_LEFT` 90, `ROAD_TOP` 190, `ROAD_WIDTH` 780, `ROAD_HEIGHT` 160 → lane x∈[90,870], y∈[190,350], centerline y=270) and `Enemy.ts`'s actual `update()` movement logic, rather than accepting Warden's 90px/3.5x-sprite framing on inspection.
+
+**1. Ring-separation arithmetic — corrected.** `Enemy.ts` doesn't hold a kiter at one fixed distance; the movement branch (`distance > preferredRange+20` → approach, `< preferredRange-20` → retreat, else hold) settles each archetype into a **band of preferredRange ± 20 (40px wide)**. Old values (ranged 220, debuffer 200) produce bands [200,240] and [180,220] — these **overlap by 20px**, they are not merely "20px apart" as the raw-delta framing implies; that overlap is the actual mechanism behind the reported stacking. New values (240/150) produce bands [220,260] and [130,170] — a real, non-overlapping **50px gap** (170→220), not the 90px Warden computed from the raw preferred-range delta (240−150=90). 50px against the 26px sprite is **~1.9x footprint, not ~3.5x**. This is a correction to the stated reasoning, not to the numbers: 50px is still a clean, non-overlapping separation, so 240/150 still solves the overlap problem — just with roughly half the margin claimed. Correct figure to cite going forward: **50px / ~1.9x sprite footprint**, not 90px / 3.5x.
+
+**2. Wall-pin re-trigger near spawn — checked, no new issue.** Enemy spawn `{x:820,y:270}` (`SpellroadScene.startWave`) sits only 50px from the right lane wall (870), under either preferred range. But initial mage-to-enemy distance at wave start (mage `{x:180,y:270}`, same y) is 640px — outside even the attack-trigger radius (preferredRange+40 = 280 max) — so the enemy's first move is *approach*, away from the wall, not retreat. Wall-pinning only arises later if the mage pushes the enemy back toward the wall end of the lane, a positioning dynamic that existed identically at 220 and isn't changed by moving to 240 — matches Warden's own reasoning that this is exactly why the wall-slide behavior spec is the complementary fix, not something a numeric retune alone should resolve. Common mid-lane case: at lane-center (x≈480) max room to either wall is 390px, comfortably above the 280px max operational radius either archetype ever needs.
+
+**3. No other arithmetic issues found.** Debuffer's new 150 sits 116px clear of `MELEE_RANGE` (34), no overlap risk; both new preferred ranges (max radius incl. attack buffer: 280 ranged / 210 debuffer) fit well inside the 780px lane and the 390px mid-lane per-side headroom; `MELEE_RANGE` and all other archetype constants correctly left untouched.
+
+**Verdict: PASS.** 240 (ranged) / 150 (debuffer) do solve the stated overlap/kiting problem — bands no longer overlap and settle at a clearly distinct, correctly-ordered separation. Flagging one correction to Warden's stated reasoning (true hold-band gap is 50px/~1.9x sprite, not 90px/3.5x — the ±20 movement-tolerance band on each side eats 40px of the nominal delta), not to her chosen numbers. No number change recommended. Unblocked: Loomwright can implement both the retune and the wall-slide behavior spec against 240/150 as proposed.
+
+## 2026-07-25 — Gate-check: Frieren's 9 new spells (backlog Task 3.2) — BLOCKED, incomplete submission
+
+Read Frieren's 2026-07-25 log entry directly (`docs/agents/frieren/log.md`) rather than taking the dispatch summary's word for its contents, per standing practice. The dispatch summary characterized the entry as including "each entry's tradeoff sentence and JSON." That is not accurate: the entry contains, per spell, only an id (the spell name), element/shape/weight stated in prose (weight capitalized — same convention drift as the 2026-07-23 batch), and a tradeoff sentence. **No JSON block exists anywhere in the entry, and no per-spell `base_power`, `base_targets`, or `master_discount` value is logged for any of the 9 entries** — only batch-level prose claims ("no entry sets both `master_discount` values," "every base_power/base_targets pair is distinct"). Confirmed this isn't logged elsewhere either: checked `src/data/spells/spells.json` (still only the 3 shipped entries), the `.worktrees/phase-1-2-production` copy of both files, and a repo-wide grep for all 9 new ids — zero hits outside the prose log entry.
+
+**Checkable fields only (id, element, shape, weight) — verified for all 9:**
+
+1. `stone_spike` (earth/line/Light) — valid element/shape/weight; niche unique vs. the 3 shipped and the other 8. id unique.
+2. `flare_jab` (fire/cone/Light) — valid; niche unique (shipped fire is cone/**standard**, not light); id unique.
+3. `spark_ring` (lightning/circle/Light) — valid; niche unique (shipped lightning is line/light, not circle); id unique.
+4. `glacial_shard` (ice/line/Standard) — valid; niche unique (shipped ice is circle/heavy); id unique.
+5. `rubble_burst` (earth/cone/Standard) — valid; niche unique; id unique.
+6. `thunder_dome` (lightning/circle/Standard) — valid; niche unique; id unique.
+7. `magma_lance` (fire/line/Heavy) — valid; niche unique (shipped fire is cone/standard); id unique.
+8. `frost_breath` (ice/cone/Heavy) — valid; niche unique (shipped ice is circle/heavy, not cone); id unique.
+9. `tremor_field` (earth/circle/Heavy) — valid; niche unique; id unique.
+
+Also independently verified the two batch-level structural claims: the weight×shape 3x3 grid (light/standard/heavy × line/cone/circle) is genuinely one-each with no repeats or gaps, and the element split is earth 3 / fire 2 / lightning 2 / ice 2 in this batch, which combined with the 3 already-shipped (1 fire, 1 ice, 1 lightning, 0 earth) does land on 3/3/3/3 across the finished 12-spell roster as claimed.
+
+**Not checkable — blocking:** `base_power`, `base_targets`, and `master_discount` are absent for all 9 entries. Per my own contract, I check submitted numeric fields against template/schema; I don't invent values on Frieren's behalf to wave a batch through, and I don't approve a `master_discount` I never saw. This is not a template violation (nothing invented contradicts a template value) — it's a missing submission, so no entry can be marked PASS.
+
+**Verdict: BLOCKED for all 9 individually**, pending Frieren logging the actual per-spell `base_power`/`base_targets`/`master_discount` JSON. Flagged back through Ana for Frieren to complete the submission before this gate can re-run.
+
+## 2026-07-25 (2) — Gate-check: Frieren's 9 new spells (backlog Task 3.2), re-run on completed submission — supersedes/completes the entry directly above from this same session
+
+Ana appended a "Correction (same session)" block to Frieren's 2026-07-25 log entry with the full `spell.json` payload for all 9 entries, taken verbatim from Frieren's original dispatch response. Re-running the gate now that `base_power`, `base_targets`, and `master_discount` actually exist to check. This entry does not retract the earlier BLOCKED verdict as wrong — that block was correct against what was logged at the time (a missing submission) — it records that the submission is now complete and re-validates it.
+
+Checked all 9 against `mana-template.md`'s weight-class table (Light 10/2s, Standard 20/4s, Heavy 35/8s — `weight` need only name a valid class, since cost/cooldown are derived at runtime, not stored per-spell) and `src/data/types.ts`'s `SpellDefinition` schema (`master_discount` ∈ {"cost","cooldown"}; `weight` ∈ {"light","standard","heavy"}; `element` ∈ the 4 valid elements; `shape` ∈ the 3 valid shapes; `base_power`/`base_targets` numeric; `id` unique against each other and the 3 shipped ids `arc_lance`/`flame_sweep`/`frost_nova`).
+
+1. `stone_spike` — earth/line/light, base_power 4, base_targets 1, master_discount cooldown. **PASS.**
+2. `flare_jab` — fire/cone/light, base_power 2, base_targets 2, master_discount cost. **PASS.**
+3. `spark_ring` — lightning/circle/light, base_power 2, base_targets 4, master_discount cooldown. **PASS.**
+4. `glacial_shard` — ice/line/standard, base_power 4, base_targets 3, master_discount cost. **PASS.**
+5. `rubble_burst` — earth/cone/standard, base_power 3, base_targets 3, master_discount cost. **PASS.**
+6. `thunder_dome` — lightning/circle/standard, base_power 5, base_targets 4, master_discount cooldown. **PASS.**
+7. `magma_lance` — fire/line/heavy, base_power 9, base_targets 1, master_discount cost. **PASS.**
+8. `frost_breath` — ice/cone/heavy, base_power 6, base_targets 4, master_discount cooldown. **PASS.**
+9. `tremor_field` — earth/circle/heavy, base_power 5, base_targets 6, master_discount cost. **PASS.**
+
+All 9 `weight` values are correctly lowercase this time (no repeat of the 2026-07-23 batch's capitalization drift that required normalization). All 9 `master_discount` values are single, valid enum strings — none sets both, none uses an invalid value. `id` uniqueness independently re-checked: 9 new ids are pairwise distinct and none collides with `arc_lance`/`flame_sweep`/`frost_nova`. `element`/`shape` values all valid.
+
+Also re-verified, now against real numbers, the batch-level claim from the original entry that every (`base_power`, `base_targets`) pair across the full 12-spell roster is distinct: shipped (3,2) (5,2) (7,3); new (4,1) (2,2) (2,4) (4,3) (3,3) (5,4) (9,1) (6,4) (5,6). All 12 pairs are pairwise distinct — claim holds, no copy-pasted pair.
+
+**Verdict: PASS on all 9 entries, individually.** Zero flagged diffs.
+
+**Cleared:** this batch is now ship-ready numerically. Ana/Loomwright are clear to write all 9 entries into `src/data/spells/spells.json` (bringing the shipped roster from 3 to 12) — Pato has not written to that file itself, per standing practice (Pato validates, never authors the shipped data).
