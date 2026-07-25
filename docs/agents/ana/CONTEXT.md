@@ -8,7 +8,7 @@
 
 **Player-facing effect:** none directly — Ana's coordination is what keeps Warden's, Frieren's, Lorena's, and Pato's output landing as one coherent build instead of disconnected pieces.
 
-**Reference layer used:** none directly (Ana routes to agents that use `_reference/`, but doesn't need the numeric templates herself).
+**Reference layer used:** none directly for design/numeric content (Ana routes to agents that use `_reference/`, but doesn't need the numeric templates herself) — does reference `_reference/docker-testing-contract.md` when dispatching engine or build-based critique work, so the receiving agent knows it can self-verify rather than only waiting on the developer.
 
 **Log:** `docs/agents/ana/log.md` — orchestration-only, not read directly by other agents (they ask Ana for history instead).
 

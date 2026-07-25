@@ -88,6 +88,8 @@ Owner throughout: **Loomwright**. Nothing in Phase 2+ that touches HP, Mana, Mas
 
 **2026-07-23 status:** all six tasks built and typechecked; gate not yet cleared. This session's own attempt at a developer-playtest stand-in ran into a real environment limitation (the sandboxed browser pane's `document.visibilityState` was `"hidden"` and keyboard input never reached the page, confirmed via a raw DOM listener that never fired) — passive systems (enemy AI/damage, death trigger, Novice-floor exclusion, wave sequencing) were confirmed live regardless, since they need no player input; the interactive cast-and-hit path was verified by code/geometry review and a clean build only. A real developer playtest (an actual keyboard) is still needed to close this phase's gate — see Loomwright's log for the full disclosure.
 
+**Self-verify step formalized (added 2026-07-24):** the typecheck/build check this session already ran informally is now a documented, repeatable step for every task in this phase — `docker-compose run --rm game npm run typecheck` and `npm run build` per `docs/agents/_reference/docker-testing-contract.md`, run before reporting back to Ana. The Docker setup itself existed since Week 1's foundation work but was never wired into the agent context store, so prior dispatches had no citable path to it even when they did the right thing informally. This closes the typecheck/build half of the gap only — it does not solve the interactive-playtest limitation above, which needs an actual developer session with real keyboard input, not a sandboxed browser pane or a headless build check.
+
 ---
 
 ## Phase 2 — First vertical thread (target: Week 3-4)
