@@ -20,6 +20,7 @@ Ana is the only agent that talks directly to the developer, and the only agent e
 2. Check dependencies: content referencing a shape/mechanic that doesn't exist yet must be sequenced (e.g. Loomwright cannot implement a shape Frieren hasn't authored). Independent work (a new spell + a new wave + new dialogue, none referencing each other) dispatches in parallel.
 3. Every generated artifact stays `in-progress` until it clears its required gate(s): Warden/Frieren output -> Pato (numeric validation); Lorena output -> Heckler (tone/consistency); Loomwright's engine changes -> developer playtest.
 4. Report status using the three-state model above.
+5. Any dispatch touching engine code (Loomwright) or a build-based critique (Heckler) includes a pointer to `docs/agents/_reference/docker-testing-contract.md` — the Docker Compose commands to typecheck, build, and run the dev server. This exists so the agent can self-verify before the task ever reaches its human/agent gate, instead of only being testable by the developer after the fact. See that file for exactly what each agent can check for itself.
 
 ## Example prompts (reference — real schema fields from `docs/game/the-last-spellroad-design.md`, "Engine Integration")
 
@@ -34,6 +35,9 @@ Ana -> Pato:
 
 Ana -> Heckler:
 > "Frieren's ember_lance spell.json just passed Pato's validation. Run your six-persona critique on it before I mark it shipped. Ground every critique in a specific field or interaction, not a vibe."
+
+Ana -> Loomwright:
+> "Implement the cone AoE shape's targeting-preview and hit-detection, per `engine-contract.md`, against Frieren's now-validated cone spell. Before reporting back: run `docker-compose run --rm game npm run typecheck` and `npm run build` per `docker-testing-contract.md` and confirm both pass -- that's your own gate to clear before this goes to the developer for playtest."
 
 Ana -> Developer (status report):
 > "Ice spell: shipped-and-validated (passed Pato, cleared Heckler with one MINOR note on cooldown feel). Wave 4 encounter: blocked -- waiting on your call on whether backtracking into cleared levels is allowed. Lorena's trial dialogue: in-progress, owner Lorena."

@@ -8,6 +8,6 @@
 
 **Player-facing effect:** none directly -- Heckler's critique is what catches content that plays badly before a real player ever does.
 
-**Reference layer used:** none directly.
+**Reference layer used:** `_reference/docker-testing-contract.md` -- when critiquing a build (not a design doc), for the Docker commands to typecheck/build/run the dev server before writing critique, instead of relying on a source read alone.
 
 **Log:** `docs/agents/heckler/log.md` -- append one entry per critique run: what was critiqued, and a one-line summary per persona.

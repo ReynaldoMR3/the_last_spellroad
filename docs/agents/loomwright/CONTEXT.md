@@ -8,6 +8,6 @@
 
 **Player-facing effect:** every move, every targeting preview, every confirmed cast.
 
-**Reference layer used:** `_reference/engine-contract.md` (own authority — Loomwright is the one who updates it when the engine's actual capabilities change).
+**Reference layer used:** `_reference/engine-contract.md` (own authority — Loomwright is the one who updates it when the engine's actual capabilities change); `_reference/docker-testing-contract.md` (also own authority — updates it if the Docker workflow itself changes) for self-verifying typecheck/build/dev-server before the developer playtest gate.
 
-**Log:** `docs/agents/loomwright/log.md` — append one entry per engine feature shipped, with the developer playtest result.
+**Log:** `docs/agents/loomwright/log.md` — append one entry per engine feature shipped, with the Docker typecheck/build self-verification result and the developer playtest result.

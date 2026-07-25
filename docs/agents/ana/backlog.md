@@ -84,6 +84,8 @@ Owner throughout: **Loomwright**. Nothing in Phase 2+ that touches HP, Mana, Mas
 
 **Gate for the whole phase:** developer playtest per `loomwright/AGENT.md`'s own success criterion ("validated by the human developer actually running the game... not by another content-validating agent"). Pato does **not** gate these — there's no generated content yet to validate, only engine mechanism. Pato's gate starts at Phase 2 once Frieren/Warden output exists to check.
 
+**Self-verify before that gate (added 2026-07-24):** Loomwright runs `docker-compose run --rm game npm run typecheck` and `npm run build` per `docs/agents/_reference/docker-testing-contract.md` on every task in this phase before reporting back to Ana. This is a new, previously-undocumented step, not a new requirement — the Docker setup already existed (built in Week 1's foundation work) but was never wired into the agent context store, so prior dispatches had no path to it. Doesn't replace the developer-playtest gate above; it just means nothing with a failing typecheck or build reaches it.
+
 ---
 
 ## Phase 2 — First vertical thread (target: Week 3-4)
