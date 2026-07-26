@@ -11,6 +11,7 @@ export function spawnWave(
   scene: Phaser.Scene,
   wave: WaveDefinition,
   spawnPoint: { x: number; y: number },
+  laneRect: Phaser.Geom.Rectangle,
   onSpawn: (enemy: Enemy) => void
 ): void {
   for (const entry of wave.enemies) {
@@ -28,7 +29,8 @@ export function spawnWave(
           spawnPoint.x + jitterX,
           spawnPoint.y + jitterY,
           registryEntry.archetype,
-          registryEntry.debuffVariant ?? "speed"
+          registryEntry.debuffVariant ?? "speed",
+          laneRect
         );
         onSpawn(enemy);
       });

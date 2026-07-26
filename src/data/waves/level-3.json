@@ -1,0 +1,38 @@
+[
+  {
+    "level": 3,
+    "wave_index": 0,
+    "enemies": [
+      { "type": "spellbound_thug", "count": 3, "spawn_delay_ms": 0 },
+      { "type": "hexbow_skirmisher", "count": 2, "spawn_delay_ms": 900 },
+      { "type": "murmur_wisp", "count": 1, "spawn_delay_ms": 1400 }
+    ],
+    "hp_modifier": 1.0,
+    "damage_modifier": 1.0
+  },
+  {
+    "level": 3,
+    "wave_index": 1,
+    "enemies": [
+      { "type": "spellbound_thug", "count": 2, "spawn_delay_ms": 0 },
+      { "type": "hexbow_skirmisher", "count": 3, "spawn_delay_ms": 700 },
+      { "type": "creeping_bramble", "count": 2, "spawn_delay_ms": 1300 },
+      { "type": "murmur_wisp", "count": 2, "spawn_delay_ms": 1700 }
+    ],
+    "hp_modifier": 1.0,
+    "damage_modifier": 1.0
+  },
+  {
+    "level": 3,
+    "wave_index": 2,
+    "enemies": [
+      { "type": "spellbound_thug", "count": 2, "spawn_delay_ms": 0 },
+      { "type": "dread_reaver", "count": 1, "spawn_delay_ms": 0 },
+      { "type": "hexbow_skirmisher", "count": 1, "spawn_delay_ms": 800 },
+      { "type": "storm_lancer", "count": 1, "spawn_delay_ms": 800 },
+      { "type": "creeping_bramble", "count": 1, "spawn_delay_ms": 1300 }
+    ],
+    "hp_modifier": 1.0,
+    "damage_modifier": 1.0
+  }
+]

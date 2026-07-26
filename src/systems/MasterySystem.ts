@@ -3,13 +3,23 @@ import type { MasteryTier } from "../data/types";
 const TIER_ORDER: MasteryTier[] = ["novice", "adept", "master"];
 
 /**
- * TODO(Pato, backlog item 0.4): the landed-casts-per-tier growth rate is not yet a
- * finalized design number — the developer's explicit call (2026-07-22) was to wait
- * for Warden's real regular-wave data before sizing it, rather than guess. This value
- * is an engine-testing placeholder only, so Mastery tier-ups are visible/verifiable
- * during development; it must not be read as a shipped design decision.
+ * backlog item 0.4, closed 2026-07-25, corrected same-day: the first sizing (20/tier)
+ * assumed 1 landed cast ~ 1 kill, which Heckler's critique disproved — a weak Novice spell
+ * needs several casts per kill, so raw enemy-count doesn't bound achievable casts. Pato's
+ * corrected derivation accounts for actual casts-to-kill (ceil(enemyHP/power)) against the
+ * kit's weakest spell (power 2), including Mastery's own power step-up mid-grind, and
+ * verified against Level 2's real 374 total enemy HP: ~185 casts are achievable spending
+ * this spell against every enemy in the level, short of the 360 needed for full Master.
+ * See mastery-template.md and pato/log.md (2026-07-25 (4), supersedes (3)'s Part 2).
+ *
+ * Known residual gap, not fixed here (tracked as a Phase 5 adversarial-QA item, not a
+ * numeric-sizing question): `recordLandedCast` fires on any hit, not a kill, so this bound
+ * only holds against "clear the level" play — a player who deliberately keeps landing
+ * hits on a single enemy without killing it isn't bounded by level content at all, only by
+ * real time. No finite per-tier number closes that on its own; it would need a mechanic
+ * change (e.g. gating progress on kills, not hits), which is a design call, not a resize.
  */
-const PLACEHOLDER_LANDED_CASTS_PER_TIER = 5;
+const LANDED_CASTS_PER_TIER = 180;
 
 export interface MasteryState {
   tier: MasteryTier;
@@ -44,7 +54,7 @@ export class MasterySystem {
       return;
     }
     entry.landedCasts += 1;
-    if (entry.landedCasts >= PLACEHOLDER_LANDED_CASTS_PER_TIER) {
+    if (entry.landedCasts >= LANDED_CASTS_PER_TIER) {
       entry.landedCasts = 0;
       entry.tier = TIER_ORDER[TIER_ORDER.indexOf(entry.tier) + 1];
       onTierUp?.(spellId, entry.tier);
