@@ -13,5 +13,24 @@ services:
     environment:
       npm_config_update_notifier: "false"
 
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - spellroad_ollama_models:/root/.ollama
+
+  agent-crew:
+    build:
+      context: ./agent-crew
+    working_dir: /app
+    env_file:
+      - ./agent-crew/.env
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+    volumes:
+      - ./agent-crew:/app
+    depends_on:
+      - ollama
+
 volumes:
   spellroad_node_modules:
+  spellroad_ollama_models:

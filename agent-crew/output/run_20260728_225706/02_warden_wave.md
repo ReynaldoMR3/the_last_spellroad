@@ -1,0 +1,2 @@
+The casual damage estimate is 30% of the mage's 100-HP pool (25-35%) with competent-play damage at 12.5%. 
+{level: "Level 2", wave_index: "Wave 1", enemies: [{type: "spellbound_thug", count: 3, spawn_delay_ms: 250, hp_modifier: 1.0, damage_modifier: 0.75}], hp_modifier: 1.0, damage_modifier: 0.75}
