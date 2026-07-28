@@ -204,3 +204,11 @@ Solving for `k = 180`: `T(180) = (180 + 374) / 3 = 184.67 → 185` casts to full
 **Corrected rate: 180 landed casts per tier (360 to fully master one spell)**, up from the flawed 20/tier (40 total). Updated `docs/agents/_reference/mastery-template.md` in place — the old "Resolved 2026-07-25" block is marked `SUPERSEDED`, not deleted, with the false premise stated explicitly, and a new "Corrected 2026-07-25 (4)" block holds the full re-derivation above. Did not touch `src/systems/MasterySystem.ts` myself (engine code, Loomwright's territory) — action item recorded in the template: replace `LANDED_CASTS_PER_TIER = 20` with **180** and update its doc comment to cite this corrected derivation instead of the superseded reasoning.
 
 **Status: RESOLVED (correction).** This entry supersedes entry (3)'s Part 2 in full; Part 1 of entry (3) (Level 2/3 wave gate-check) is untouched and still stands as PASS.
+
+## 2026-07-27 — Re-verification: mini-boss reconstruction (`boss-1.json`) against the already-PASS'd 2026-07-21/2026-07-23 arithmetic
+
+Ana reconstructed the 2026-07-21 boss composition into an actual file (it had only ever existed as log narrative). Re-ran the same checks against `boss-1.json`'s actual per-phase entries rather than assuming the reconstruction preserved the numbers correctly:
+
+Phase totals: Phase 1 (1 `spellbound_thug`, 3 `hexbow_skirmisher`, 1 `creeping_bramble`) = M1/R3. Phase 2 (2 `spellbound_thug`, 4 `hexbow_skirmisher`, 1 `murmur_wisp`) = M2/R4. Phase 3 (2 `spellbound_thug`, 4 `hexbow_skirmisher`, 1 `creeping_bramble`) = M2/R4. **Aggregate: M=5, R=11, Debuffer=3 (speed, mana_regen, speed)** — matches entry (5)'s validated aggregate exactly, field for field. Careless: 5×7+11×4=79. Competent: 11×4+0.2×5×7=51. Both reproduce entries (5)/2026-07-23's numbers unchanged. Cap formula: 3 phases → 2 breaks → `min(2-1,2)=1` recovery — unchanged. Debuffer concurrency: exactly one Debuffer per phase, same as the original — concurrency-safe by construction, same as before.
+
+**Verdict: PASS, no drift.** The reconstruction is numerically identical to what already cleared gate-checks twice; only the per-phase spawn split (not previously validated individually, since only the aggregate was ever checked) is new, and it doesn't change any of the aggregate math this gate actually cares about.

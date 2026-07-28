@@ -34,4 +34,8 @@ export interface WaveDefinition {
   enemies: WaveEnemyEntry[];
   hp_modifier: number;
   damage_modifier: number;
+  /** True for every phase of a mini-boss/Director trial (backlog 3.4) — distinguishes a
+   * multi-phase boss fight (no free HP reset between phases, per hp-template.md's cumulative
+   * damage-threat budget) from a regular wave (full HP reset each time). */
+  is_boss?: boolean;
 }

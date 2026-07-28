@@ -25,6 +25,11 @@ export class ManaSystem {
     return this.mana;
   }
 
+  /** Full refill on death/respawn, mirroring HealthSystem.reset() (backlog 2.12). */
+  reset(): void {
+    this.mana = MAX_MANA;
+  }
+
   /** @param regenPerSec defaults to the base rate; pass a drained rate while Debuffer stacks are active. */
   update(deltaMs: number, regenPerSec: number = MANA_REGEN_PER_SEC): void {
     this.mana = Math.min(MAX_MANA, this.mana + (regenPerSec * deltaMs) / 1000);

@@ -1,22 +1,33 @@
 import Phaser from "phaser";
-import type { MasteryTier, SpellDefinition, WaveDefinition } from "../data/types";
+import type { DebuffVariant, MasteryTier, SpellDefinition, WaveDefinition } from "../data/types";
 import { HealthSystem, MAX_HP } from "../systems/HealthSystem";
 import { ManaSystem, MANA_REGEN_PER_SEC, MAX_MANA } from "../systems/ManaSystem";
 import { MasterySystem } from "../systems/MasterySystem";
-import { HexcoinSystem } from "../systems/HexcoinSystem";
+import { HexcoinSystem, FEE_PHASE_RECOVERY, PHASE_RECOVERY_HP_FRACTION, MAX_RECOVERIES_HARD_CAP } from "../systems/HexcoinSystem";
 import { DebuffSystem } from "../systems/DebuffSystem";
 import { SpellCaster, SHAPE_GEOMETRY } from "../entities/SpellCaster";
 import { Enemy, ARCHETYPE_DAMAGE } from "../entities/Enemy";
 import { spawnWave } from "../systems/WaveLoader";
 
 const PLAYER_SPEED = 180;
-const ROAD_TOP = 190;
-const ROAD_HEIGHT = 160;
+/** Widened 160->220 (2026-07-27, developer feedback: not enough room to evade projectiles/
+ * melee). Kept centered on the same y=270 midline (ROAD_TOP recomputed accordingly) so the
+ * mage's start position and every enemy-spawn point stay meaningful. This touches geometry
+ * `RANGED_PREFERRED_RANGE`/`DEBUFFER_PREFERRED_RANGE`/`WALL_SLIDE_MARGIN` (Enemy.ts) were
+ * tuned against at the old 160px height (backlog 2.10) — a taller lane only reduces how
+ * often enemies hit the top/bottom wall, it can't newly break the non-overlap those ranges
+ * were tuned for, but Warden/Pato should re-feel wave pacing against the new dimensions
+ * rather than assume nothing changed. */
+const ROAD_TOP = 160;
+const ROAD_HEIGHT = 220;
 const ROAD_LEFT = 90;
 const ROAD_WIDTH = 780;
 const MAGE_START = { x: 180, y: 270 };
-/** Ranged attacks apply damage after a short simulated travel delay rather than a full projectile-physics sprite — a scoped-down visual, not a change to the 4-damage-per-hit number. */
-const RANGED_TRAVEL_MS = 280;
+/** Ranged attacks apply damage after a short simulated travel delay rather than a full projectile-physics sprite — a scoped-down visual, not a change to the 4-damage-per-hit number.
+ * Widened 280->450ms (2026-07-27, developer feedback: no time to react/evade) — this is
+ * purely a visual-pacing constant (Loomwright's own call per the comment above), not one of
+ * Pato's validated numbers, so it's free to retune without a template change. */
+const RANGED_TRAVEL_MS = 450;
 /** GDD "Core Controls And Casting": a 1-6 hotbar on the number row. Was stuck at 3 keys
  * from when the spellbook only had 3 spells; now that backlog 3.1 shipped 12, this was
  * silently making 9 of them unreachable in play. Full loadout-selection UI (choosing which
@@ -57,6 +68,11 @@ export class SpellroadScene extends Phaser.Scene {
   private equippedSpells: SpellDefinition[] = [];
   private waves: WaveDefinition[] = [];
   private waveIndex = 0;
+  /** backlog 3.4 — cap on Phase-Transition Recovery purchases for the boss fight currently
+   * in progress: min(that boss's phase-breaks - 1, MAX_RECOVERIES_HARD_CAP), per hp-template.md.
+   * Recomputed at the start of every boss encounter; meaningless outside one. */
+  private bossMaxRecoveries = 0;
+  private awaitingPhaseChoice = false;
 
   private lastFacing = new Phaser.Math.Vector2(1, 0);
   private pointerHasMoved = false;
@@ -75,6 +91,7 @@ export class SpellroadScene extends Phaser.Scene {
   private previewGraphics?: Phaser.GameObjects.Graphics;
 
   private hudText?: Phaser.GameObjects.Text;
+  private hotbarText?: Phaser.GameObjects.Text;
   private messageText?: Phaser.GameObjects.Text;
   private messageClearAt = 0;
 
@@ -87,6 +104,7 @@ export class SpellroadScene extends Phaser.Scene {
     this.load.json("waves-level-1", "src/data/waves/level-1.json");
     this.load.json("waves-level-2", "src/data/waves/level-2.json");
     this.load.json("waves-level-3", "src/data/waves/level-3.json");
+    this.load.json("waves-boss-1", "src/data/waves/boss-1.json");
   }
 
   create(): void {
@@ -102,7 +120,8 @@ export class SpellroadScene extends Phaser.Scene {
     this.waves = [
       ...(this.cache.json.get("waves-level-1") as WaveDefinition[]),
       ...(this.cache.json.get("waves-level-2") as WaveDefinition[]),
-      ...(this.cache.json.get("waves-level-3") as WaveDefinition[])
+      ...(this.cache.json.get("waves-level-3") as WaveDefinition[]),
+      ...(this.cache.json.get("waves-boss-1") as WaveDefinition[])
     ];
 
     this.health = new HealthSystem(
@@ -179,6 +198,17 @@ export class SpellroadScene extends Phaser.Scene {
     });
 
     this.hudText = this.add.text(32, 46, "", {
+      color: "#9fb0d8",
+      fontFamily: "monospace",
+      fontSize: "14px",
+      lineSpacing: 4
+    });
+
+    // Developer feedback (2026-07-27): "the hotbar now contaminates the gameplay screen"
+    // — the per-spell shape/weight tags (backlog 2.14) made the top-left HUD block tall
+    // enough to overlap the road (ROAD_TOP=190). Given its own dedicated panel below the
+    // road instead of stacking under the top stats, where there's no gameplay to cover.
+    this.hotbarText = this.add.text(32, ROAD_TOP + ROAD_HEIGHT + 14, "", {
       color: "#9fb0d8",
       fontFamily: "monospace",
       fontSize: "14px",
@@ -423,18 +453,67 @@ export class SpellroadScene extends Phaser.Scene {
       return;
     }
     this.waveIndex = index;
-    if (wave.wave_index === 0) {
-      this.flashMessage(`Level ${wave.level}`, 1500);
+
+    if (wave.is_boss) {
+      if (wave.wave_index === 0) {
+        // First phase of the fight: this is the one HP-reset point (hp-template.md's
+        // per-wave reset) — later phases in this same fight deliberately do NOT reset,
+        // since the boss/trial damage-threat budget is cumulative across phases, which is
+        // the entire reason Phase-Transition Recovery exists as a paid mid-fight option.
+        const totalPhases = this.waves.filter((w) => w.is_boss && w.level === wave.level).length;
+        this.bossMaxRecoveries = Math.min(totalPhases - 2, MAX_RECOVERIES_HARD_CAP);
+        this.hexcoin.startBossFight();
+        this.health.reset();
+        this.flashMessage("Director Trial — Phase 1", 1800);
+      } else {
+        this.flashMessage(`Director Trial — Phase ${wave.wave_index + 1}`, 1800);
+      }
+    } else {
+      if (wave.wave_index === 0) {
+        this.flashMessage(`Level ${wave.level}`, 1500);
+      }
+      // hp-template.md: "full reset to 100 at the start of every wave" — every regular wave
+      // is a clean HP budget, not cumulative damage carried in from the previous one.
+      this.health.reset();
     }
-    // hp-template.md: "full reset to 100 at the start of every wave" — every wave is a
-    // clean HP budget, not cumulative damage carried in from the previous one.
-    this.health.reset();
+
     this.debuff.clear();
     this.enemiesRemainingToSpawn = wave.enemies.reduce((sum, e) => sum + e.count, 0);
     spawnWave(this, wave, { x: 820, y: 270 }, LANE_RECT, (enemy) => {
       this.enemies.push(enemy);
       this.enemiesRemainingToSpawn -= 1;
     });
+  }
+
+  /** backlog 3.4 — offered at every boss phase-break (never at a regular wave's end).
+   * Pay `FEE_PHASE_RECOVERY` Hexcoin (from the fight-start-frozen snapshot) to restore
+   * `PHASE_RECOVERY_HP_FRACTION` of MAX_HP, or decline and continue at current HP. */
+  private startPhaseBreak(nextIndex: number): void {
+    this.awaitingPhaseChoice = true;
+    const canPay = this.hexcoin.canUsePhaseRecovery(this.bossMaxRecoveries);
+    this.flashMessage(
+      canPay
+        ? `Phase clear! [Y] Pay ${FEE_PHASE_RECOVERY} Hexcoin -> restore ${Math.round(MAX_HP * PHASE_RECOVERY_HP_FRACTION)} HP  /  [N] Continue`
+        : "Phase clear! No recovery available — press any key to continue.",
+      60000
+    );
+    const resolve = (pay: boolean) => {
+      if (!this.awaitingPhaseChoice) {
+        return;
+      }
+      this.awaitingPhaseChoice = false;
+      this.input.keyboard?.off("keydown-Y", onY);
+      this.input.keyboard?.off("keydown-N", onN);
+      if (pay && this.hexcoin.usePhaseRecovery(this.bossMaxRecoveries)) {
+        this.health.restore(MAX_HP * PHASE_RECOVERY_HP_FRACTION);
+        this.flashMessage(`Recovered ${Math.round(MAX_HP * PHASE_RECOVERY_HP_FRACTION)} HP`, 1200);
+      }
+      this.time.delayedCall(pay ? 1200 : 200, () => this.startWave(nextIndex));
+    };
+    const onY = () => resolve(true);
+    const onN = () => resolve(false);
+    this.input.keyboard?.once("keydown-Y", onY);
+    this.input.keyboard?.once("keydown-N", onN);
   }
 
   private updateEnemies(deltaMs: number): void {
@@ -453,17 +532,38 @@ export class SpellroadScene extends Phaser.Scene {
       }
       enemy.update(deltaMs, this.mage.x, this.mage.y, {
         onMeleeHit: () => this.health.applyDamage(ARCHETYPE_DAMAGE.melee),
-        onRangedFire: () => {
+        onRangedFire: (fromX, fromY, toX, toY) => {
+          // Developer feedback (2026-07-27): no way to tell a non-melee hit is coming.
+          // `EnemyCallbacks` already carried the shot's start/end coordinates — the scene
+          // just never drew anything with them. Visible travel time doubles as the dodge
+          // window the competent-play damage-threat model already assumes exists.
+          this.spawnRangedProjectile(fromX, fromY, toX, toY);
           this.time.delayedCall(RANGED_TRAVEL_MS, () =>
             this.health.applyDamage(ARCHETYPE_DAMAGE.ranged)
           );
         },
-        onDebuffPulse: (variant) => this.debuff.applyStack(variant)
+        onDebuffPulse: (variant) => {
+          this.spawnDebuffPulse(enemy.x, enemy.y, variant);
+          this.debuff.applyStack(variant);
+        }
       });
     }
 
     if (this.enemiesRemainingToSpawn === 0 && this.enemies.length === 0) {
       this.enemiesRemainingToSpawn = -1; // guard against re-triggering while the delay is pending
+      const wave = this.waves[this.waveIndex];
+      const next = this.waves[this.waveIndex + 1];
+      if (wave?.is_boss && next?.is_boss && next.level === wave.level) {
+        // Another phase of the same boss follows: offer the paid recovery choice instead
+        // of auto-advancing — this is the phase-break, not a regular wave transition.
+        this.startPhaseBreak(this.waveIndex + 1);
+        return;
+      }
+      if (wave?.is_boss) {
+        // Last phase of the boss just cleared.
+        this.hexcoin.endBossFight();
+        this.flashMessage("Director Trial — Victory!", 2500);
+      }
       this.time.delayedCall(1200, () => this.startWave(this.waveIndex + 1));
     }
   }
@@ -498,6 +598,49 @@ export class SpellroadScene extends Phaser.Scene {
     });
   }
 
+  /** backlog 2.13 — a ranged shot previously applied delayed damage with zero visible
+   * warning (the enemy-side fire coordinates existed in `EnemyCallbacks` but the scene
+   * never drew anything with them). A small dot tweens from the shooter to the target over
+   * the same `RANGED_TRAVEL_MS` window the damage delay already uses, so the shot's arrival
+   * and its visible travel are the same event, not two disconnected timers. */
+  private spawnRangedProjectile(fromX: number, fromY: number, toX: number, toY: number): void {
+    // Developer feedback (2026-07-27): the first version (radius 4, the same amber as the
+    // Ranged archetype's own sprite) wasn't actually noticed in play. Bigger, a color that
+    // doesn't match any enemy body, a thin contrasting outline, and forced above every
+    // other game object via depth (nothing else in the scene sets one, so equal-depth
+    // insertion order should already have put this on top — setting it explicitly rules
+    // that out as a cause rather than assuming it wasn't the problem).
+    const dot = this.add.circle(fromX, fromY, 7, 0xff3b3b);
+    dot.setStrokeStyle(2, 0xffffff, 0.9);
+    dot.setDepth(1000);
+    this.tweens.add({
+      targets: dot,
+      x: toX,
+      y: toY,
+      duration: RANGED_TRAVEL_MS,
+      ease: "Linear",
+      onComplete: () => dot.destroy()
+    });
+  }
+
+  /** backlog 2.13 — a Debuffer's pulse previously applied its stack with zero visible
+   * signal at all (unlike melee/ranged, it has no HP consequence, so nothing else hinted a
+   * debuff had just landed). A brief expanding ring at the Debuffer, tinted by variant. */
+  private spawnDebuffPulse(x: number, y: number, variant: DebuffVariant): void {
+    const color = variant === "speed" ? 0x6f4fa8 : 0x4fa8a3;
+    const ring = this.add.circle(x, y, 6, color, 0);
+    ring.setStrokeStyle(2, color, 0.9);
+    this.tweens.add({
+      targets: ring,
+      radius: 30,
+      alpha: 0,
+      duration: 500,
+      ease: "Cubic.Out",
+      onUpdate: () => ring.setStrokeStyle(2, color, ring.alpha),
+      onComplete: () => ring.destroy()
+    });
+  }
+
   // ----- death -----
 
   private handleDeath(): void {
@@ -516,8 +659,13 @@ export class SpellroadScene extends Phaser.Scene {
     this.enemies = [];
     this.enemiesRemainingToSpawn = 0;
     this.health.reset();
+    this.mana.reset();
     this.debuff.clear();
     this.mage?.setPosition(MAGE_START.x, MAGE_START.y);
+    // Dying mid-boss-fight exits that fight's frozen-Hexcoin-snapshot state — the next
+    // attempt at the boss calls startBossFight() again and takes a fresh snapshot.
+    this.hexcoin.endBossFight();
+    this.awaitingPhaseChoice = false;
     this.time.delayedCall(1500, () => this.startWave(0));
   }
 
@@ -539,15 +687,21 @@ export class SpellroadScene extends Phaser.Scene {
     const waveLine = currentWave
       ? `Level ${currentWave.level}, Wave ${currentWave.wave_index + 1}  (enemies: ${this.enemies.length})`
       : `Wave  ${this.waveIndex + 1}/${this.waves.length}  (enemies: ${this.enemies.length})`;
+    // Developer feedback (2026-07-27): "unclear when i should use which spell" — the
+    // hotbar showed only each spell's raw id, which doesn't self-describe its shape/weight
+    // (e.g. "arc_lance" gives no hint it's a single-target line). Surfacing shape+weight
+    // directly is the cheapest legibility fix available without a fuller tooltip/icon
+    // system (future work, not this fix).
     const hotbarLine = this.equippedSpells
       .map((spell, index) => {
         const tier: MasteryTier = this.mastery.getTier(spell.id);
         const cooldown = this.caster.cooldownRemaining(spell.id);
         const cdLabel = cooldown > 0 ? `${(cooldown / 1000).toFixed(1)}s` : "ready";
-        return `[${index + 1}] ${spell.id} (${tier}, ${cdLabel})`;
+        return `[${index + 1}] ${spell.id} [${spell.shape}/${spell.weight}] (${tier}, ${cdLabel})`;
       })
-      .join("  ");
+      .join("\n");
 
-    this.hudText.setText([hpLine, manaLine, hexLine, waveLine, hotbarLine].join("\n"));
+    this.hudText.setText([hpLine, manaLine, hexLine, waveLine].join("\n"));
+    this.hotbarText?.setText(["Hotbar:", hotbarLine].join("\n"));
   }
 }
