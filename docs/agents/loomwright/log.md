@@ -65,3 +65,43 @@ Developer stepped away for the day and asked Ana to keep the roster producing au
 **Self-verify:** `docker-compose run --rm game npm run typecheck` and `npm run build` both clean after every change in this entry, including the three Heckler-driven fixes.
 
 **Status:** 2.9 `in-progress-with-owner` (built, self-verified, awaiting developer visual confirmation). 2.10 `shipped-and-validated` for the engine mechanism (containment, retune, wall-slide, aiming fallback, all Heckler-flagged bugs fixed and re-verified) — still awaiting a developer feel-check, same distinction as always between self-verify and human playtest. Hotbar/loadout fix and Level 2/3 wiring: `shipped-and-validated`, self-verified, no human-only gate applies (mechanical/data wiring, not a feel judgment).
+
+## 2026-07-27 — Mana not refilling on death (backlog 2.12): `ManaSystem.reset()` added
+
+Developer playtest (via `docker-compose up -d game`) surfaced that death respawned the mage with full HP but whatever Mana was left at time of death — `handleDeath()` called `health.reset()` but had no equivalent for Mana, which isn't the same class (`ManaSystem` had no `reset()` at all, unlike `HealthSystem`). Checked the GDD before treating this as a bug: it only specifies HP resets in full on respawn, says nothing about Mana either way, so this was a real undecided gap, routed to the developer rather than guessed. Developer's call: mirror HP, full refill.
+
+Added `ManaSystem.reset()` (sets `mana = MAX_MANA`, same shape as `HealthSystem.reset()`) and call it in `handleDeath()` right alongside `health.reset()`. One-line addition plus one call site — no other system touches Mana on death. `docker-compose run --rm game npm run typecheck` and `npm run build` both clean.
+
+**Status:** `in-progress-with-owner` — self-verified, awaiting the developer's confirmation it feels right in the live session that found the gap. Branch: `loomwright-mana-death-reset` (off `main`).
+
+## 2026-07-27 (2) — Mini-boss engine wiring (backlog 3.4/3.8): boss phase sequencing + Phase-Transition Recovery choice
+
+Ana traced down that the mini-boss content (Warden's 2026-07-21 composition, Pato-validated twice) had never actually been committed to a `wave.json`-equivalent file or wired into the engine — this entry is the engine half only; the content reconstruction into `src/data/waves/boss-1.json` is Ana's/Warden's, logged in their own files.
+
+**Schema:** `WaveDefinition` gained `is_boss?: boolean` (`src/data/types.ts`) so a boss phase can be distinguished from a regular wave without a second parallel data path.
+
+**`SpellroadScene.startWave`:** branches on `wave.is_boss`. Phase 0 of a boss: computes `bossMaxRecoveries = Math.min(totalPhases - 2, MAX_RECOVERIES_HARD_CAP)` (totalPhases counted directly off `this.waves`, not hardcoded), calls `hexcoin.startBossFight()`, and does the one HP reset for the whole fight. Later phases (`wave_index > 0`) skip the HP reset entirely — hp-template.md's damage-threat budget is cumulative across phases, which is the actual reason Phase-Transition Recovery exists; resetting HP per phase would make the fee-gated recovery meaningless.
+
+**`updateEnemies`'s advance logic:** now checks whether the next wave is another phase of the same boss (`next.is_boss && next.level === wave.level`) before auto-advancing. If so, calls the new `startPhaseBreak(nextIndex)` instead. If the boss's last phase just cleared, calls `hexcoin.endBossFight()` and flashes a victory message before falling through to the normal advance.
+
+**`startPhaseBreak`:** flashes the Y/N choice (`FEE_PHASE_RECOVERY` Hexcoin -> `PHASE_RECOVERY_HP_FRACTION` of MAX_HP, or decline), registers one-shot `keydown-Y`/`keydown-N` listeners, resolves by calling `hexcoin.usePhaseRecovery(bossMaxRecoveries)` + `health.restore(...)` on accept, then proceeds to the next phase either way. Guards against double-resolution (`awaitingPhaseChoice` flag) and against the advance-loop re-triggering while the choice is pending (reuses the existing `enemiesRemainingToSpawn = -1` guard pattern from the regular-wave code).
+
+**`handleDeath`:** added `hexcoin.endBossFight()` and clearing `awaitingPhaseChoice` — a mid-fight death shouldn't leave a stale frozen-Hexcoin-snapshot state behind; the next attempt at the boss calls `startBossFight()` again and takes a fresh one regardless, but leaving the old state dangling was sloppy, not necessary to leave as-is.
+
+**Self-verify:** `docker-compose run --rm game npm run typecheck` and `npm run build` both clean. Dev server restarted so the new preload'd `boss-1.json` and the new logic are actually being served, not relying on HMR picking up a brand-new file.
+
+**Not yet verified live:** the actual phase-break prompt, the recovery purchase, and the boss's overall feel/difficulty — self-verify covers compile/build correctness only, same distinction as every other engine entry in this log.
+
+**Status:** `in-progress-with-owner` — self-verified, awaiting developer playtest of the actual boss fight.
+
+## 2026-07-27 (3) — Combat telegraph (backlog 2.13) + hotbar spell-tag clarity (2.14)
+
+Developer feedback traced to two concrete gaps in existing code, not new mechanics:
+
+**2.13:** `EnemyCallbacks.onRangedFire` was already typed to pass `(fromX, fromY, toX, toY)` and `Enemy.update` already called it with real coordinates — `SpellroadScene`'s own callback wiring just threw all four away and only ran the delayed-damage timer. Fixed by actually drawing something with them: `spawnRangedProjectile` tweens a small circle from shooter to target over the existing `RANGED_TRAVEL_MS`, so the damage delay the code already had is now also the player's visible dodge window, instead of two disconnected things (an invisible timer and, separately, HP dropping). `spawnDebuffPulse` adds a fading ring at the Debuffer on pulse — previously the only Debuffer feedback loop was the mage's own stat drain, with nothing marking the moment it happened.
+
+**2.14:** hotbar HUD line (`updateHud`) now appends `[shape/weight]` next to each equipped spell's id. Spell ids (`arc_lance`, `magma_lance`, etc.) carry no hint of their shape or weight class today — this is the smallest real improvement available without a bigger tooltip/icon system, which is out of scope for this entry.
+
+**Self-verify:** `docker-compose run --rm game npm run typecheck` and `npm run build` both clean. Dev server restarted.
+
+**Not yet developer-confirmed:** whether the projectile telegraph is visible/legible enough in actual play, and whether it (plus the hotbar tag) is enough to clear Level 1 Wave 1 — that wave's own numbers weren't touched, since retuning it before ruling out the telegraph gap as the real cause would be guessing at a second fix on top of an unconfirmed first one.
