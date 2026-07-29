@@ -1,0 +1,5 @@
+For Level 2 of The Last Spellroad, create a regular-wave encounter with an intended feel that introduces a unique debuffer variant, specifically one that increases the target's damage taken by magical attacks but not physical ones. This wave should feature a mix of melee and ranged enemies to encourage varied player strategies. Ensure that the encounter adheres to the developer's constraints regarding enemy spawn rates, health pools, and movement patterns. The goal is to create an engaging early-stage challenge that sets the tone for the level.
+
+Additionally, design a new spell tuned to this wave, focusing on enhancing the player's ability to counter magical threats. This spell should have a clear purpose in the encounter, such as amplifying area-of-effect effects or increasing the effectiveness of non-magical attacks against enemies with debuffs.
+
+Both the encounter and spell should be designed to be fully validated and ready for integration into the engine.
