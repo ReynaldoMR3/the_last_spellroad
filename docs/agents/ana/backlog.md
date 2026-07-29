@@ -169,14 +169,17 @@ So 3.1 and 3.6 can dispatch in parallel today without waiting on the developer; 
 
 Deliberately sequenced after Phase 3 rather than parallel to it, per Ana's log entry (3): narrative framing needs the mechanics it's framing to be numerically stable first (the fee narration, the Debuffer's lore identity, and the all-Novice-exploit narrative option all reference mechanics that only just finished landing in Phase 3).
 
+**Content-pipeline candidate drafts (added 2026-07-28):** `content-pipeline/` (Assignment #4 deliverable) can generate draft NPC dialogue, item flavor text, and trial narration for 4.4/4.5 on demand — retrieval-grounded in the GDD, already run through a Lorena-persona generation pass and a Heckler-persona critique pass inside the pipeline itself. This is a candidate-content source, not an auto-integration path: promoting a specific run's drafts into `src/data/`/shipped game text stays a deliberate developer decision (same precedent as `agent-crew`'s output). **Ana does not review a pipeline run by default** — she only engages when the developer explicitly asks her to validate or select specific generated drafts for integration (see 4.7).
+
 | ID | Task | Owner | Model | Depends on | Status |
 | --- | --- | --- | --- | --- | --- |
 | 4.1 | Narrative framing for the two Hexcoin fees (Mastery-choice fee, phase-transition recovery fee) — currently a bare paywall per the 2026-07-21 review's Narrative Critic finding | Lorena | Sonnet 5 | Phase 3 | `not-started` |
 | 4.2 | Debuffer archetype lore identity (flagged MAJOR, still open as of the 2026-07-23 review) | Lorena | Sonnet 5 | Phase 3 | `not-started` |
 | 4.3 | Revisit **0.3** (all-Novice-hotbar exploit): if the developer's resolution is narrative ("the Director doesn't bother punishing the unskilled"), write it here; if mechanical, this task is N/A and 0.3 resolves in Phase 1/2 rework instead | Lorena | Sonnet 5 | Developer decision on 0.3 | `blocked-with-reason` |
-| 4.4 | NPC/companion dialogue and item flavor text for the 5-10 levels (rescuable-adventurer beats, per Gameplay Loop step 5) | Lorena | Sonnet 5 | Phase 3 | `not-started` |
-| 4.5 | Mini-boss/Director trial intro/outro narration (only the "destroy" ending path — no content implying "outwitted" or "transformed" is resolvable this slice) | Lorena | Sonnet 5 | 3.4, 3.5 | `not-started` |
+| 4.4 | NPC/companion dialogue and item flavor text for the 5-10 levels (rescuable-adventurer beats, per Gameplay Loop step 5) — candidate drafts available via `content-pipeline/output/`, see note above | Lorena | Sonnet 5 | Phase 3 | `not-started` |
+| 4.5 | Mini-boss/Director trial intro/outro narration (only the "destroy" ending path — no content implying "outwitted" or "transformed" is resolvable this slice) — candidate drafts available via `content-pipeline/output/`, see note above | Lorena | Sonnet 5 | 3.4, 3.5 | `not-started` |
 | 4.6 | Heckler critique gate on all of 4.1-4.5 (tone/consistency — Lorena cannot self-grade, per her own contract) | Heckler | Sonnet 5 | 4.1-4.5 | `not-started` |
+| 4.7 | Developer-selected integration of specific `content-pipeline` drafts (NPC dialogue, item flavor text, trial narration) into shipped game text/data | Ana (routes, only when asked) / Developer | Sonnet 5 / — | 4.4, 4.5, a `content-pipeline` run | `blocked-with-reason` — waiting on the developer to flag specific drafts for integration; Ana does not proactively review runs |
 
 ---
 
