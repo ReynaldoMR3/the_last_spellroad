@@ -1,0 +1,1 @@
+"A shard of forgotten incantation, bound to my will, yet darkened by the shadows that shroud this forsaken Spellroad."

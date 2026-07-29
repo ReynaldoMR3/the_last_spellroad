@@ -1,0 +1,1 @@
+"Time's a river, mage. I've seen so many like you come and go, their dreams worn thin by the road's endless stretch. Some try to escape, but comfort is what they find – the silence, the stillness. Me? I've grown weary of it all. Are you sure you want me free?"

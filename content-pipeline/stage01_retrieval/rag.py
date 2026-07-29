@@ -1,9 +1,21 @@
 """GDD chunking, embedding (via Ollama), and cosine-similarity retrieval.
 
-Chunk boundaries follow the GDD's own `##`/`###` heading structure, so a
-chunk's grounding text always matches a real section of the design doc --
-this is what makes the retrieval log's query -> chunk -> output triples a
-faithful RAG demonstration rather than an arbitrary text window.
+Chunk boundaries follow the GDD's own `##`/`###`/`####` heading structure,
+so a chunk's grounding text always matches a real section of the design
+doc -- this is what makes the retrieval log's query -> chunk -> output
+triples a faithful RAG demonstration rather than an arbitrary text window.
+
+Known assumption (not enforced in code): `chunk_gdd` relies on the GDD's
+own headings to keep every chunk under the embedder's batch-size budget
+(Ollama's nomic-embed-text hit a hard 500 error above ~2048 tokens on one
+oversized section during development -- see stage01_retrieval/CONTEXT.md
+and the design doc's Known Limitations). There is no chunk-splitting
+logic here to enforce a max size; if a future GDD edit adds a large
+section with no `##`/`###`/`####` subheadings, that section will again
+become one oversized chunk. `tests/test_rag.py`'s
+`test_chunk_gdd_max_chunk_size_stays_under_embedder_budget` guards
+against this regressing silently -- if it fails, the fix is either to
+add subheadings to the GDD or to implement real chunk-splitting here.
 """
 
 import hashlib

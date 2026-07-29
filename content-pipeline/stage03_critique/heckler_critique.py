@@ -52,6 +52,16 @@ def parse_critique_response(text):
     if corrected and corrected.strip().lower() == "none":
         corrected = None
 
+    if verdict == "PASS":
+        # The prompt contract says both ISSUE and CORRECTED should be "none"
+        # on a PASS verdict, but the model doesn't always honor that -- it
+        # sometimes leaves stray issue/corrected text from an earlier draft
+        # or an inconsistent generation. Trust the verdict, not the model's
+        # ability to follow the "none" convention: a PASS always means no
+        # issue and no correction, regardless of what the regexes captured.
+        issue = None
+        corrected = None
+
     return {"verdict": verdict, "issue": issue, "corrected": corrected}
 
 

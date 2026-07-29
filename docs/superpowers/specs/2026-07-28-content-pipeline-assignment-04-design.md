@@ -64,7 +64,7 @@ content-pipeline/
 
 ## RAG mechanics (RAG Implementation criterion)
 
-- GDD chunked by `##`/`###` heading (matches the doc's own structure, ~20-30 chunks).
+- GDD chunked by `##`/`###`/`####` heading (matches the doc's own structure, ~20-30 chunks).
 - Each chunk embedded once via Ollama's `nomic-embed-text` (pulled into the existing `ollama` container alongside `llama3.2`), cached to a local JSON so re-runs don't re-embed.
 - Each of the 3 content requests becomes a natural-language query (e.g. *"tone and rules for trapped NPC dialogue"*), embedded the same way, top-3 chunks retrieved by cosine similarity.
 - `01_retrieval_log.md` shows query -> retrieved chunk text -> final output for all 3 items, side by side — the rubric's explicit demonstration requirement.

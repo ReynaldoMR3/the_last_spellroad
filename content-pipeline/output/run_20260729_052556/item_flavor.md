@@ -1,1 +1,0 @@
-"The lingering essence of long-forgotten incantations clings to this fragment, a reminder of the power that once hung in the balance – now lost forever."

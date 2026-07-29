@@ -1,1 +1,0 @@
-"A fragment of lost incantation, its melody now a mournful echo that slowly fades into silence."

@@ -52,6 +52,15 @@ def run_pipeline(run_dir):
         critique = critique_draft(draft, request, retrieved)
         final_text = critique["corrected"] if critique["corrected"] else draft
 
+        retrieved_for_bundle = [
+            {
+                "heading": chunk["heading"],
+                "score": chunk["score"],
+                "text_excerpt": chunk["text"][:300],
+            }
+            for chunk in retrieved
+        ]
+
         results.append(
             {
                 "id": request["id"],
@@ -60,6 +69,7 @@ def run_pipeline(run_dir):
                 "draft": draft,
                 "critique": critique,
                 "final_text": final_text,
+                "retrieved": retrieved_for_bundle,
             }
         )
 
@@ -72,7 +82,9 @@ def run_pipeline(run_dir):
             "",
         ]
         for chunk in retrieved:
+            excerpt = chunk["text"][:300].replace("\n", " ").strip()
             retrieval_log_lines.append(f"- `{chunk['heading']}` (score {chunk['score']:.3f})")
+            retrieval_log_lines.append(f"  > {excerpt}")
         retrieval_log_lines += ["", "**Output:**", "", final_text, ""]
 
         lorena_lines += [f"## {request['label']}", "", draft, ""]

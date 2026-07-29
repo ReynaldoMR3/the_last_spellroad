@@ -70,6 +70,22 @@ def test_parse_critique_response_lowercase_verdict():
     assert result["corrected"] is None
 
 
+def test_parse_critique_response_pass_with_leftover_issue_and_corrected_is_normalized():
+    """A PASS verdict must normalize issue/corrected to None even if the
+    model left stray leftover text in those fields (real observed
+    behavior, not just a hypothetical) -- otherwise pipeline.py's
+    final_text logic silently ships the leftover 'corrected' text over
+    the actual draft despite a clean verdict.
+    """
+    text = (
+        "VERDICT: PASS\n"
+        "ISSUE: some leftover issue text\n"
+        "CORRECTED: some leftover corrected text"
+    )
+    result = parse_critique_response(text)
+    assert result == {"verdict": "PASS", "issue": None, "corrected": None}
+
+
 def test_parse_critique_response_verdict_passable_not_matched():
     """Verify word-boundary anchoring: 'PASSABLE' does NOT match 'PASS'."""
     text = "VERDICT: PASSABLE\nISSUE: tone is not melancholic\nCORRECTED: rewritten"
