@@ -8,10 +8,16 @@ from stage01_retrieval.rag import (
     embed_chunks_with_cache,
 )
 
-REAL_GDD_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "..", "docs", "game", "the-last-spellroad-design.md"
-)
-MAX_SAFE_CHUNK_CHARS = 12000
+# Resolve the GDD path the same way pipeline.py does: via GDD_PATH when set
+# (docker-compose sets this to an absolute in-container path), falling back
+# to the host-relative path when running outside Docker (cwd == content-pipeline/).
+REAL_GDD_PATH = os.getenv("GDD_PATH", "../docs/game/the-last-spellroad-design.md")
+# ~4.25 chars/token is the observed ratio for this GDD's prose (the original
+# crash was a ~13.7KB / 3220-token chunk against Ollama's nomic-embed-text
+# 2048-token embedding-batch limit -- 13700 / 3220 ~= 4.25). That puts the
+# real safe ceiling at ~2048 * 4.25 ~= 8700 chars, so the budget below is set
+# safely under that, not just under the original crash size.
+MAX_SAFE_CHUNK_CHARS = 8000
 
 
 SAMPLE_GDD = """# Title

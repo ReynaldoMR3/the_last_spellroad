@@ -24,6 +24,14 @@ EMBEDDINGS_CACHE_PATH = os.getenv("PIPELINE_EMBEDDINGS_CACHE", ".embeddings_cach
 RETRIEVAL_K = 3
 
 
+def _excerpt_without_heading(text):
+    """Drop the chunk's own leading heading line -- it's already printed on
+    the line above the excerpt in the retrieval log, so keeping it in the
+    excerpt just makes the quoted body text render as a giant markdown
+    heading when blockquoted (`> `) on GitHub."""
+    return text.split("\n", 1)[1] if "\n" in text else text
+
+
 def run_pipeline(run_dir):
     os.makedirs(run_dir, exist_ok=True)
 
@@ -56,7 +64,7 @@ def run_pipeline(run_dir):
             {
                 "heading": chunk["heading"],
                 "score": chunk["score"],
-                "text_excerpt": chunk["text"][:300],
+                "text_excerpt": _excerpt_without_heading(chunk["text"])[:300],
             }
             for chunk in retrieved
         ]
@@ -82,7 +90,7 @@ def run_pipeline(run_dir):
             "",
         ]
         for chunk in retrieved:
-            excerpt = chunk["text"][:300].replace("\n", " ").strip()
+            excerpt = _excerpt_without_heading(chunk["text"])[:300].replace("\n", " ").strip()
             retrieval_log_lines.append(f"- `{chunk['heading']}` (score {chunk['score']:.3f})")
             retrieval_log_lines.append(f"  > {excerpt}")
         retrieval_log_lines += ["", "**Output:**", "", final_text, ""]

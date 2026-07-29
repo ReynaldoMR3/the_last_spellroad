@@ -1,0 +1,1 @@
+"Trapped within the endless sprawl of the Spellroad, I realize that my own threads have become the very fabric that binds me."
