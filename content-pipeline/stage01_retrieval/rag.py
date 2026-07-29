@@ -12,7 +12,7 @@ import math
 import os
 import re
 
-HEADING_RE = re.compile(r"^(#{2,3})\s+(.+)$", re.MULTILINE)
+HEADING_RE = re.compile(r"^(#{2,4})\s+(.+)$", re.MULTILINE)
 
 
 def chunk_gdd(text):

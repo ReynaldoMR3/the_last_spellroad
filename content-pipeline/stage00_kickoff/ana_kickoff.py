@@ -38,7 +38,7 @@ CONTENT_REQUESTS = [
     {
         "id": "item_flavor",
         "label": "Item/relic flavor text",
-        "query": "how item and relic flavor text should read, UI length constraint",
+        "query": "recovered spell-fragment relic flavor text length constraint per Lorena's role",
         "instruction": (
             "Write a short flavor-text description for a recovered spell-fragment "
             "relic the player picks up mid-expedition (Gameplay Loop step 3)."
