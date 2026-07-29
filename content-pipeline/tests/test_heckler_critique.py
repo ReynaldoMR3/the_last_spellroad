@@ -1,0 +1,52 @@
+from unittest.mock import patch
+
+from stage03_critique.heckler_critique import (
+    build_heckler_prompt,
+    parse_critique_response,
+    critique_draft,
+)
+
+
+SAMPLE_REQUEST = {"max_words": 60}
+SAMPLE_CHUNKS = [{"heading": "Lore Premise", "text": "Only destroy is real.", "score": 0.9}]
+
+
+def test_build_heckler_prompt_includes_grounding_and_draft():
+    prompt = build_heckler_prompt("a draft line", SAMPLE_REQUEST, SAMPLE_CHUNKS)
+    assert "Only destroy is real." in prompt
+    assert "a draft line" in prompt
+
+
+def test_parse_critique_response_pass():
+    text = "VERDICT: PASS\nISSUE: none\nCORRECTED: none"
+    result = parse_critique_response(text)
+    assert result == {"verdict": "PASS", "issue": None, "corrected": None}
+
+
+def test_parse_critique_response_fail_with_correction():
+    text = (
+        "VERDICT: FAIL\n"
+        "ISSUE: invents a named faction, the Emberwrought Concord\n"
+        "CORRECTED: The trapped mage speaks only of an order long since forgotten."
+    )
+    result = parse_critique_response(text)
+    assert result["verdict"] == "FAIL"
+    assert "Emberwrought Concord" in result["issue"]
+    assert "forgotten" in result["corrected"]
+
+
+def test_parse_critique_response_malformed_defaults_to_fail():
+    result = parse_critique_response("the model rambled and never gave a verdict")
+    assert result["verdict"] == "FAIL"
+    assert result["issue"] == "Unparseable critic response"
+    assert result["corrected"] is None
+
+
+def test_critique_draft_calls_ollama_client_generate():
+    with patch("stage03_critique.heckler_critique.ollama_client.generate") as mock_generate:
+        mock_generate.return_value = "VERDICT: PASS\nISSUE: none\nCORRECTED: none"
+        result = critique_draft("a draft", SAMPLE_REQUEST, SAMPLE_CHUNKS)
+    assert result["verdict"] == "PASS"
+    args, kwargs = mock_generate.call_args
+    assert "a draft" in args[0]
+    assert "Heckler" in kwargs["system"]
