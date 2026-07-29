@@ -21,7 +21,7 @@ HECKLER_SYSTEM_PROMPT = (
     "CORRECTED: <a rewritten version fixing the issue, or 'none' if PASS>"
 )
 
-_VERDICT_RE = re.compile(r"VERDICT:\s*(PASS|FAIL)", re.IGNORECASE)
+_VERDICT_RE = re.compile(r"VERDICT:\s*\b(PASS|FAIL)\b", re.IGNORECASE)
 _ISSUE_RE = re.compile(r"ISSUE:\s*(.+)", re.IGNORECASE)
 _CORRECTED_RE = re.compile(r"CORRECTED:\s*(.+)", re.IGNORECASE | re.DOTALL)
 
@@ -44,12 +44,12 @@ def parse_critique_response(text):
     verdict = verdict_match.group(1).upper()
     issue_match = _ISSUE_RE.search(text)
     issue = issue_match.group(1).strip() if issue_match else None
-    if issue and issue.lower().startswith("none"):
+    if issue and issue.strip().lower() == "none":
         issue = None
 
     corrected_match = _CORRECTED_RE.search(text)
     corrected = corrected_match.group(1).strip() if corrected_match else None
-    if corrected and corrected.lower().startswith("none"):
+    if corrected and corrected.strip().lower() == "none":
         corrected = None
 
     return {"verdict": verdict, "issue": issue, "corrected": corrected}

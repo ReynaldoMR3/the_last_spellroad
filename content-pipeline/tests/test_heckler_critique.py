@@ -50,3 +50,31 @@ def test_critique_draft_calls_ollama_client_generate():
     args, kwargs = mock_generate.call_args
     assert "a draft" in args[0]
     assert "Heckler" in kwargs["system"]
+
+
+def test_parse_critique_response_issue_starting_with_nonexistent():
+    """Verify exact-match fix: 'Nonexistent...' is NOT treated as 'none'."""
+    text = "VERDICT: FAIL\nISSUE: Nonexistent named faction referenced\nCORRECTED: Use generic terms"
+    result = parse_critique_response(text)
+    assert result["verdict"] == "FAIL"
+    assert result["issue"] == "Nonexistent named faction referenced"
+    assert result["corrected"] == "Use generic terms"
+
+
+def test_parse_critique_response_lowercase_verdict():
+    """Verify case-insensitive verdict parsing."""
+    text = "verdict: pass\nISSUE: none\nCORRECTED: none"
+    result = parse_critique_response(text)
+    assert result["verdict"] == "PASS"
+    assert result["issue"] is None
+    assert result["corrected"] is None
+
+
+def test_parse_critique_response_verdict_passable_not_matched():
+    """Verify word-boundary anchoring: 'PASSABLE' does NOT match 'PASS'."""
+    text = "VERDICT: PASSABLE\nISSUE: tone is not melancholic\nCORRECTED: rewritten"
+    result = parse_critique_response(text)
+    # Since 'PASSABLE' doesn't match the word-boundary anchored regex, falls back to FAIL
+    assert result["verdict"] == "FAIL"
+    assert result["issue"] == "Unparseable critic response"
+    assert result["corrected"] is None
