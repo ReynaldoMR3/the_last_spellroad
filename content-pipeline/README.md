@@ -16,9 +16,11 @@ The GDD's own Token Budget table lists Lorena's narrative/flavor-text pass as no
 
 **Top retrieved chunk:** `Gameplay Loop` (score 0.679), followed by `Player Fantasy` (0.663) and `Lore Premise` (0.634).
 
-**Retrieved chunk text (excerpt, as it now appears in `01_retrieval_log.md`):**
+**Retrieved chunk text (excerpt, as captured in `run_20260729_054539/01_retrieval_log.md`):**
 
 > "## Gameplay Loop  1. Enter a narrow Spellroad expedition. 2. Fight tile-based enemy waves. 3. Collect spell fragments, relics, or knowledge. 4. Choose from generated spell upgrades. 5. Meet or rescue trapped adventurers. 6. Advance to a harder road segment. 7. Face a Director-controlled boss or tria..."
+
+*(This run predates a later fix that stops excerpts from repeating the chunk's own heading line -- current code produces heading-free excerpts; this quote is frozen evidence from the run it's copied from.)*
 
 **Final output** (after Heckler's correction, see below):
 
