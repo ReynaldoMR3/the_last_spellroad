@@ -212,3 +212,40 @@ Ana reconstructed the 2026-07-21 boss composition into an actual file (it had on
 Phase totals: Phase 1 (1 `spellbound_thug`, 3 `hexbow_skirmisher`, 1 `creeping_bramble`) = M1/R3. Phase 2 (2 `spellbound_thug`, 4 `hexbow_skirmisher`, 1 `murmur_wisp`) = M2/R4. Phase 3 (2 `spellbound_thug`, 4 `hexbow_skirmisher`, 1 `creeping_bramble`) = M2/R4. **Aggregate: M=5, R=11, Debuffer=3 (speed, mana_regen, speed)** — matches entry (5)'s validated aggregate exactly, field for field. Careless: 5×7+11×4=79. Competent: 11×4+0.2×5×7=51. Both reproduce entries (5)/2026-07-23's numbers unchanged. Cap formula: 3 phases → 2 breaks → `min(2-1,2)=1` recovery — unchanged. Debuffer concurrency: exactly one Debuffer per phase, same as the original — concurrency-safe by construction, same as before.
 
 **Verdict: PASS, no drift.** The reconstruction is numerically identical to what already cleared gate-checks twice; only the per-phase spawn split (not previously validated individually, since only the aggregate was ever checked) is new, and it doesn't change any of the aggregate math this gate actually cares about.
+
+## 2026-07-30 — Gate-check: Warden's Level 4 wave batch (backlog 3.3, follow-up to 2026-07-25 (2))
+
+Independently recomputed every numeric field in `src/data/waves/level-4.json`'s 3 waves against `hp-template.md`'s fixed per-hit table (Melee 7, Ranged 4, Debuffer 0 direct) and the regular-wave damage-threat band (competent 10-15%, careless 25-35%), rather than accepting Warden's numbers on inspection. Per-hit computation reuses the exact convention Warden established: careless play = every enemy's fixed per-hit value landing once; competent play = Ranged fully realized + ~20% of Melee realized.
+
+**Wave 0** (spellbound_thug x3, hexbow_skirmisher x2, creeping_bramble x2): 
+- Careless: 3×7 + 2×4 = 21 + 8 = **29 HP (29%)** — in-band (25-35%). 
+- Competent: 2×4 + 0.2×3×7 = 8 + 4.2 = **12.2 HP (12.2%)** — in-band (10-15%). 
+- Debuffer: creeping_bramble x2 = speed drain 2 applications × 12% = **24%** — at hard cap (24% max/2 applications), compliant.
+- **PASS** — both damage-threat figures independently verified; debuffer cap hit exactly, not exceeded.
+
+**Wave 1** (spellbound_thug x2, hexbow_skirmisher x3, creeping_bramble x2, murmur_wisp x2):
+- Careless: 2×7 + 3×4 = 14 + 12 = **26 HP (26%)** — in-band (25-35%).
+- Competent: 3×4 + 0.2×2×7 = 12 + 2.8 = **14.8 HP (14.8%)** — in-band (10-15%), top-of-band, margin 0.2 percentage points (same tight ceiling as Level 1 wave 1, Level 2-3 wave 1; margin held, not exceeded).
+- Debuffer: creeping_bramble x2 = speed drain 2 applications × 12% = **24%** — at hard cap (24% max/2 applications), compliant. murmur_wisp x2 = mana-regen drain 2 applications × 1.5/sec = **3.0/sec drain** off 5/sec base → 5 - 3.0 = **2.0/sec effective** — exactly on the floor (2.0/sec minimum, not below), compliant.
+- **PASS** — both damage-threat figures independently verified; both debuffer caps hit simultaneously exactly at their boundaries, neither exceeded. This is new: both caps in the same wave, same Level 3 wave 1 combination, but Level 4 sustains it across multiple waves (wave 1 and wave 2), per Warden's stated escalation axis.
+
+**Wave 2** (spellbound_thug x2, voidfang_stalker x1, hexbow_skirmisher x1, storm_lancer x1, creeping_bramble x2, murmur_wisp x2):
+- Total Melee count: spellbound_thug x2 + voidfang_stalker x1 = **3** (voidfang_stalker confirmed as melee archetype reskin, no stat divergence from standard melee in the composition arithmetic).
+- Total Ranged count: hexbow_skirmisher x1 + storm_lancer x1 = **2** (storm_lancer confirmed as ranged archetype reskin, no stat divergence).
+- Careless: 3×7 + 2×4 = 21 + 8 = **29 HP (29%)** — in-band (25-35%).
+- Competent: 2×4 + 0.2×3×7 = 8 + 4.2 = **12.2 HP (12.2%)** — in-band (10-15%).
+- Debuffer: creeping_bramble x2 = speed drain 2 applications × 12% = **24%** — at hard cap (24% max/2 applications), compliant. murmur_wisp x2 = mana-regen drain 2 applications × 1.5/sec = **3.0/sec drain** → 5 - 3.0 = **2.0/sec effective** — exactly on floor, compliant.
+- **PASS** — both damage-threat figures independently verified; both debuffer caps sustained at boundaries, not exceeded. Same double-cap combination as Wave 1.
+
+**Additional field checks (all waves):**
+- `hp_modifier` and `damage_modifier` held at 1.0 across all three waves — correct per template reasoning (no base enemy-HP field exists to scale against, per-hit values are the fixed numbers themselves, not multiplier bases).
+- Enemy name → archetype mappings: `spellbound_thug` → melee, `hexbow_skirmisher` → ranged, `creeping_bramble` → speed-drain debuffer, `murmur_wisp` → mana-regen-drain debuffer (all established in prior logs). New names `voidfang_stalker` → melee and `storm_lancer` → ranged correctly stated as reskins (no new stat lines) by Warden; flagged for Loomwright/Ana to add both mappings to `enemyRegistry.ts` per standing rule.
+
+**Escalation analysis — all within template bounds:**
+1. **Wave 0 speed-cap opener (new):** Level 1-3 delayed their first debuffer-at-cap past wave 0; Level 4 opens wave 0 already at speed-drain hard cap (2 applications = 24%). This is a design choice within the 2-application ceiling, not a template violation.
+2. **Sustained double-cap across waves 1 & 2 (new):** Level 3 touched both caps simultaneously only once (wave 1), then deliberately relieved pressure (wave 2 single-application cap, per log entry). Level 4 sustains both caps across wave 1 and wave 2 both (per Warden's stated escalation axis). Both figures hit exactly at their boundaries (24% speed, 2.0/sec mana-regen floor) in both waves, neither exceeded.
+3. **No damage-threat ceiling breached:** all three waves' competent and careless figures fall cleanly inside the regular-wave band; the tightest margin remains Level 1/2/3 wave 1's 14.8% competent, replicated here in Wave 1 at identical 14.8% (0.2 points under the 15% ceiling), margin held.
+
+**Verdict: PASS.** No field in `src/data/waves/level-4.json` diverges from `hp-template.md`. All three waves independently reproduce Warden's stated arithmetic exactly; both debuffer caps are hit at exact boundaries in the double-cap waves, not exceeded; `hp_modifier`/`damage_modifier` correctly held at 1.0 across all waves. The double-cap escalation (both caps simultaneously in waves 1 and 2, plus wave 0 opening at a single cap) is new territorial escalation within the template's own bounds—a legitimate design choice that hits the hard limits without exceeding them.
+
+**Unblocked:** this composition is ship-ready numerically. Loomwright can build Level 4 against these exact figures; Heckler can take this composition into its next adversarial pass without re-litigating the arithmetic Pato already cleared.

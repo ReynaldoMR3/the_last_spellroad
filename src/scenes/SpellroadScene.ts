@@ -104,6 +104,7 @@ export class SpellroadScene extends Phaser.Scene {
     this.load.json("waves-level-1", "src/data/waves/level-1.json");
     this.load.json("waves-level-2", "src/data/waves/level-2.json");
     this.load.json("waves-level-3", "src/data/waves/level-3.json");
+    this.load.json("waves-level-4", "src/data/waves/level-4.json");
     this.load.json("waves-boss-1", "src/data/waves/boss-1.json");
   }
 
@@ -121,6 +122,7 @@ export class SpellroadScene extends Phaser.Scene {
       ...(this.cache.json.get("waves-level-1") as WaveDefinition[]),
       ...(this.cache.json.get("waves-level-2") as WaveDefinition[]),
       ...(this.cache.json.get("waves-level-3") as WaveDefinition[]),
+      ...(this.cache.json.get("waves-level-4") as WaveDefinition[]),
       ...(this.cache.json.get("waves-boss-1") as WaveDefinition[])
     ];
 
@@ -493,7 +495,7 @@ export class SpellroadScene extends Phaser.Scene {
     const canPay = this.hexcoin.canUsePhaseRecovery(this.bossMaxRecoveries);
     this.flashMessage(
       canPay
-        ? `Phase clear! [Y] Pay ${FEE_PHASE_RECOVERY} Hexcoin -> restore ${Math.round(MAX_HP * PHASE_RECOVERY_HP_FRACTION)} HP  /  [N] Continue`
+        ? `The ledger waits. [Y] Pay ${FEE_PHASE_RECOVERY} Hexcoin -> restore ${Math.round(MAX_HP * PHASE_RECOVERY_HP_FRACTION)} HP  /  [N] Refuse`
         : "Phase clear! No recovery available — press any key to continue.",
       60000
     );

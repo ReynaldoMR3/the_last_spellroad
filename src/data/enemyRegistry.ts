@@ -18,5 +18,6 @@ export const ENEMY_REGISTRY: Record<string, EnemyRegistryEntry> = {
   murmur_wisp: { archetype: "debuffer", debuffVariant: "mana_regen" },
   creeping_bramble: { archetype: "debuffer", debuffVariant: "speed" },
   dread_reaver: { archetype: "melee" },
-  storm_lancer: { archetype: "ranged" }
+  storm_lancer: { archetype: "ranged" },
+  voidfang_stalker: { archetype: "melee" }
 };
