@@ -1,0 +1,1 @@
+As I stand before the Director's eternal gate, a whispered promise echoes through the Spellroad's winding passages: "This is but a single exit from an unending road."
