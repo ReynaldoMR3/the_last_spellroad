@@ -1,36 +1,72 @@
 [
   {
-    "level": 4,
+    "level": 5,
     "wave_index": 0,
     "is_boss": true,
     "enemies": [
-      { "type": "spellbound_thug", "count": 1, "spawn_delay_ms": 0 },
-      { "type": "hexbow_skirmisher", "count": 3, "spawn_delay_ms": 800 },
-      { "type": "creeping_bramble", "count": 1, "spawn_delay_ms": 2400 }
+      {
+        "type": "spellbound_thug",
+        "count": 1,
+        "spawn_delay_ms": 0
+      },
+      {
+        "type": "hexbow_skirmisher",
+        "count": 3,
+        "spawn_delay_ms": 800
+      },
+      {
+        "type": "creeping_bramble",
+        "count": 1,
+        "spawn_delay_ms": 2400
+      }
     ],
     "hp_modifier": 1.0,
     "damage_modifier": 1.0
   },
   {
-    "level": 4,
+    "level": 5,
     "wave_index": 1,
     "is_boss": true,
     "enemies": [
-      { "type": "spellbound_thug", "count": 2, "spawn_delay_ms": 0 },
-      { "type": "hexbow_skirmisher", "count": 4, "spawn_delay_ms": 600 },
-      { "type": "murmur_wisp", "count": 1, "spawn_delay_ms": 2400 }
+      {
+        "type": "spellbound_thug",
+        "count": 2,
+        "spawn_delay_ms": 0
+      },
+      {
+        "type": "hexbow_skirmisher",
+        "count": 4,
+        "spawn_delay_ms": 600
+      },
+      {
+        "type": "murmur_wisp",
+        "count": 1,
+        "spawn_delay_ms": 2400
+      }
     ],
     "hp_modifier": 1.0,
     "damage_modifier": 1.0
   },
   {
-    "level": 4,
+    "level": 5,
     "wave_index": 2,
     "is_boss": true,
     "enemies": [
-      { "type": "spellbound_thug", "count": 2, "spawn_delay_ms": 0 },
-      { "type": "hexbow_skirmisher", "count": 4, "spawn_delay_ms": 400 },
-      { "type": "creeping_bramble", "count": 1, "spawn_delay_ms": 1600 }
+      {
+        "type": "spellbound_thug",
+        "count": 2,
+        "spawn_delay_ms": 0
+      },
+      {
+        "type": "hexbow_skirmisher",
+        "count": 4,
+        "spawn_delay_ms": 400
+      },
+      {
+        "type": "creeping_bramble",
+        "count": 1,
+        "spawn_delay_ms": 1600
+      }
     ],
     "hp_modifier": 1.0,
     "damage_modifier": 1.0
