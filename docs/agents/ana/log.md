@@ -368,3 +368,17 @@ Developer tried the 2.13/2.14 fixes and reported four things: the hotbar now cov
 **Self-verify:** `docker-compose run --rm game npm run typecheck` and `npm run build` both clean for 2.15/2.16/2.17 (2.18 changed no code). Dev server restarted.
 
 **Status:** 2.15 `shipped-and-validated`. 2.16 `shipped-and-validated` for the mechanism, live legibility still unconfirmed. 2.17 `in-progress-with-owner`, live feel unconfirmed, flagged for a Warden/Pato re-check. 2.18: no fix shipped, hypothesis stated, waiting on a more specific repro from the developer before treating this as an actual bug.
+
+## 2026-07-30 — Check-in: repo/PR state verified against the log, one already-done item discovered, housekeeping closed
+
+Developer asked for a status check-in and whether they were blocking anything. Re-read this log plus the backlog, then checked actual GitHub/git state rather than trusting either — same discipline as every prior entry.
+
+**Assignment #4 (content-pipeline) was already merged, not something this session did.** PR #15 (`worktree-content-pipeline-assignment-04` -> `main`) was opened and merged by the developer's own GitHub account before this check-in — local `main` just hadn't been fetched, so my first attempt to open a PR for it failed with "no commits between main and branch." Fast-forwarded local `main` to `origin/main` (`40e7de6`) to confirm and clear the confusion rather than leave it unstated. No course-repo pointer file exists yet for Assignment #4 (`multi-agent-ai-in-game-development/docs/submissions/` only goes up to `assignment-03-agent-crew.md`) — flagged to the developer, not created unilaterally, since the last three assignments' submission-support step (backlog 6.4) is explicitly developer-owned.
+
+**2.19 opened** (see backlog): developer's own hypothesis, connecting 2.18 (reported AoE single-hit) to the lack of a persistent per-monster HP/name display — proposed as the actual instrument to confirm or refute 2.18, not just a UX nicety. Deferred by the developer, logged rather than dropped.
+
+**3.6 (art download) process question answered, not yet actioned:** developer wants to see the actual asset previews before Tilesmith pulls anything to disk. Answered by opening Kenney's live pages for two of the four shortlisted candidates (Roguelike/RPG Pack, Tiny Dungeon) in-session and screenshotting the real spritesheet previews shown on those pages — no files downloaded, still gated on explicit per-pack go-ahead per standing policy.
+
+**Housekeeping closed:** removed the leftover `.worktrees/phase-1-2-production` git worktree (merged branch, clean working tree, no uncommitted changes) per the developer's explicit ask. The local `phase-1-2-production` branch ref itself was left alone — only the worktree checkout was in scope.
+
+**Status:** this entry itself `shipped-and-validated` — no code changed, this is a status/orchestration correction. Everything substantive from the 2026-07-27 (4) entry remains open exactly as stated there (2.16/2.17 live re-confirmation, 2.18's repro, 2.14's fuller answer, 3.6/0.2/0.3/0.5/3.4's Tiled half).
