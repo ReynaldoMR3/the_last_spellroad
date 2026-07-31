@@ -36,6 +36,22 @@ const DEBUFFER_COOLDOWN_MS = 2500;
 /** backlog 2.10 — how close to a lane wall a kiting retreat must get before it slides
  * along the wall instead of pinning nose-first (Warden's spec, Pato-validated 2026-07-25). */
 const WALL_SLIDE_MARGIN = 50;
+const ATTACK_COOLDOWN_MS: Record<EnemyArchetype, number> = {
+  melee: MELEE_COOLDOWN_MS,
+  ranged: RANGED_COOLDOWN_MS,
+  debuffer: DEBUFFER_COOLDOWN_MS
+};
+/**
+ * backlog 2.20 (developer, 2026-07-30): Wave 1 spawns both `hexbow_skirmisher` at the same
+ * `spawn_delay_ms`, so with no jitter they close to `RANGED_PREFERRED_RANGE` together and
+ * their independent cooldowns stay permanently in phase — every `RANGED_COOLDOWN_MS` the
+ * player takes two near-simultaneous ranged hits sharing one `RANGED_TRAVEL_MS` dodge
+ * window instead of two separate ones. Giving each enemy a random head start on its own
+ * cooldown desyncs same-wave same-archetype attackers from their very first shot onward.
+ * This changes attack *timing* only — average sustained DPS and Pato's per-hit numbers
+ * are untouched, so it doesn't require a template/validation change.
+ */
+const INITIAL_COOLDOWN_JITTER_FRACTION = 0.5;
 
 /**
  * Enemy-side HP. hp-template.md only fixes the player's pool and the per-hit damage the
@@ -75,6 +91,10 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.maxHp = PLACEHOLDER_ENEMY_HP[archetype];
     this.hp = this.maxHp;
     this.debuffVariant = debuffVariant;
+    this.attackCooldownMs = Phaser.Math.Between(
+      0,
+      Math.floor(ATTACK_COOLDOWN_MS[archetype] * INITIAL_COOLDOWN_JITTER_FRACTION)
+    );
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.setCollideWorldBounds(true);
