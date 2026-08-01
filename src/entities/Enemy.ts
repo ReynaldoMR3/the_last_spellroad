@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import type { DebuffVariant, EnemyArchetype } from "../data/types";
+import { archetypeDisplayName, computeHpBarColor, computeHpFraction } from "../systems/enemyStatusOverlay";
 
 /** hp-template.md, "Enemy Archetype Per-Hit Damage" — fixed, never invented per-encounter. */
 export const ARCHETYPE_DAMAGE: Record<EnemyArchetype, number> = {
@@ -65,6 +66,17 @@ const PLACEHOLDER_ENEMY_HP: Record<EnemyArchetype, number> = {
   debuffer: 22
 };
 
+/**
+ * backlog 2.19 / issue #26 — live name+HP-bar overlay geometry. The sprite itself is a
+ * generated 26x26 texture centered on (x, y) (see `ensureTexture`), so these are small
+ * fixed offsets from that center rather than anything derived from a per-archetype size
+ * (every archetype currently shares the same 26x26 footprint).
+ */
+const STATUS_BAR_WIDTH = 28;
+const STATUS_BAR_HEIGHT = 4;
+const STATUS_BAR_OFFSET_Y = -20;
+const STATUS_LABEL_OFFSET_Y = -28;
+
 export interface EnemyCallbacks {
   onMeleeHit?: () => void;
   onRangedFire?: (fromX: number, fromY: number, toX: number, toY: number) => void;
@@ -77,6 +89,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   public hp: number;
   private attackCooldownMs = 0;
   private readonly debuffVariant: DebuffVariant;
+  /** backlog 2.19 / issue #26 — sibling GameObjects, not children of this Sprite (Phaser
+   * Arcade Sprites don't support a display-container parent/child relationship the way
+   * Containers do). Phaser does NOT destroy these automatically just because this sprite
+   * gets destroyed, so `destroy()` below is overridden to clean them up explicitly. */
+  private readonly nameLabel: Phaser.GameObjects.Text;
+  private readonly statusBar: Phaser.GameObjects.Graphics;
 
   constructor(
     scene: Phaser.Scene,
@@ -101,6 +119,17 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     // backlog 2.10 — mirror the mage's own lane clamp (SpellroadScene.createMage); enemies
     // previously only had the full-canvas default, and could wander outside the visible lane.
     (this.body as Phaser.Physics.Arcade.Body).setBoundsRectangle(this.lane);
+
+    // backlog 2.19 / issue #26 — name label + live HP bar, drawn once here so a freshly
+    // spawned enemy already shows full HP instead of waiting for its first `update()` call.
+    this.nameLabel = scene.add.text(x, y + STATUS_LABEL_OFFSET_Y, archetypeDisplayName(archetype), {
+      color: "#f3e7c2",
+      fontFamily: "monospace",
+      fontSize: "10px"
+    });
+    this.nameLabel.setOrigin(0.5, 1);
+    this.statusBar = scene.add.graphics();
+    this.refreshStatusOverlay();
   }
 
   private static ensureTexture(scene: Phaser.Scene, archetype: EnemyArchetype): string {
@@ -122,7 +151,51 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     return this.hp <= 0;
   }
 
+  /**
+   * backlog 2.19 / issue #26 — repositions the name label + HP bar above the sprite's
+   * current position and redraws the bar's fill from current `hp`/`maxHp`. Called once from
+   * the constructor (so a freshly spawned enemy already shows full HP) and once per frame
+   * from `update()` below (so the bar tracks both movement and any damage landed since the
+   * last frame — `takeDamage` itself only mutates `hp`, it doesn't touch the overlay).
+   * The fraction/color arithmetic is the pure, testable part (`enemyStatusOverlay.ts`); this
+   * method is purely the Phaser-side wiring (position two GameObjects, draw two rects).
+   */
+  private refreshStatusOverlay(): void {
+    this.nameLabel.setPosition(this.x, this.y + STATUS_LABEL_OFFSET_Y);
+
+    const fraction = computeHpFraction(this.hp, this.maxHp);
+    const fillColor = computeHpBarColor(fraction);
+    const barX = this.x - STATUS_BAR_WIDTH / 2;
+    const barY = this.y + STATUS_BAR_OFFSET_Y;
+
+    this.statusBar.clear();
+    this.statusBar.fillStyle(0x14161f, 0.85);
+    this.statusBar.fillRect(barX, barY, STATUS_BAR_WIDTH, STATUS_BAR_HEIGHT);
+    if (fraction > 0) {
+      this.statusBar.fillStyle(fillColor, 1);
+      this.statusBar.fillRect(barX, barY, STATUS_BAR_WIDTH * fraction, STATUS_BAR_HEIGHT);
+    }
+    this.statusBar.lineStyle(1, 0x000000, 0.6);
+    this.statusBar.strokeRect(barX, barY, STATUS_BAR_WIDTH, STATUS_BAR_HEIGHT);
+  }
+
+  /**
+   * Phaser does not automatically destroy manually-added sibling GameObjects (the name
+   * label/HP bar) just because this Sprite gets destroyed — they aren't children of it, just
+   * two other GameObjects this class happens to keep positioned above it. Every current
+   * despawn path (`SpellroadScene.removeEnemy` and the death-reset `forEach` in
+   * `handleDeath`) calls `enemy.destroy()` directly, so overriding it here is the one place
+   * that guarantees the overlay never outlives the enemy it was drawn for, regardless of
+   * which call site triggered the destroy.
+   */
+  destroy(fromScene?: boolean): void {
+    this.nameLabel.destroy();
+    this.statusBar.destroy();
+    super.destroy(fromScene);
+  }
+
   update(deltaMs: number, targetX: number, targetY: number, callbacks: EnemyCallbacks): void {
+    this.refreshStatusOverlay();
     this.attackCooldownMs = Math.max(0, this.attackCooldownMs - deltaMs);
     const body = this.body as Phaser.Physics.Arcade.Body;
     const toTarget = new Phaser.Math.Vector2(targetX - this.x, targetY - this.y);
