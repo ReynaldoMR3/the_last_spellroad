@@ -119,3 +119,97 @@ Developer's "both" resolution to 2.21 (see `ana/log.md`): an onboarding exceptio
 **Self-verify:** `docker-compose run --rm game npm run typecheck`, `npm run build`, and `npm test` (8/8 passing) all clean. Visual spot-check via the dev server confirms the lane renders visibly taller with no layout break; the sandboxed browser pane's known `document.visibilityState: "hidden"` throttling (documented in this same log's earlier Phase 1 entries) meant I could not force a full interactive Wave 0 clear in that environment — road-width feel and Wave 0 clearability both still need a real developer playtest session, per the ticket's own testing decisions (no test coverage claimed for `ROAD_HEIGHT` itself, by design).
 
 **Status:** both halves of 2.21 built and self-verified; genuinely still needs the developer for the two things no static check can substitute for — does the lane feel right, and is Wave 0 actually clearable now.
+
+## 2026-08-01 (2) — Tiled layouts wired into the playable sequence (backlog 3.8 remainder, issue #29)
+
+Tilesmith's #28 (`tilesmith/tiled-layouts-28`, PR #35, itself stacked on #25's curated-tile-IDs
+PR #34, neither merged to `main` at write-time) built 5 real Tiled JSON maps at
+`public/assets/levels/level-1.json`..`level-5.json` (level 5 = the boss arena) but explicitly
+left wiring them into `SpellroadScene.ts` for this ticket — the scene was still drawing the
+original placeholder colored rectangles (a flat `ROAD_WIDTH`x`ROAD_HEIGHT` box, two border
+lines, tick marks every 60px) across all 5 levels. This entry closes that gap: Tiled layouts now
+render, wave/boss sequencing untouched.
+
+**Read before writing any code**, per this ticket's own instructions: all 5 level JSON files
+directly (single `Terrain` tile layer each, one embedded tileset `firstgid: 1`, image path
+`../third-party/kenney-tiny-dungeon/Tilemap/tilemap_packed.png`, tileset name
+`"kenney-tiny-dungeon-tilemap_packed"`, 60x18 tiles for Levels 1-4, 60x20 for the boss arena)
+and Tilesmith's newest log entry (2026-08-01, "Backlog 3.7 (issue #28)") for the exact GID/tile
+convention and the geometry-mismatch flag it already raised.
+
+**Pure module extracted first, TDD** (`src/systems/levelArt.ts` + `.test.ts`, 7 tests, written
+red-then-green against the actual module, same precedent as `waveThreatBudget.ts`/`.test.ts`):
+- `levelMapKey(level)` / `levelMapUrl(level)` — level number to Phaser cache key / static URL
+  (`assets/levels/level-N.json`), plus `ALL_LEVELS`/`isValidLevel` (1-5, matching every
+  `WaveDefinition.level` value that exists today).
+- `TILESET_IMAGE_KEY`/`TILESET_IMAGE_URL`/`TILESET_NAME_IN_MAP` — the one shared tileset every
+  level references, loaded once regardless of level count.
+- `computeTilemapOffset({ canvasWidth, laneCenterY, mapWidthPx, mapHeightPx })` — pure geometry:
+  centers a level's Tiled map horizontally on the canvas and vertically on the same lane midline
+  (`ROAD_TOP + ROAD_HEIGHT/2`) movement/spawn/preview-clip code already uses, without touching
+  that geometry itself. This is the actual reconciliation Tilesmith's log flagged as left to
+  this ticket, made unit-testable independent of a running Phaser Scene.
+
+**`SpellroadScene.ts` changes:**
+- `preload()`: `this.load.image()` for the shared tileset once, `this.load.tilemapTiledJSON()`
+  for all 5 levels — eager-loaded up front, same precedent the existing wave-JSON preloading
+  already sets (all level data loaded together, switched between at runtime), not a mid-scene
+  `this.load.once('complete', ...)` dance. Justified in-code: 5 files at ~13KB each plus one
+  already-committed 5KB PNG, not worth the extra complexity.
+- `createRoad()`: dropped the placeholder road-color rect, border lines, and tick marks. Kept
+  the one full-canvas dark background rect on purpose — Tilesmith's maps only paint their own
+  bordered box, not the surrounding canvas, so something still has to fill outside it.
+- New `renderLevelArt(level)`: destroys the previous level's tilemap/layer (if any), then
+  `this.make.tilemap({ key })` / `map.addTilesetImage()` / `map.createLayer("Terrain", ...)` per
+  `art-sourcing-contract.md`'s documented mechanism, positioned via `computeTilemapOffset`.
+  Guarded by a `renderedLevel` field so repeat calls at the same level (e.g. boss phase-breaks,
+  which call `startWave` again without changing level) are no-ops.
+- Called from the top of `startWave(index)` — the same function that already flashes "Level N"
+  at `wave.wave_index === 0` and resets HP per wave/boss-fight-start, so the art swap lands at
+  exactly the existing level-transition points (including the death/respawn path, which replays
+  from wave 0 and correctly swaps back to Level 1's art if the player died deeper in).
+- Explicit `BACKGROUND_DEPTH`/`TILE_LAYER_DEPTH` constants (-100/-50), not left to insertion
+  order: the tile layer gets destroyed and recreated *after* the mage/HUD/enemies already exist
+  at every level transition, so without an explicit depth a freshly recreated layer would insert
+  on top of the display list and render over everything — confirmed this would actually happen
+  (Phaser's default same-depth ordering is insertion order) before adding the depth calls, not
+  guessed defensively.
+
+**Gameplay-bounds geometry, deliberately untouched:** `LANE_RECT`/`ROAD_WIDTH`/`ROAD_HEIGHT`/
+`ROAD_LEFT`/`ROAD_TOP` still drive movement clamping, enemy spawn positioning
+(`spawnWave(this, wave, { x: 820, y: 270 }, LANE_RECT, ...)`), and the preview-clip geometry mask
+exactly as before — grepped the rest of `src/` to confirm no other file reads these constants,
+so nothing needed touching outside `SpellroadScene.ts` itself.
+
+**Geometry-mismatch caveat, flagged rather than silently reconciled:** Tilesmith's maps are
+960x288px for Levels 1-4 and 960x320px for the boss arena (whole 16px tile units), while the
+live gameplay rect is 780x280px inset within a 960x540 canvas (`ROAD_LEFT=90, ROAD_TOP=130,
+ROAD_WIDTH=780, ROAD_HEIGHT=280` — 780/16 and 280/16 aren't whole tile counts). `computeTilemapOffset`
+centers each map on the same lane midline and horizontally on the canvas, which gets the art
+close (Levels 1-4 land 4px taller/higher than `ROAD_HEIGHT`'s exact box; the boss arena more so,
+by design — it's meant to read as a distinct, larger space) but the tile art's own wall-border
+tiles do not pixel-align to `LANE_RECT`'s exact clamp boundary. This is a visual approximation,
+not a gameplay change — no movement/spawn/hit-test behavior differs from before this ticket.
+Whether that's tight enough or needs either the art re-sized in tile units or the gameplay
+constants revisited is a developer call, not decided unilaterally here, per this ticket's own
+instruction to flag rather than silently change either side to match the other.
+
+**Self-verify:** `docker-compose run --rm game npm run typecheck`, `npm test` (16/16 passing —
+9 pre-existing `waveThreatBudget` + 7 new `levelArt`), and `npm run build` all clean. Confirmed
+the built `dist/assets/levels/*.json` and `dist/assets/third-party/.../tilemap_packed.png` both
+survive the production build (they live under `public/`, same as the tileset PNG already did).
+**Dev server not brought up this session** — port 5173 was already bound by another process
+(`lsof -i :5173` showed an existing `ssh` listener) at self-verify time, the same known caveat
+#26's PR disclosed rather than silently working around; noting it plainly instead of blocking on
+it or claiming a live check that didn't happen.
+
+**Not yet developer-confirmed:** whether the 5 levels' art actually reads well in play, whether
+the ~4-20px lane/art mismatch above is noticeable/acceptable, and whether the boss arena's
+larger, visually distinct sizing lands as intended — same distinction as every other engine
+entry in this log between self-verify (compile/build/test correctness) and the human playtest
+gate this agent's own success criterion requires.
+
+**Status:** `in-progress-with-owner` — self-verified, awaiting developer visual playtest.
+Branch: `loomwright/wire-tiled-layouts-29`, stacked on `tilesmith/tiled-layouts-28` (PR #35),
+itself stacked on `tilesmith/curate-tile-ids-25` (PR #34) — neither merged to `main` yet, so
+this PR's base is #28's branch, not `main`, keeping the stack in review order (25 -> 28 -> 29).

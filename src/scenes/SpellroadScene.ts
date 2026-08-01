@@ -8,6 +8,15 @@ import { DebuffSystem } from "../systems/DebuffSystem";
 import { SpellCaster, SHAPE_GEOMETRY } from "../entities/SpellCaster";
 import { Enemy, ARCHETYPE_DAMAGE } from "../entities/Enemy";
 import { spawnWave } from "../systems/WaveLoader";
+import {
+  ALL_LEVELS,
+  TILESET_IMAGE_KEY,
+  TILESET_IMAGE_URL,
+  TILESET_NAME_IN_MAP,
+  computeTilemapOffset,
+  levelMapKey,
+  levelMapUrl
+} from "../systems/levelArt";
 
 const PLAYER_SPEED = 180;
 /** Widened 160->220 (2026-07-27, developer feedback: not enough room to evade projectiles/
@@ -46,6 +55,18 @@ const DAMAGE_NUMBER_COLOR = { healthy: "#4caf50", wounded: "#f4c430", critical: 
  * need their own separate clip: once enemies can't exist outside this rect, there's
  * nothing off-lane to hit, so the clipped preview and the actual hit-test can't disagree. */
 const LANE_RECT = new Phaser.Geom.Rectangle(ROAD_LEFT, ROAD_TOP, ROAD_WIDTH, ROAD_HEIGHT);
+/** backlog 3.8 (issue #29) — explicit depths for the two background-ish layers, so stacking
+ * order is correct regardless of *when* a layer is created, not just insertion order. This
+ * matters specifically because the level-art tile layer gets destroyed and recreated at every
+ * level transition (`renderLevelArt`), long after the mage/HUD/enemies already exist — without
+ * an explicit depth, a freshly (re)created layer would insert on *top* of the display list and
+ * render over everything, the same failure mode `spawnRangedProjectile`'s own depth comment
+ * describes for a different reason. Background sits behind the tile art; both sit behind every
+ * default-depth (0) gameplay/HUD object. */
+const BACKGROUND_DEPTH = -100;
+const TILE_LAYER_DEPTH = -50;
+const CANVAS_WIDTH = 960;
+const CANVAS_HEIGHT = 540;
 /** backlog 2.10 — non-mouse aiming fallback: default cast placement distance along
  * last-move-direction when the pointer hasn't been touched yet this session. */
 const DEFAULT_AIM_DISTANCE = SHAPE_GEOMETRY.CIRCLE_MAX_PLACEMENT_RANGE / 2;
@@ -99,6 +120,13 @@ export class SpellroadScene extends Phaser.Scene {
   private messageText?: Phaser.GameObjects.Text;
   private messageClearAt = 0;
 
+  // backlog 3.8 (issue #29) — the currently-rendered level's real Tiled layout, swapped at
+  // every level transition (see `renderLevelArt`). `renderedLevel` starts at 0 (no level is
+  // valid at 0) so the very first `startWave(0)` call unconditionally renders Level 1's art.
+  private currentLevelTilemap?: Phaser.Tilemaps.Tilemap;
+  private currentLevelLayer?: Phaser.Tilemaps.TilemapLayer;
+  private renderedLevel = 0;
+
   constructor() {
     super("SpellroadScene");
   }
@@ -110,6 +138,16 @@ export class SpellroadScene extends Phaser.Scene {
     this.load.json("waves-level-3", "src/data/waves/level-3.json");
     this.load.json("waves-level-4", "src/data/waves/level-4.json");
     this.load.json("waves-boss-1", "src/data/waves/boss-1.json");
+
+    // backlog 3.8 (issue #29) — Tilesmith's #28 Tiled layouts + their shared tileset image.
+    // Loaded eagerly here, same precedent as the wave JSON above (all 5 levels' worth of data
+    // preloaded up front, then switched between at runtime) rather than a mid-scene
+    // `this.load.once('complete', ...)` dance — these are 5 small JSON files (~13KB each) plus
+    // one already-committed 5KB PNG, not worth the extra dynamic-loading complexity.
+    this.load.image(TILESET_IMAGE_KEY, TILESET_IMAGE_URL);
+    for (const level of ALL_LEVELS) {
+      this.load.tilemapTiledJSON(levelMapKey(level), levelMapUrl(level));
+    }
   }
 
   create(): void {
@@ -168,14 +206,52 @@ export class SpellroadScene extends Phaser.Scene {
   // ----- setup -----
 
   private createRoad(): void {
-    this.add.rectangle(480, 270, 960, 540, 0x11131a);
-    this.add.rectangle(480, 270, ROAD_WIDTH, ROAD_HEIGHT, 0x303548);
-    this.add.rectangle(480, ROAD_TOP, ROAD_WIDTH, 4, 0x7b6fbd);
-    this.add.rectangle(480, ROAD_TOP + ROAD_HEIGHT, ROAD_WIDTH, 4, 0x7b6fbd);
+    // backlog 3.8 (issue #29) — the placeholder colored rectangles this used to draw
+    // (a flat ROAD_WIDTH x ROAD_HEIGHT box, two border lines, tick marks every 60px) are gone;
+    // `renderLevelArt` (called from `startWave` at every level transition, including the
+    // first) now draws each level's real Tiled layout in their place. This background rect is
+    // the one placeholder kept on purpose: Tilesmith's #28 maps only paint their own bordered
+    // box, not the surrounding canvas (see `tilesmith/log.md`, 2026-08-01 "Backlog 3.7" entry),
+    // so something still needs to fill the area outside that box.
+    this.add.rectangle(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, CANVAS_WIDTH, CANVAS_HEIGHT, 0x11131a).setDepth(
+      BACKGROUND_DEPTH
+    );
+  }
 
-    for (let x = ROAD_LEFT; x <= ROAD_LEFT + ROAD_WIDTH; x += 60) {
-      this.add.rectangle(x, 270, 2, ROAD_HEIGHT, 0x252939, 0.8);
+  /** backlog 3.8 (issue #29) — swaps in the real Tiled layout for `level` (1-4 regular, 5 =
+   * boss arena), replacing whatever level's art was showing before. Idempotent per level
+   * (`renderedLevel` guard) so calling this every `startWave()` — including phase-breaks
+   * within the same boss fight, which stay on the same level — doesn't tear down and rebuild
+   * the same tilemap for no reason. Purely visual: `LANE_RECT`/`ROAD_WIDTH`/`ROAD_HEIGHT`
+   * (movement clamping, enemy spawn positioning, spell-preview clipping) are never read from
+   * or written by this method. */
+  private renderLevelArt(level: number): void {
+    if (this.renderedLevel === level) {
+      return;
     }
+    this.currentLevelLayer?.destroy();
+    this.currentLevelTilemap?.destroy();
+
+    const map = this.make.tilemap({ key: levelMapKey(level) });
+    const tileset = map.addTilesetImage(TILESET_NAME_IN_MAP, TILESET_IMAGE_KEY);
+    if (!tileset) {
+      // Shouldn't happen against Tilesmith's #28 files (every one names its embedded tileset
+      // identically) — surfaced loudly instead of silently leaving the previous level's art
+      // on screen, which would be a confusing, hard-to-notice bug.
+      throw new Error(`renderLevelArt: addTilesetImage failed for level ${level} (map key ${levelMapKey(level)})`);
+    }
+    const offset = computeTilemapOffset({
+      canvasWidth: CANVAS_WIDTH,
+      laneCenterY: ROAD_TOP + ROAD_HEIGHT / 2,
+      mapWidthPx: map.widthInPixels,
+      mapHeightPx: map.heightInPixels
+    });
+    const layer = map.createLayer("Terrain", tileset, offset.x, offset.y);
+    layer?.setDepth(TILE_LAYER_DEPTH);
+
+    this.currentLevelTilemap = map;
+    this.currentLevelLayer = layer ?? undefined;
+    this.renderedLevel = level;
   }
 
   private createMage(): void {
@@ -459,6 +535,7 @@ export class SpellroadScene extends Phaser.Scene {
       return;
     }
     this.waveIndex = index;
+    this.renderLevelArt(wave.level);
 
     if (wave.is_boss) {
       if (wave.wave_index === 0) {
