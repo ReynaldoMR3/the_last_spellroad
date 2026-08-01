@@ -12,6 +12,7 @@ Source of truth: root `Dockerfile`, `docker-compose.yml`, `README.md`'s "Docker-
 - Same, detached (so a script/agent session isn't blocked): `docker-compose up -d game` — stop it with `docker-compose down`
 - Typecheck only, no build output: `docker-compose run --rm game npm run typecheck`
 - Build the static production bundle to `dist/`: `docker-compose run --rm game npm run build`
+- Run the test suite (Vitest, added 2026-08-01 for `src/systems/waveThreatBudget.ts` — the repo's first automated tests): `docker-compose run --rm game npm test`
 - Install or update packages (always inside the container, never on the host): `docker-compose run --rm game npm install`
 - Build and run the production image (serves `dist/` via nginx on port 80): `docker build --target production -t the-last-spellroad .` then `docker run --rm -p 8080:80 the-last-spellroad`
 

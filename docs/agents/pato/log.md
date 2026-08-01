@@ -249,3 +249,24 @@ Independently recomputed every numeric field in `src/data/waves/level-4.json`'s 
 **Verdict: PASS.** No field in `src/data/waves/level-4.json` diverges from `hp-template.md`. All three waves independently reproduce Warden's stated arithmetic exactly; both debuffer caps are hit at exact boundaries in the double-cap waves, not exceeded; `hp_modifier`/`damage_modifier` correctly held at 1.0 across all waves. The double-cap escalation (both caps simultaneously in waves 1 and 2, plus wave 0 opening at a single cap) is new territorial escalation within the template's own bounds—a legitimate design choice that hits the hard limits without exceeding them.
 
 **Unblocked:** this composition is ship-ready numerically. Loomwright can build Level 4 against these exact figures; Heckler can take this composition into its next adversarial pass without re-litigating the arithmetic Pato already cleared.
+
+## 2026-08-01 — Gate-check: Level 1 Wave 0's onboarding exception (backlog 2.21 / issue #20) — checked against a new, separate floor, not the standard band
+
+Warden's submission (see `warden/log.md`, 2026-08-01 entry): revise Level 1 Wave 0 from (M=3,R=2) to **(M=2,R=1)**, explicitly framed as a first-encounter grace period, not a standard-band composition. First confirmed I was applying the right check — this submission must fail the standard band (that's the point) and instead needs a *believable, still-nonzero* threat check.
+
+**Recomputed independently, same fixed per-hit table:**
+- Careless: 4×1 + 7×2 = 4 + 14 = **18%**.
+- Competent: 4×1 + 1.4×2 = 4 + 2.8 = **6.8%**.
+- Both figures below the standard band's own floor (10% competent / 25% careless) — confirms this is genuinely an exception, not a mislabeled standard-band pass.
+- Nonzero-threat check: 6.8% competent and 18% careless are both real, felt damage (roughly two-thirds and a fifth of the standard floor respectively) — not a trivial zero-risk wave. A single-enemy composition (e.g. M=1,R=0, competent=1.4%) would have been too close to a non-encounter; (M=2,R=1) reads as a real if reduced skirmish.
+- Composition sanity: 3 total enemies, both archetypes already introduced in this same wave previously — no new enemy name, no narrative incoherence.
+
+**Verdict: PASS against the onboarding floor** (`ONBOARDING_COMPETENT_CEILING` in `src/systems/waveThreatBudget.ts`, `isOnboardingGrace()`). **Confirmed this does NOT and must NOT pass the standard band** — checked `isWithinBand` against `STANDARD_REGULAR_WAVE_BAND` directly: 6.8% competent fails the 10% floor, as it should. This distinction is the entire point of the exception (`hp-template.md`'s new onboarding-exception subsection): a wave that fails the standard band on purpose, caught by a separate named threshold instead of a silently loosened one.
+
+**No other wave re-checked or re-touched.** Level 1 waves 1/2, Levels 2-4, and the mini-boss all keep their existing PASS'd standard-band figures exactly as validated in prior entries above — this gate-check only covers the one row Warden actually changed.
+
+**Calculator adopted going forward:** ran this check with `computeThreatBudget`/`isOnboardingGrace` rather than hand arithmetic — first time this log has used the new `src/systems/waveThreatBudget.ts` module instead of deriving the formula inline. Matches its own regression tests (`waveThreatBudget.test.ts`) exactly (6.8/18 for this composition, 12.2/29 and 14.8/26 for the two standard-band pairs already validated in prior entries) — no arithmetic drift from switching tools.
+
+**`hp-template.md` updated directly, as its own owner:** added the Calculator pointer and the Level 1 Wave 0 onboarding-exception subsections to `_reference/hp-template.md` myself, same authority this file's own footer reserves ("Only Pato edits this file") — this validation and that documentation are the same piece of work, not a separate hand-off.
+
+**Unblocked:** Level 1 Wave 0's new composition is ship-ready numerically. Loomwright wires it in via the JSON edit alone (no engine code change needed — `WaveLoader`/`SpellroadScene` read enemy counts generically).
