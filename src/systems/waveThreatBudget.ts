@@ -66,11 +66,25 @@ export function isWithinBand(budget: ThreatBudget, band: ThreatBand): boolean {
  * Level 1 Wave 0's onboarding exception (backlog 2.21): an explicit, separate threshold —
  * not a loosened global constant — so a future wave can never silently inherit this grace
  * period by mistake. A composition qualifies only if it sits below the standard band's own
- * competent floor (a real, deliberate grace period) while still posing *some* threat (a
- * fully zero-risk wave isn't a believable opening skirmish, it's a cutscene).
+ * floors on *both* figures (a real, deliberate grace period on the whole encounter, not just
+ * one play style) while still posing *some* threat (a fully zero-risk wave isn't a believable
+ * opening skirmish, it's a cutscene).
+ *
+ * Both floors are required, not just the competent one: careless play weights Melee far more
+ * heavily than competent play does (7 vs. 1.4 per unit), so a melee-heavy, ranged-light
+ * composition can clear the competent floor while its careless-play figure still blows past
+ * even the *standard* band's careless ceiling (e.g. Melee=7,Ranged=0 -> 9.8% competent, comfortably
+ * under this ceiling, but 49% careless — worse than any standard-band wave in the game). Pato's
+ * own manual gate-check (see `pato/log.md`, 2026-08-01) verified both figures for exactly this
+ * reason; this function now matches that check instead of being weaker than it.
  */
 export const ONBOARDING_COMPETENT_CEILING = STANDARD_REGULAR_WAVE_BAND.competentMin;
+export const ONBOARDING_CARELESS_CEILING = STANDARD_REGULAR_WAVE_BAND.carelessMin;
 
 export function isOnboardingGrace(budget: ThreatBudget): boolean {
-  return budget.competentPct > 0 && budget.competentPct < ONBOARDING_COMPETENT_CEILING;
+  return (
+    budget.competentPct > 0 &&
+    budget.competentPct < ONBOARDING_COMPETENT_CEILING &&
+    budget.carelessPct < ONBOARDING_CARELESS_CEILING
+  );
 }
