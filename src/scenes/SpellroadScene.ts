@@ -11,15 +11,19 @@ import { spawnWave } from "../systems/WaveLoader";
 
 const PLAYER_SPEED = 180;
 /** Widened 160->220 (2026-07-27, developer feedback: not enough room to evade projectiles/
- * melee). Kept centered on the same y=270 midline (ROAD_TOP recomputed accordingly) so the
- * mage's start position and every enemy-spawn point stay meaningful. This touches geometry
+ * melee), then 220->280 (2026-08-01, backlog 2.21 / issue #20: developer reported the lane
+ * still feels stretched/cramped after the first pass). Kept centered on the same y=270
+ * midline both times (ROAD_TOP recomputed accordingly) so the mage's start position and
+ * every enemy-spawn point stay meaningful. This touches geometry
  * `RANGED_PREFERRED_RANGE`/`DEBUFFER_PREFERRED_RANGE`/`WALL_SLIDE_MARGIN` (Enemy.ts) were
- * tuned against at the old 160px height (backlog 2.10) — a taller lane only reduces how
- * often enemies hit the top/bottom wall, it can't newly break the non-overlap those ranges
- * were tuned for, but Warden/Pato should re-feel wave pacing against the new dimensions
- * rather than assume nothing changed. */
-const ROAD_TOP = 160;
-const ROAD_HEIGHT = 220;
+ * tuned against at the original 160px height (backlog 2.10) — a taller lane only reduces how
+ * often enemies hit the top/bottom wall (and thus how often wall-slide fires at all), it
+ * can't newly break the non-overlapping bands those ranges were tuned for. Final magnitude
+ * (280, not a larger number) is Loomwright's implementation call per issue #20, same as
+ * 2.17's own precedent — confirmed via typecheck/build here, feel confirmed by developer
+ * playtest, not fixed in advance by this comment. */
+const ROAD_TOP = 130;
+const ROAD_HEIGHT = 280;
 const ROAD_LEFT = 90;
 const ROAD_WIDTH = 780;
 const MAGE_START = { x: 180, y: 270 };

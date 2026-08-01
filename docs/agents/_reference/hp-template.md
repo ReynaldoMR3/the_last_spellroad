@@ -26,6 +26,10 @@ Cumulative damage a fight is tuned to threaten, as a share of the 100-point pool
 
 Melee sits at the high end of contact-damage punishment; Ranged sits low but steady, since it's harder to avoid outright. Warden tunes wave composition and hit frequency within these fixed per-hit values to hit the damage-threat budget above — Warden may not invent a different per-hit number.
 
+**Calculator (added 2026-08-01, backlog 2.21 / issue #20):** `src/systems/waveThreatBudget.ts` is a pure, Phaser-free TypeScript reproduction of this section's arithmetic (`computeThreatBudget`) and the standard regular-wave band check (`isWithinBand` against `STANDARD_REGULAR_WAVE_BAND`). Warden and Pato should call this function for every future wave composition instead of hand-deriving `4×Ranged + 1.4×Melee` (competent) / `4×Ranged + 7×Melee` (careless) in a log entry — it's the same formula, just checkable and covered by `waveThreatBudget.test.ts` instead of living only in log prose (see `docs/agents/warden/log.md`'s and `docs/agents/pato/log.md`'s prior hand-arithmetic entries for the gap this closes).
+
+**Level 1 Wave 0 onboarding exception (added 2026-08-01, backlog 2.21 / issue #20):** Level 1's very first wave (`src/data/waves/level-1.json`, `wave_index: 0`) is deliberately sized *below* this section's standard 10-15% competent-play floor — a first-encounter grace period, not a change to the standard band itself. Composition: Melee=2, Ranged=1 → 6.8% competent / 18% careless. Checked against a separate `ONBOARDING_COMPETENT_CEILING` threshold (`isOnboardingGrace()` in the calculator above), never against `STANDARD_REGULAR_WAVE_BAND` — this is an explicit, separate floor so no future wave can silently inherit it. **No other wave in the game is affected** — Level 1 Wave 1/2, Levels 2-4, and the mini-boss all keep their existing Pato-validated standard-band margins exactly as-is. Before touching Level 1 Wave 0 again, re-read this note; before authoring any other wave, use the standard band, not this one.
+
 ## Debuffer Magnitudes
 
 Debuffer drains either speed or Mana regen per instance (Warden's choice per encounter, not both from the same instance).

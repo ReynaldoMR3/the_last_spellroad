@@ -1,10 +1,11 @@
 [
   {
+    "_onboarding_exception": "backlog 2.21 / issue #20: this is Level 1's very first wave. Deliberately sized below hp-template.md's standard 10-15% competent-play band as a first-encounter grace period (Melee=2, Ranged=1 -> 6.8% competent / 18% careless per src/systems/waveThreatBudget.ts, isOnboardingGrace()==true). This is an explicit, separate onboarding floor, NOT a change to the standard band -- every other wave in this file keeps its Pato-validated standard-band margin unchanged. See docs/agents/warden/log.md and docs/agents/pato/log.md (2026-08-01 entries).",
     "level": 1,
     "wave_index": 0,
     "enemies": [
-      { "type": "spellbound_thug", "count": 3, "spawn_delay_ms": 0 },
-      { "type": "hexbow_skirmisher", "count": 2, "spawn_delay_ms": 1500 }
+      { "type": "spellbound_thug", "count": 2, "spawn_delay_ms": 0 },
+      { "type": "hexbow_skirmisher", "count": 1, "spawn_delay_ms": 1500 }
     ],
     "hp_modifier": 1.0,
     "damage_modifier": 1.0

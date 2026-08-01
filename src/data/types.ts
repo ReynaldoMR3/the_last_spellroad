@@ -38,4 +38,9 @@ export interface WaveDefinition {
    * multi-phase boss fight (no free HP reset between phases, per hp-template.md's cumulative
    * damage-threat budget) from a regular wave (full HP reset each time). */
   is_boss?: boolean;
+  /** Present only on Level 1 Wave 0 (backlog 2.21 / issue #20) — states its deliberate
+   * below-standard-band onboarding grace period in-file, so it survives independent of
+   * hp-template.md's or the agent logs' own record of the same exception. Not read by any
+   * engine system; documentation only. */
+  _onboarding_exception?: string;
 }
