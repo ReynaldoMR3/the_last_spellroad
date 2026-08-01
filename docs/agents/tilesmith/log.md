@@ -92,3 +92,86 @@ sprite-swap in `Enemy.ts` remains separate, later work.
 Sign-off status: pending human developer review of the specific tile picks in `tile-legend.md`,
 per this agent's standing success criterion (license/source compliance, and now pick suitability,
 are human checks -- this entry is the input to that check, not a substitute for it).
+
+## 2026-08-01 -- Backlog 3.7 (issue #28): Tiled JSON level layouts, Levels 1-5
+
+Built five real Tiled-format JSON layouts from #25's curated legend
+(`docs/agents/tilesmith/tile-legend.md`, merged from PR #34/`tilesmith/curate-tile-ids-25`,
+still open at write-time so this branch stacks on top of it rather than `main` -- no new
+asset acquisition, sourcing, or license work in this pass; this entry only records where the
+already-logged Pack 1 (Kenney Tiny Dungeon, CC0, 2026-07-30 sign-off) terrain picks ended up.
+
+**No new assets sourced.** This ticket is terrain-layout data authored from tile indices
+already logged and signed off in the 2026-07-30 entry above -- nothing new to license-check.
+
+**File path convention (for #29's later engine wiring to find without guessing):**
+`public/assets/levels/level-1.json` .. `level-5.json` -- under `public/` (not `src/`) so Vite
+serves them statically and `this.load.tilemapTiledJSON()` can fetch them by URL at runtime,
+the same convention already used for the tileset PNGs under `public/assets/third-party/...`.
+Level numbering matches the existing wave data 1:1 (`src/data/waves/level-1.json`..`level-4.json`
+regular, `boss-1.json` = level 5 per the 2026-07-30 backlog note) -- `level-5.json` here is the
+boss arena.
+
+**Schema:** standard Tiled JSON map format (`orientation: "orthogonal"`, `renderorder:
+"right-down"`, embedded single tileset, `tilewidth`/`tileheight: 16`). Field names cross-checked
+against Kenney's own bundled sample (`public/assets/third-party/kenney-tiny-dungeon/Tiled/
+sampleMap.tmx` + `sampleSheet.tsx`) rather than guessed from memory -- that sample's TMX/TSX
+pair confirmed `tilewidth`/`tileheight`/`columns`/`tilecount`/`firstgid` naming, though the
+sample itself references the gutter-padded `Tilemap/tilemap.png` (203x186, spacing=1); these
+five maps instead reference the actual gutter-free sheet the legend was built against,
+`Tilemap/tilemap_packed.png` (192x186... actually 192x176px, 12 cols x 11 rows, 16x16, no
+spacing, 132 tiles), via a relative path (`../third-party/kenney-tiny-dungeon/Tilemap/
+tilemap_packed.png`) from each level file's location. Single tileset per map, `firstgid: 1`,
+so a legend tile index N is GID N+1 (0 stays reserved for "empty/no tile" per the Tiled spec).
+Verified every output file parses (`python3 -m json.tool`) and that each layer's `data` array
+length equals `width * height` before committing.
+
+**Tile picks used (all four terrain entries from the legend, no others):**
+| Legend use | Tile index | GID | Role in these layouts |
+| --- | --- | --- | --- |
+| Lane floor (primary) | 0 | 1 | Interior floor fill |
+| Lane floor variant (edge dressing) | 12 | 13 | Rows directly inside the wall border, and (Levels 3-4) sprinkled every 5th interior column for rubble variation |
+| Lane boundary/wall | 36 | 37 | Top/bottom border rows |
+| Alternate path/accent surface | 48 | 49 | Center worn-path stripe (Levels 2 and 4) and the boss dais block (Level 5) |
+
+No enemy-sprite tiles (Tiny Creatures pack) are referenced -- out of scope per the ticket
+(terrain layout only, sprite wiring is separate).
+
+**Layout per level** (all one `Terrain` tile layer, single embedded tileset):
+- **Level 1** -- 60x18 tiles (960x288px). Row 0 and row 17 = wall (GID 37). Rows 1 and 16 =
+  floor-variant edge dressing (GID 13). Rows 2-15 = plain floor (GID 1). Plain bordered lane,
+  no extra dressing -- the baseline pattern the other levels build on.
+- **Level 2** -- same 60x18 frame/border as Level 1, but rows 8-9 (the two middle interior
+  rows) are the accent surface (GID 49) as a worn-path center stripe.
+- **Level 3** -- same 60x18 frame/border as Level 1, with every 5th interior column
+  (`col % 5 == 0`, rows 2-15) swapped to the floor-variant tile (GID 13) for a more rugged,
+  rubble-flecked look. No center stripe.
+- **Level 4** -- combines Level 2's center stripe (rows 8-9 = GID 49) with Level 3's every-5th-
+  column rubble sprinkle (GID 13) -- the most visually "worn" of the 4 regular lanes, signaling
+  ramp-up before the boss.
+- **Level 5 (boss)** -- larger, distinct arena: 60x20 tiles (960x320px), with a thicker 2-row
+  wall frame top and bottom (rows 0-1 and rows 18-19, GID 37) instead of the regular levels'
+  1-row border, edge-dressing rows 2 and 17 (GID 13), and a 12x4 "boss dais" block of the accent
+  surface (GID 49) centered in the arena floor (columns 24-35, rows 9-12) to mark the arena as
+  visually distinct from the 4 regular lanes.
+
+**Deliberately not pixel-perfect to `SpellroadScene.ts`'s current placeholder rectangle
+geometry** (`ROAD_LEFT=90, ROAD_TOP=130, ROAD_WIDTH=780, ROAD_HEIGHT=280` on a 960x540 canvas --
+780/16 and 280/16 aren't whole tile counts). Per the ticket's own framing, sized "sensibly" in
+whole 16px tile units instead: full canvas width (60 tiles = 960px, exact) and a rounded
+lane-height-ish interior (18 tiles = 288px for the 4 regular levels, close to the 280px
+`ROAD_HEIGHT`). These maps only cover the bordered-lane box itself (no tile paints the
+surrounding darker background) -- positioning this box within the scene's existing dark
+backdrop, and reconciling the small pixel-rounding difference against the live constants, is
+left to #29's engine-wiring pass, not decided here. `SpellroadScene.ts` itself was not touched
+in this pass (out of scope per the ticket -- data-only).
+
+**Explicitly out of scope, flagged rather than silently implied:** no engine code changed, no
+tileset image re-exported, no enemy-sprite tiles wired in. `src/scenes/SpellroadScene.ts` load
+calls, `map.addTilesetImage()`/`map.createLayer()` wiring, and reconciling the lane's live pixel
+geometry against these tile-unit maps are #29's job.
+
+Sign-off status: no new binary/licensed asset introduced this pass (pure JSON layout data built
+from already-signed-off tile picks) -- nothing new here requires the human compliance check;
+existing Pack 1 sign-off (2026-07-30 entry) still covers the underlying tileset PNG these layouts
+reference.
