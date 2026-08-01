@@ -4,7 +4,8 @@ import {
   isWithinBand,
   isOnboardingGrace,
   STANDARD_REGULAR_WAVE_BAND,
-  ONBOARDING_COMPETENT_CEILING
+  ONBOARDING_COMPETENT_CEILING,
+  ONBOARDING_CARELESS_CEILING
 } from "./waveThreatBudget";
 
 describe("computeThreatBudget", () => {
@@ -60,6 +61,14 @@ describe("isOnboardingGrace — Level 1 Wave 0's exception, distinct from the st
   it("never passes for a composition already within the standard band", () => {
     const budget = computeThreatBudget({ melee: 3, ranged: 2, debuffer: 0 });
     expect(budget.competentPct).toBeGreaterThanOrEqual(ONBOARDING_COMPETENT_CEILING);
+    expect(isOnboardingGrace(budget)).toBe(false);
+  });
+
+  it("rejects a melee-heavy composition that clears the competent floor but blows past the careless ceiling (Melee=7, Ranged=0)", () => {
+    const budget = computeThreatBudget({ melee: 7, ranged: 0, debuffer: 0 });
+    expect(budget.competentPct).toBeLessThan(ONBOARDING_COMPETENT_CEILING);
+    expect(budget.carelessPct).toBeGreaterThan(STANDARD_REGULAR_WAVE_BAND.carelessMax);
+    expect(budget.carelessPct).toBeGreaterThanOrEqual(ONBOARDING_CARELESS_CEILING);
     expect(isOnboardingGrace(budget)).toBe(false);
   });
 });

@@ -270,3 +270,11 @@ Warden's submission (see `warden/log.md`, 2026-08-01 entry): revise Level 1 Wave
 **`hp-template.md` updated directly, as its own owner:** added the Calculator pointer and the Level 1 Wave 0 onboarding-exception subsections to `_reference/hp-template.md` myself, same authority this file's own footer reserves ("Only Pato edits this file") — this validation and that documentation are the same piece of work, not a separate hand-off.
 
 **Unblocked:** Level 1 Wave 0's new composition is ship-ready numerically. Loomwright wires it in via the JSON edit alone (no engine code change needed — `WaveLoader`/`SpellroadScene` read enemy counts generically).
+
+## 2026-08-01 (2) — Correction after PR #22's post-merge code-review: `isOnboardingGrace()` was checking only half of what I actually validated above
+
+A code-review pass on the merged PR (both the Standards and Spec sub-agents, independently) found that `isOnboardingGrace()` only bounded `competentPct`, never `carelessPct` — even though my own gate-check entry above explicitly verified *both* figures (6.8% competent / 18% careless) before passing this composition. A melee-heavy, ranged-light composition (e.g. Melee=7, Ranged=0) would clear the competent floor (9.8% < 10%) while its careless figure (49%) blows well past even the *standard* band's own 35% ceiling — the automated check was weaker than the manual one it's meant to replace, a real gap since this function is the one future waves are pointed at.
+
+**Fixed:** added `ONBOARDING_CARELESS_CEILING` (= `STANDARD_REGULAR_WAVE_BAND.carelessMin`, 25%) alongside the existing `ONBOARDING_COMPETENT_CEILING`; `isOnboardingGrace()` now requires both `competentPct` and `carelessPct` to sit below their respective standard-band floors, matching this entry's own manual check exactly. Regression test added (`waveThreatBudget.test.ts`) for the Melee=7/Ranged=0 counterexample, confirming it now correctly fails. Level 1 Wave 0's actual composition (6.8/18) still passes — both figures were already below both floors, so this correction changes nothing about what already shipped, only what a *future* composition could slip through.
+
+**Self-verify:** `docker-compose run --rm game npm run typecheck`, `npm run build`, `npm test` (9/9 passing) all clean.
