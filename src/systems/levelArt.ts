@@ -66,11 +66,15 @@ export interface TilemapOffset {
 /**
  * Where to draw a level's tile layer so it reads as "the lane" without changing the lane's
  * actual gameplay bounds. Tilesmith's #28 maps are sized in whole 16px tile units (960x288 for
- * Levels 1-4, 960x320 for the boss arena) rather than pixel-matched to the live
- * `ROAD_WIDTH`/`ROAD_HEIGHT` constants (780x280 — see that file's 2026-08-01 log entry, which
- * flags this as deliberate and leaves reconciliation to this ticket). This function only
- * decides where the *art* sits: it centers the map horizontally on the canvas and vertically on
- * the same lane midline movement/spawn/preview-clip geometry already uses, and leaves
+ * Levels 1-4, 960x320 for the boss arena). As of backlog 2.27 / issue #53 (2026-08-02),
+ * `ROAD_WIDTH` (`SpellroadScene.ts`) was widened 780->960 to match the art's full canvas
+ * width exactly, closing the horizontal half of the mismatch this comment used to describe —
+ * width is now pixel-matched. Height remains an approximation (`ROAD_HEIGHT` 280 vs the maps'
+ * 288/320): a deliberate, unchanged trade-off from backlog 3.8, left alone by #53 since that
+ * ticket's own reported symptom ("you get stuck before reaching the end") was specifically
+ * about the left/right edges, not top/bottom. This function only decides where the *art*
+ * sits: it centers the map horizontally on the canvas and vertically on the same lane
+ * midline movement/spawn/preview-clip geometry already uses, and leaves
  * `ROAD_WIDTH`/`ROAD_HEIGHT`/`LANE_RECT` themselves untouched — those stay the actual
  * gameplay-bounds source of truth, per this ticket's own instructions.
  */

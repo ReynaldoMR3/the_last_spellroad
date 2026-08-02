@@ -3,6 +3,7 @@ import type { SpellDefinition } from "../data/types";
 import { MASTER_DISCOUNT, WEIGHT_CLASS } from "../systems/ManaSystem";
 import type { ManaSystem } from "../systems/ManaSystem";
 import type { MasterySystem } from "../systems/MasterySystem";
+import { computeCastManaCost } from "../systems/spellCost";
 
 export type ShapeHitTest = (enemyX: number, enemyY: number) => boolean;
 
@@ -36,6 +37,18 @@ export class SpellCaster {
     return (this.cooldownsMs.get(spellId) ?? 0) > 0;
   }
 
+  /**
+   * backlog 2.28 / issue #54 — read-only Mana affordability check, mirroring the same
+   * `computeCastManaCost` formula `tryCast` uses to actually spend, but without spending.
+   * `handleHotbarPress` (SpellroadScene.ts) calls this before entering preview/aim mode so
+   * an unaffordable cast is rejected up front, the same way `isOnCooldown` already gates
+   * entry into preview mode for a cooling-down spell.
+   */
+  canAffordCast(spell: SpellDefinition): boolean {
+    const cost = computeCastManaCost(spell, this.mastery.getTier(spell.id));
+    return this.mana.canAfford(cost);
+  }
+
   cooldownRemaining(spellId: string): number {
     return this.cooldownsMs.get(spellId) ?? 0;
   }
@@ -58,13 +71,13 @@ export class SpellCaster {
     }
     const base = WEIGHT_CLASS[spell.weight];
     const scaling = this.mastery.getScaling(spell.id);
-    const isMaster = this.mastery.getTier(spell.id) === "master";
+    const tier = this.mastery.getTier(spell.id);
+    const isMaster = tier === "master";
     // mana-template.md: Master gets -10% off cost OR cooldown, whichever the spell's
     // design leans on more — a per-spell choice (spell.master_discount), never both.
-    const cost =
-      isMaster && spell.master_discount === "cost"
-        ? Math.round(base.cost * (1 - MASTER_DISCOUNT))
-        : base.cost;
+    // Cost side factored out into `computeCastManaCost` (backlog 2.28 / issue #54) so
+    // `canAffordCast`'s pre-check above uses the exact same formula, not a second copy.
+    const cost = computeCastManaCost(spell, tier);
     const cooldownMs =
       isMaster && spell.master_discount === "cooldown"
         ? Math.round(base.cooldownMs * (1 - MASTER_DISCOUNT))

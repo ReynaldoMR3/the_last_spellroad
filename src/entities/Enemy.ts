@@ -29,13 +29,33 @@ const MELEE_COOLDOWN_MS = 1200;
  * pair produced overlapping [200,240]/[180,220] bands (the actual cause of the reported
  * stacking). Independently re-verified by Pato: 240/150 yields non-overlapping
  * [220,260]/[130,170] bands, a real ~50px gap against the 26px sprite footprint.
+ *
+ * Re-checked, not retuned, for backlog 2.27 / issue #53 (2026-08-02, `ROAD_WIDTH`
+ * 780->960): these bands describe a distance from the *player*, not from a lane wall, and
+ * a wider lane only gives the mage/enemies more room to actually reach and hold a
+ * preferred distance before a retreat runs into `WALL_SLIDE_MARGIN` — it can't newly
+ * create an overlap between two bands whose own gap (240+/-20 vs 150+/-20, a 50px gap) is
+ * independent of lane width. Exactly the same reasoning `SpellroadScene.ts`'s own
+ * `ROAD_HEIGHT` widening comment already gives for this identical pair of constants
+ * surviving 160->220->280 unretouched — a widened dimension only reduces how often a wall
+ * is hit, never forces the bands themselves closer together. Left at 240/150.
  */
 const RANGED_PREFERRED_RANGE = 240;
 const RANGED_COOLDOWN_MS = 1800;
 const DEBUFFER_PREFERRED_RANGE = 150;
 const DEBUFFER_COOLDOWN_MS = 2500;
 /** backlog 2.10 — how close to a lane wall a kiting retreat must get before it slides
- * along the wall instead of pinning nose-first (Warden's spec, Pato-validated 2026-07-25). */
+ * along the wall instead of pinning nose-first (Warden's spec, Pato-validated 2026-07-25).
+ *
+ * Re-checked, not retuned, for backlog 2.27 / issue #53: this margin is an absolute
+ * proximity-to-any-wall threshold (left/right/top/bottom alike), not a fraction of lane
+ * width — a wider lane (780->960) only makes the left/right walls rarer to reach in the
+ * first place, so wall-slide fires less often, the same direction of effect the prior
+ * height widenings (160->220->280) already had on the top/bottom walls without needing
+ * this number to change. Also re-derives the new `ENEMY_SPAWN_X` in `SpellroadScene.ts`
+ * (kept exactly `WALL_SLIDE_MARGIN` px inside the new right wall, same as before the
+ * widening) — see that constant's own comment. Left at 50.
+ */
 const WALL_SLIDE_MARGIN = 50;
 const ATTACK_COOLDOWN_MS: Record<EnemyArchetype, number> = {
   melee: MELEE_COOLDOWN_MS,

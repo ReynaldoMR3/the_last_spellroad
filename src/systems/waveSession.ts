@@ -128,3 +128,35 @@ export class WaveSession {
     return token === this.currentGeneration;
   }
 }
+
+/**
+ * Guards a boss phase-break's `resolve()` callback (`SpellroadScene.startPhaseBreak`).
+ *
+ * Heckler critique, 2026-08-02 (6): the original #52 fix guarded `resolve()` on phase
+ * alone (`phase === "awaiting-phase-choice"`), never on the generation token the closure
+ * captured when it was armed. `beginPhaseChoice()` deliberately does not bump the
+ * generation (its resolution timer must survive), but `beginDeath()` does — so a death
+ * that interrupts an unresolved phase-break, followed by a retry reaching another
+ * phase-break, leaves the *interrupted* attempt's `keydown-Y`/`keydown-N` listeners still
+ * registered (if nothing deregisters them) while a fresh pair also gets armed. A single
+ * keypress then invokes both closures: the stale one's phase-only guard passes (the
+ * session genuinely is `awaiting-phase-choice` again, just for a *different* attempt),
+ * so it silently runs `beginAdvance()` plus its Hexcoin/HP side effects against live
+ * state — and then the fresh, legitimate closure's identical guard reads
+ * `phase !== "awaiting-phase-choice"` as true (already flipped by the stale one) and
+ * bails, so the real advance is never scheduled. Permanent freeze, same failure #52 was
+ * meant to close, reached via a different path.
+ *
+ * "Resolve is only valid once, for the current phase-break attempt": phase must still be
+ * `awaiting-phase-choice` AND the token this attempt was armed with must still be the
+ * session's live generation. A death (or any later wave start) always bumps the
+ * generation, so any attempt still holding an older token is provably stale and must be
+ * a no-op before it does anything — including its side effects.
+ */
+export function canResolvePhaseChoice(
+  phase: WavePhase,
+  currentGeneration: number,
+  token: number
+): boolean {
+  return phase === "awaiting-phase-choice" && token === currentGeneration;
+}

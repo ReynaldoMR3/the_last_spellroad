@@ -10,7 +10,7 @@ import { Enemy, ARCHETYPE_DAMAGE } from "../entities/Enemy";
 import { spawnWave } from "../systems/WaveLoader";
 import { selectAutoAimTarget } from "../systems/autoAim";
 import { isStillInRangedImpactZone } from "../systems/rangedImpact";
-import { WaveSession, shouldAutoAdvance } from "../systems/waveSession";
+import { WaveSession, canResolvePhaseChoice, shouldAutoAdvance } from "../systems/waveSession";
 import { hasRecentPointerActivity } from "../systems/pointerActivity";
 import {
   ALL_LEVELS,
@@ -37,9 +37,32 @@ const PLAYER_SPEED = 180;
  * playtest, not fixed in advance by this comment. */
 const ROAD_TOP = 130;
 const ROAD_HEIGHT = 280;
-const ROAD_LEFT = 90;
-const ROAD_WIDTH = 780;
+/** Widened 90/780 -> 0/960 (2026-08-02, backlog 2.27 / issue #53: developer playtest —
+ * "boundaries on the right and left side of the road are not clear... you get stuck before
+ * reaching the end"). The road art (`computeTilemapOffset`, `src/systems/levelArt.ts`)
+ * always rendered across the full 960px canvas width; the walkable lane was only 780px
+ * centered in that same space, leaving a 90px strip on each side that looked walkable but
+ * wasn't. Widened the lane to match the art (matches CANVAS_WIDTH below; kept as a literal
+ * here rather than reading CANVAS_WIDTH, which is declared later in this file) rather than
+ * shrinking the art, per the same precedent backlog 2.17/2.21 set for the lane's height —
+ * an unwalkable strip that reads as road is strictly worse than a slightly generous walkable
+ * area. See the retuned enemy constants in `Enemy.ts` (`RANGED_PREFERRED_RANGE`,
+ * `DEBUFFER_PREFERRED_RANGE`, `WALL_SLIDE_MARGIN`) and the enemy spawn point below for what
+ * this widening required re-checking. */
+const ROAD_LEFT = 0;
+const ROAD_WIDTH = 960;
 const MAGE_START = { x: 180, y: 270 };
+/** backlog 2.27 / issue #53 — enemy spawn point's x-coordinate, retuned 820 -> 910 to
+ * preserve the exact relationship the old value had to the lane's right wall: 820 sat
+ * precisely `WALL_SLIDE_MARGIN` (50, `Enemy.ts`) px inside the old right wall at 870
+ * (870 - 50 = 820) — not a coincidence, the original spawn point was deliberately placed
+ * just inside the wall-slide zone. `ROAD_LEFT + ROAD_WIDTH` (the new right wall, 960)
+ * minus that same 50px margin keeps that invariant true at the new width (960 - 50 = 910),
+ * so spawned enemies land in the same relative spot along the lane's far wall as before,
+ * just at the new width. `WaveLoader.spawnWave`'s own +/-40/+/-30px spawn jitter still
+ * can't push a spawn past the wall (40 < 50 margin), matching the same slack the old
+ * numbers left (870 - (820+40) = 10px), so this isn't a new source of clamp-on-spawn. */
+const ENEMY_SPAWN_X = 910;
 /** Ranged attacks apply damage after a short simulated travel delay rather than a full projectile-physics sprite — a scoped-down visual, not a change to the 4-damage-per-hit number.
  * Widened 280->450ms (2026-07-27, developer feedback: no time to react/evade) — this is
  * purely a visual-pacing constant (Loomwright's own call per the comment above), not one of
@@ -113,6 +136,14 @@ export class SpellroadScene extends Phaser.Scene {
    * wave-complete auto-advance is gated on `session.phase` instead of on counter values
    * `handleDeath` happens to reproduce. See `systems/waveSession.ts` for the full root cause. */
   private session!: WaveSession;
+  /** Heckler, 2026-08-02 (6) — the exact `keydown-Y`/`keydown-N` listener refs armed by the
+   * currently-pending `startPhaseBreak` call, or `null` if none is pending. Hoisted out of
+   * `startPhaseBreak`'s closure so `handleDeath` can `.off()` them by reference when it
+   * interrupts an unresolved phase-break, instead of leaving a stale pair registered for a
+   * later, unrelated phase-break to accidentally co-fire alongside. Cleared whenever a
+   * phase-break actually resolves or a death interrupts it — at most one phase-break is ever
+   * pending at a time, so a single field (not a stack/set) is sufficient. */
+  private phaseChoiceListeners: { onY: () => void; onN: () => void } | null = null;
   /** backlog 0.2 — highest wave `level` number reached so far; `startWave` only calls
    * `hexcoin.markLevelStart()` the first time a level number is crossed, never on a
    * same-level death-retry, so a death can't be used to re-bank an already-recorded floor. */
@@ -468,6 +499,17 @@ export class SpellroadScene extends Phaser.Scene {
       this.flashMessage(`${spell.id} on cooldown`, 500);
       return;
     }
+    // Issue #54 fix: previously mana was only checked inside `confirmCast` -> `tryCast`,
+    // after the player had already entered preview/aim mode — the cast was rejected only
+    // at the moment of confirm, contradicting the "tactical, readable" pillar's promise
+    // that a cast attempt tells you upfront whether it's viable. Mirrors the cooldown
+    // check immediately above: reject before entering preview, same flash message
+    // `confirmCast` already uses for the same underlying reason (`this.mana.canAfford`
+    // via `SpellCaster.canAffordCast`, which never mutates the Mana pool).
+    if (!this.caster.canAffordCast(spell)) {
+      this.flashMessage("Not enough Mana", 500);
+      return;
+    }
     this.previewSpellId = spell.id;
     // backlog 2.22 / issue #44, recency check per issue #49 — soft-lock: pick the auto-aim
     // target once, right here, never re-evaluated until this preview confirms or cancels.
@@ -664,7 +706,7 @@ export class SpellroadScene extends Phaser.Scene {
     spawnWave(
       this,
       wave,
-      { x: 820, y: 270 },
+      { x: ENEMY_SPAWN_X, y: 270 },
       LANE_RECT,
       (enemy) => {
         this.enemies.push(enemy);
@@ -691,22 +733,38 @@ export class SpellroadScene extends Phaser.Scene {
     const phaseGeneration = this.session.generation;
     this.session.beginPhaseChoice();
     const canPay = this.hexcoin.canUsePhaseRecovery(this.bossMaxRecoveries);
+    // Issue #52 fix: this message used to promise "press any key to continue" in the
+    // !canPay branch, but only `keydown-Y`/`keydown-N` listeners were ever armed below —
+    // no "any key" handler existed anywhere, so declining players (nothing to decline,
+    // nothing to pay) hit an unrecoverable freeze. Developer's call: not an auto-advance,
+    // a deliberate pause beat — message now promises exactly the one key that's armed.
     this.flashMessage(
       canPay
         ? `The ledger waits. [Y] Pay ${FEE_PHASE_RECOVERY} Hexcoin -> restore ${Math.round(MAX_HP * PHASE_RECOVERY_HP_FRACTION)} HP  /  [N] Refuse`
-        : "Phase clear! No recovery available — press any key to continue.",
+        : "Phase clear! No recovery available — press Y to continue.",
       60000
     );
     const resolve = (pay: boolean) => {
-      // Guards double-resolution (as the old boolean did) AND a keypress arriving after the
-      // player died during the break — `handleDeath` moves the phase to `dead`, so a late Y
-      // can no longer buy a recovery for, or advance, a run that's already being restarted.
-      if (this.session.phase !== "awaiting-phase-choice") {
+      // Guards double-resolution (as the old boolean did), a keypress arriving after the
+      // player died during the break (`handleDeath` moves the phase to `dead`), AND — Heckler,
+      // 2026-08-02 (6) — a stale listener from an *earlier* phase-break that a death
+      // interrupted, still armed because nothing had deregistered it, co-firing alongside a
+      // fresh phase-break's listeners that happen to reach the same "awaiting-phase-choice"
+      // phase string. Checking phase alone let that stale closure pass this guard and run its
+      // side effects (Hexcoin spend, HP restore, `beginAdvance()`) against live state, then
+      // starve the real, current phase-break's identical guard (phase already flipped by the
+      // stale call) — a silent side effect followed by a permanent freeze, the same failure #52
+      // was dispatched to fix, reached via a different path. `canResolvePhaseChoice` also
+      // checks the token this closure was armed with against the session's live generation —
+      // death always bumps the generation (`waveSession.ts`), so a stale attempt's token can
+      // never match again once a death (and the retry's `beginWave()`) has moved the session on.
+      if (!canResolvePhaseChoice(this.session.phase, this.session.generation, phaseGeneration)) {
         return;
       }
       this.session.beginAdvance();
       this.input.keyboard?.off("keydown-Y", onY);
       this.input.keyboard?.off("keydown-N", onN);
+      this.phaseChoiceListeners = null;
       if (pay && this.hexcoin.usePhaseRecovery(this.bossMaxRecoveries)) {
         this.health.restore(MAX_HP * PHASE_RECOVERY_HP_FRACTION);
         this.flashMessage(`Recovered ${Math.round(MAX_HP * PHASE_RECOVERY_HP_FRACTION)} HP`, 1200);
@@ -729,8 +787,17 @@ export class SpellroadScene extends Phaser.Scene {
     };
     const onY = () => resolve(true);
     const onN = () => resolve(false);
+    // Heckler, 2026-08-02 (6): recorded so `handleDeath` can deregister this exact pair by
+    // reference if it interrupts this phase-break before `resolve()` ever runs.
+    this.phaseChoiceListeners = { onY, onN };
+    // Issue #52 fix: `keydown-N` is only armed when refusing is actually a real choice
+    // (there's a Y/N decision to make). When `canPay` is false there is nothing to
+    // decline — arming a dangling `N` listener nobody was told about would just be a second
+    // undocumented way to advance alongside the one the message now actually promises.
     this.input.keyboard?.once("keydown-Y", onY);
-    this.input.keyboard?.once("keydown-N", onN);
+    if (canPay) {
+      this.input.keyboard?.once("keydown-N", onN);
+    }
   }
 
   private updateEnemies(deltaMs: number): void {
@@ -897,6 +964,21 @@ export class SpellroadScene extends Phaser.Scene {
     // resolution, an archer's in-flight impact) is stale and will no-op when it fires. Nothing
     // is force-cancelled, so unrelated pending timers are untouched.
     const deathGeneration = this.session.beginDeath();
+    // Heckler, 2026-08-02 (6): if death interrupts an unresolved boss phase-break, its
+    // `keydown-Y`/`keydown-N` `.once` listeners are still registered on the shared keyboard
+    // plugin — generation-bumping alone does not deregister them. Left alone, a boss retry
+    // reaching another phase-break would arm a second pair alongside this stale one, and a
+    // single keypress would fire both closures (Phaser's `once` only deregisters the listener
+    // that fired, not others on the same event). `canResolvePhaseChoice`'s token check in
+    // `startPhaseBreak.resolve()` already makes the stale closure's side effects impossible
+    // even if this cleanup were somehow skipped, but deregistering here is the primary fix —
+    // it means a later, unrelated phase-break never inherits a stale listener at all, rather
+    // than relying solely on the guard to no-op it after the fact.
+    if (this.phaseChoiceListeners) {
+      this.input.keyboard?.off("keydown-Y", this.phaseChoiceListeners.onY);
+      this.input.keyboard?.off("keydown-N", this.phaseChoiceListeners.onN);
+      this.phaseChoiceListeners = null;
+    }
     const equipped = this.equippedSpells.map((s) => s.id);
     const affected = this.mastery.applyRandomDeathPenalty(equipped);
     this.flashMessage(
