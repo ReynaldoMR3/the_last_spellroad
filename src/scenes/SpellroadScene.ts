@@ -711,6 +711,15 @@ export class SpellroadScene extends Phaser.Scene {
         this.health.restore(MAX_HP * PHASE_RECOVERY_HP_FRACTION);
         this.flashMessage(`Recovered ${Math.round(MAX_HP * PHASE_RECOVERY_HP_FRACTION)} HP`, 1200);
       }
+      // Known flagged interaction (code review, 2026-08-02, not a reported bug): the decline
+      // path's 200ms delay is shorter than `RANGED_TRAVEL_MS` (450ms). `startWave` below always
+      // bumps the generation (issue #48), so a ranged shot fired by the phase's last enemy just
+      // before it died can have its impact silently voided by a same-life phase advance, not
+      // just by death — if the player declines fast enough that the next phase starts before
+      // the shot lands. Fails safe (a hit that should land doesn't; nothing crashes or
+      // corrupts state) and needs sub-250ms player reaction to trigger, so left as-is rather
+      // than redesigning the generation scheme to distinguish "world-ending" transitions from
+      // "same-life" ones — flagged here instead of silently accepted.
       this.time.delayedCall(pay ? 1200 : 200, () => {
         if (!this.session.isCurrent(phaseGeneration)) {
           return;
