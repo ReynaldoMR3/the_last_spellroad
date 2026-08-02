@@ -225,6 +225,16 @@ For targeted spells, pressing a spell hotkey should show a clear targeting previ
 
 This control model should avoid turning the game into a reaction-heavy action RPG. The intended fantasy is that the player reads the battlefield, chooses the right prepared spell, places it well, and wins through planning rather than twitch execution.
 
+## Screen Flow And Pause
+
+Before gameplay starts, the game boots through a Boot/Preload scene (loads assets, no player decision) into a Title scene. The Title scene offers **New Game** if no save exists; if a save exists, it offers **Continue** (loads the existing save, see Save Data And Persistence) alongside **New Game**, which prompts a confirmation before overwriting the current mage's progress.
+
+Pausing mid-expedition is a **hard pause**: the entire gameplay scene freezes (enemies, wave timers, Mana regen) while a separate pause-menu scene runs on top of it. `Esc` opens and closes the pause menu when nothing is being previewed; if a spell preview is active, `Esc` cancels the preview first (unchanged from Core Controls And Casting above) — pause is one step further out, not a competing binding. The pause menu offers only **Resume** and **Quit to Title**; there is no **Restart**, since death already owns the game's one voluntary-reset path (see Death And Mastery Loss). Quitting to the title screen also prompts a confirmation, since it can lose progress made since the last autosaved state-changing event.
+
+No Options/Settings menu ships in the vertical slice — nothing in the locked design has a player-facing setting yet. A future audio/music option is a plausible later addition, explicitly out of scope now.
+
+This is Loomwright's engine scope (scene wiring and UI shell), the same kind of scope clarification as the runtime-ownership extension in Agent Role Definitions — see `docs/agents/ana/backlog.md` item 0.7.
+
 ## Phaser And Web Constraints
 
 **Tech stack:** Phaser 3 + TypeScript, Docker-first dev workflow, static-file browser build. This is the foundation every other technical decision in this document builds on, including the Prompt Constraints, Engine Integration, and Technical Strategy sections below.

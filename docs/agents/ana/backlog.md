@@ -63,6 +63,16 @@ Death's own Mastery-tier-drop penalty partially self-limits this in practice —
 
 **Status:** `blocked-with-reason`, non-urgent, re-raised at Phase 5 alongside 0.3/0.5.
 
+### 0.7 — Screen-flow/UI-shell ownership gap (developer decision, resolved 2026-08-01)
+
+**The gap:** found while scoping the Boot/Title/Pause screens via `/grill-with-docs` — no agent owns scene wiring or UI shell at all. Loomwright's charter (`docs/agents/_reference/engine-contract.md`) covers movement/casting and (per 0.1) HP/Mana/Mastery/Hexcoin/Debuff runtime, but nothing about scenes, menus, boot, or pause. Confirmed via `grep` across every `AGENT.md` and this backlog: zero hits for scene/menu/pause/boot/title.
+
+**Decision:** Loomwright's engine scope extends to cover this — same pattern as 0.1's extension, a scope clarification rather than a new design decision. See the GDD's new "Screen Flow And Pause" section (after Core Controls And Casting) for the full design: Boot/Preload → Title → gameplay scene chain; Title offers New Game (no save) or Continue/New Game-with-confirm (save exists); pause is a hard pause (`scene.pause()`) triggered by a contextual `Esc` (cancels an active spell preview first, opens/closes pause otherwise), offering only Resume and Quit to Title, both quit paths confirming since they can lose un-saved progress. No Options/Settings menu in the slice.
+
+**Action:** `docs/agents/_reference/engine-contract.md` and `docs/agents/loomwright/AGENT.md` updated 2026-08-01 with the scope extension. Full design detail recorded in `docs/superpowers/specs/2026-08-01-boot-title-pause-screens-design.md`. Build task tracked as 5.8.
+
+**Status:** `shipped-and-validated` for the scope decision and design — contract docs and GDD updated. The actual build (5.8) is separate, not-yet-built work.
+
 ### 0.5 — Mastery farming via non-lethal hits (new, found 2026-07-25, not blocking)
 
 While verifying 0.4's corrected number, found that `MasterySystem.recordLandedCast` fires on any successful hit, not a kill — so a player who deliberately keeps landing non-lethal hits on a single enemy isn't bounded by level content at all, only by real time. No finite per-tier number closes this (0.4's 180 only bounds the "clear the level normally" case); it needs a mechanic change (e.g., gate progress on kills instead of hits) rather than a resize, which is a design call, not something to guess mid-session.
@@ -211,6 +221,7 @@ Deliberately sequenced after Phase 3 rather than parallel to it, per Ana's log e
 | 5.5 | Re-check 0.3 status: confirmed resolved (via 4.3 or a Phase-1/2 mechanical fix) before submission, or explicitly logged as a known, accepted limitation if not | Ana | Sonnet 5 | 0.3 resolution | `shipped-and-validated` — 0.3 resolved via 4.3, 2026-08-01. Pending only Heckler's tone/consistency gate on Lorena's flash-message text (4.6), not a re-open of this row. |
 | 5.6 | Resolve 0.5 (Mastery farming via non-lethal hits, found 2026-07-25): decide whether `recordLandedCast` should require a kill instead of any hit, or some other bound, then have Loomwright implement | Ana (routes) / Loomwright | Sonnet 5 | 0.5 resolution | `shipped-and-validated` — resolved and implemented 2026-08-01, see 0.5's own Phase 0 entry. Combining this fix with 0.2's same-day resolution opened a new, related residual (retry-based re-grinding past a single level's kill count) — tracked separately as new item **0.6**, not folded into this row's status. |
 | 5.7 | Resolve **0.6** (Mastery re-grinding via repeated level retries, found 2026-08-01): check whether the death-penalty self-limiting effect actually bounds this in practice, or whether a harder cap is needed | Ana (routes) / Pato | Sonnet 5 / Haiku 4.5 | 0.6 resolution | `blocked-with-reason` |
+| 5.8 | Build the Boot/Preload → Title → gameplay scene chain and the hard-pause menu scene, per **0.7**'s scope resolution and `docs/superpowers/specs/2026-08-01-boot-title-pause-screens-design.md` | Loomwright | Sonnet 5 | 0.7 | `not-started` |
 
 **Re-tune checkpoint:** second model-selection re-tune, against Week 5 actuals.
 
