@@ -58,3 +58,37 @@ Developer explicitly approved pulling **Candidate 1** (Kenney Roguelike/RPG Pack
 **Explicitly not done in this pass, flagged rather than silently implied:** no specific tile/sprite has been picked out, cropped, or wired into `Enemy.ts`/the tileset-loading code yet -- this closes the acquisition half of backlog 3.6 only. Both numbered packs need a visual identification pass (matching a grid position in `Preview.png` to a tile number, using each pack's stated grid dimensions -- Tiny Dungeon 12x11, Tiny Creatures 10x18) before any individual asset is ready to replace the current placeholder colored-rectangle rendering. That visual-picking-and-wiring step is 3.6's remaining work plus 3.7 (Tiled level layouts), both still open.
 
 Sign-off status: developer-approved for download (this entry); the specific-tile-selection step below still needs its own review once picked, per this agent's standing success criterion (license/source compliance is a human check, not a self-certified one).
+
+## 2026-08-01 -- Backlog 3.6 curation half closed (GitHub issue #25): specific tile picks identified
+
+Visual identification pass over both packs' `Tilemap/tilemap_packed.png` (the exact, gutter-free
+16x16 spritesheet backing each pack's `Preview.png`), cross-checked against the corresponding
+numbered file in each pack's `Tiles/` folder. Full mapping, including runner-up alternates, is in
+the new `docs/agents/tilesmith/tile-legend.md`. Source pack + license are unchanged from the
+2026-07-30 entry above (both CC0, re-verified there) -- referenced rather than re-checked here.
+
+**Spellroad tileset terrain (Kenney Tiny Dungeon, 12x11 grid, 132 tiles, 0-indexed filenames):**
+- Lane floor: tile index 0 (row 0, col 0), `tile_0000.png` -- plain dirt/stone floor.
+- Lane floor variant: tile index 12 (row 1, col 0), `tile_0012.png` -- pebble-speckled dirt floor.
+- Lane boundary wall: tile index 36 (row 3, col 0), `tile_0036.png` -- grey brick wall.
+- Alternate path/accent surface: tile index 48 (row 4, col 0), `tile_0048.png` -- tan/sand floor.
+- Base chibi character (style/size reference only, not an archetype pick): tile index 84 (row 7, col 0), `tile_0084.png`.
+
+**Enemy archetypes (OpenGameArt Tiny Creatures, 10x18 grid, 180 tiles, 1-indexed filenames --
+filename number = tile index + 1, confirmed by cross-checking index 0 against `tile_0001.png`):**
+- Melee -> Golem: tile index 127 (row 12, col 7), `tile_0128.png` -- grey rock-textured bulky humanoid.
+- Ranged -> Harpy: tile index 32 (row 3, col 2), `tile_0033.png` -- grey winged, birdlike-head creature.
+- Debuffer -> Witch: tile index 66 (row 6, col 6), `tile_0067.png` -- purple pointed-hat robed figure.
+
+Runner-up alternates for all three archetypes (in case a primary pick doesn't read well once
+scaled/recolored toward `ARCHETYPE_COLOR` in-engine) are recorded in `tile-legend.md`, not repeated
+here.
+
+**Explicitly not done in this pass:** no rendering code, `Enemy.ts`, or tileset-loading code was
+touched -- this closes only the curation half of backlog 3.6 (the acquisition half closed
+2026-07-30). Wiring these picks into Tiled layouts (backlog 3.7) or into the archetype
+sprite-swap in `Enemy.ts` remains separate, later work.
+
+Sign-off status: pending human developer review of the specific tile picks in `tile-legend.md`,
+per this agent's standing success criterion (license/source compliance, and now pick suitability,
+are human checks -- this entry is the input to that check, not a substitute for it).
