@@ -10,6 +10,7 @@ import { Enemy, ARCHETYPE_DAMAGE } from "../entities/Enemy";
 import { spawnWave } from "../systems/WaveLoader";
 import { selectAutoAimTarget } from "../systems/autoAim";
 import { isStillInRangedImpactZone } from "../systems/rangedImpact";
+import { WaveSession, shouldAutoAdvance } from "../systems/waveSession";
 import {
   ALL_LEVELS,
   TILESET_IMAGE_KEY,
@@ -105,7 +106,12 @@ export class SpellroadScene extends Phaser.Scene {
    * in progress: min(that boss's phase-breaks - 1, MAX_RECOVERIES_HARD_CAP), per hp-template.md.
    * Recomputed at the start of every boss encounter; meaningless outside one. */
   private bossMaxRecoveries = 0;
-  private awaitingPhaseChoice = false;
+  /** Issue #48 — the run's generation counter + phase. Every `delayedCall` this scene
+   * schedules that can outlive the wave/life that scheduled it captures
+   * `this.session.generation` and re-checks `isCurrent(token)` before acting, and the
+   * wave-complete auto-advance is gated on `session.phase` instead of on counter values
+   * `handleDeath` happens to reproduce. See `systems/waveSession.ts` for the full root cause. */
+  private session!: WaveSession;
   /** backlog 0.2 — highest wave `level` number reached so far; `startWave` only calls
    * `hexcoin.markLevelStart()` the first time a level number is crossed, never on a
    * same-level death-retry, so a death can't be used to re-bank an already-recorded floor. */
@@ -195,6 +201,9 @@ export class SpellroadScene extends Phaser.Scene {
     this.hexcoin = new HexcoinSystem();
     this.debuff = new DebuffSystem();
     this.caster = new SpellCaster(this.mana, this.mastery);
+    // Issue #48 — constructed with the rest of the run's systems so a scene restart gets a
+    // clean generation/phase, not one inherited from the previous run.
+    this.session = new WaveSession();
 
     this.createRoad();
     this.createMage();
@@ -592,9 +601,17 @@ export class SpellroadScene extends Phaser.Scene {
   private startWave(index: number): void {
     const wave = this.waves[index];
     if (!wave) {
+      // Issue #48 — park the session explicitly instead of relying on the old
+      // `enemiesRemainingToSpawn = -1` sentinel still happening to be in place: nothing to
+      // advance to, so the auto-advance gate must stay shut for good.
+      this.session.markComplete();
       this.flashMessage("Vertical slice complete!", 3000);
       return;
     }
+    // Issue #48 — a new wave makes every callback the previous wave/life scheduled stale.
+    // Taken before anything else here, so nothing below can be attributed to the old
+    // generation, and captured locally for this wave's own spawn timers below.
+    const waveGeneration = this.session.beginWave();
     this.waveIndex = index;
     this.renderLevelArt(wave.level);
 
@@ -631,17 +648,35 @@ export class SpellroadScene extends Phaser.Scene {
 
     this.debuff.clear();
     this.enemiesRemainingToSpawn = wave.enemies.reduce((sum, e) => sum + e.count, 0);
-    spawnWave(this, wave, { x: 820, y: 270 }, LANE_RECT, (enemy) => {
-      this.enemies.push(enemy);
-      this.enemiesRemainingToSpawn -= 1;
-    });
+    spawnWave(
+      this,
+      wave,
+      { x: 820, y: 270 },
+      LANE_RECT,
+      (enemy) => {
+        this.enemies.push(enemy);
+        this.enemiesRemainingToSpawn -= 1;
+      },
+      // Issue #48 — this wave's staggered spawn timers only fire while this wave is still the
+      // live one. A death (or any later wave start) takes a new generation, so leftovers from
+      // the wave the player died in can no longer spawn into — or decrement the spawn counter
+      // of — the wave that replaces it.
+      () => this.session.isCurrent(waveGeneration)
+    );
   }
 
   /** backlog 3.4 — offered at every boss phase-break (never at a regular wave's end).
    * Pay `FEE_PHASE_RECOVERY` Hexcoin (from the fight-start-frozen snapshot) to restore
    * `PHASE_RECOVERY_HP_FRACTION` of MAX_HP, or decline and continue at current HP. */
   private startPhaseBreak(nextIndex: number): void {
-    this.awaitingPhaseChoice = true;
+    // Issue #48 — the phase-break's own pending state is now one of the session's phases
+    // rather than a second parallel `awaitingPhaseChoice` boolean that had to be kept in
+    // agreement with the `enemiesRemainingToSpawn = -1` sentinel by hand. `generation` is
+    // captured (not bumped) so this break's resolution timer stays valid for exactly as long
+    // as this boss phase does — a wave-advance elsewhere can never cancel it, and a death
+    // during the break always does.
+    const phaseGeneration = this.session.generation;
+    this.session.beginPhaseChoice();
     const canPay = this.hexcoin.canUsePhaseRecovery(this.bossMaxRecoveries);
     this.flashMessage(
       canPay
@@ -650,17 +685,25 @@ export class SpellroadScene extends Phaser.Scene {
       60000
     );
     const resolve = (pay: boolean) => {
-      if (!this.awaitingPhaseChoice) {
+      // Guards double-resolution (as the old boolean did) AND a keypress arriving after the
+      // player died during the break — `handleDeath` moves the phase to `dead`, so a late Y
+      // can no longer buy a recovery for, or advance, a run that's already being restarted.
+      if (this.session.phase !== "awaiting-phase-choice") {
         return;
       }
-      this.awaitingPhaseChoice = false;
+      this.session.beginAdvance();
       this.input.keyboard?.off("keydown-Y", onY);
       this.input.keyboard?.off("keydown-N", onN);
       if (pay && this.hexcoin.usePhaseRecovery(this.bossMaxRecoveries)) {
         this.health.restore(MAX_HP * PHASE_RECOVERY_HP_FRACTION);
         this.flashMessage(`Recovered ${Math.round(MAX_HP * PHASE_RECOVERY_HP_FRACTION)} HP`, 1200);
       }
-      this.time.delayedCall(pay ? 1200 : 200, () => this.startWave(nextIndex));
+      this.time.delayedCall(pay ? 1200 : 200, () => {
+        if (!this.session.isCurrent(phaseGeneration)) {
+          return;
+        }
+        this.startWave(nextIndex);
+      });
     };
     const onY = () => resolve(true);
     const onN = () => resolve(false);
@@ -695,8 +738,14 @@ export class SpellroadScene extends Phaser.Scene {
           // window could never actually avoid the hit. Recheck the player's live position
           // against the point the shot was fired at (`toX`/`toY`, the mage's position at
           // fire time) once the shot actually arrives; only apply damage if still in range.
+          // Issue #48: tagged with the firing wave's generation too. The shooter belongs to
+          // this wave/life; if the player dies (or the wave is replaced) during the 450ms
+          // travel window, the shot must not land on the respawned mage — that phantom hit is
+          // the same "timer outlives the world that scheduled it" class of bug as the wave
+          // race itself, reachable from the exact same playtest.
+          const fireGeneration = this.session.generation;
           this.time.delayedCall(RANGED_TRAVEL_MS, () => {
-            if (!this.mage) {
+            if (!this.mage || !this.session.isCurrent(fireGeneration)) {
               return;
             }
             if (isStillInRangedImpactZone(this.mage.x, this.mage.y, toX, toY)) {
@@ -711,14 +760,20 @@ export class SpellroadScene extends Phaser.Scene {
       });
     }
 
-    if (this.enemiesRemainingToSpawn === 0 && this.enemies.length === 0) {
-      this.enemiesRemainingToSpawn = -1; // guard against re-triggering while the delay is pending
+    // Issue #48 — gated on the session phase, not on the counters alone. The old condition
+    // (`enemiesRemainingToSpawn === 0 && enemies.length === 0`, guarded by a `-1` sentinel)
+    // is *exactly* the state `handleDeath` creates when it clears the field, so every death
+    // used to schedule a bonus wave-advance that fired 300ms before the death restart did.
+    if (shouldAutoAdvance(this.session.phase, this.enemiesRemainingToSpawn, this.enemies.length)) {
+      const advanceGeneration = this.session.generation;
+      this.session.beginAdvance(); // replaces the old `enemiesRemainingToSpawn = -1` sentinel
       const wave = this.waves[this.waveIndex];
       const next = this.waves[this.waveIndex + 1];
+      const nextIndex = this.waveIndex + 1;
       if (wave?.is_boss && next?.is_boss && next.level === wave.level) {
         // Another phase of the same boss follows: offer the paid recovery choice instead
         // of auto-advancing — this is the phase-break, not a regular wave transition.
-        this.startPhaseBreak(this.waveIndex + 1);
+        this.startPhaseBreak(nextIndex);
         return;
       }
       if (wave?.is_boss) {
@@ -726,7 +781,15 @@ export class SpellroadScene extends Phaser.Scene {
         this.hexcoin.endBossFight();
         this.flashMessage("Director Trial — Victory!", 2500);
       }
-      this.time.delayedCall(1200, () => this.startWave(this.waveIndex + 1));
+      this.time.delayedCall(1200, () => {
+        // If the player died during this 1200ms gap (a ranged shot already in flight when the
+        // last enemy fell can still land), `handleDeath` has taken a new generation and this
+        // advance is void — the death restart owns what happens next.
+        if (!this.session.isCurrent(advanceGeneration)) {
+          return;
+        }
+        this.startWave(nextIndex);
+      });
     }
   }
 
@@ -806,6 +869,12 @@ export class SpellroadScene extends Phaser.Scene {
   // ----- death -----
 
   private handleDeath(): void {
+    // Issue #48 — taken first, before any state is cleared: from this line on, every callback
+    // scheduled by the wave the player just died in (its remaining staggered spawn timers, a
+    // wave-advance that may already be pending from having cleared it, a boss phase-break
+    // resolution, an archer's in-flight impact) is stale and will no-op when it fires. Nothing
+    // is force-cancelled, so unrelated pending timers are untouched.
+    const deathGeneration = this.session.beginDeath();
     const equipped = this.equippedSpells.map((s) => s.id);
     const affected = this.mastery.applyRandomDeathPenalty(equipped);
     this.flashMessage(
@@ -837,10 +906,17 @@ export class SpellroadScene extends Phaser.Scene {
     this.debuff.clear();
     this.mage?.setPosition(MAGE_START.x, MAGE_START.y);
     this.hexcoin.rollbackToLevelStart();
-    this.awaitingPhaseChoice = false;
     const currentLevel = this.waves[this.waveIndex]?.level;
     const levelStartIndex = this.waves.findIndex((w) => w.level === currentLevel);
-    this.time.delayedCall(1500, () => this.startWave(levelStartIndex >= 0 ? levelStartIndex : 0));
+    this.time.delayedCall(1500, () => {
+      // A second death can't happen during this window (HP is already back at full and every
+      // enemy is destroyed), but check anyway rather than assume: if anything did take a newer
+      // generation, that transition owns the restart, not this one.
+      if (!this.session.isCurrent(deathGeneration)) {
+        return;
+      }
+      this.startWave(levelStartIndex >= 0 ? levelStartIndex : 0);
+    });
   }
 
   // ----- hud -----
