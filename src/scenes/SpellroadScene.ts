@@ -8,6 +8,7 @@ import { DebuffSystem } from "../systems/DebuffSystem";
 import { SpellCaster, SHAPE_GEOMETRY } from "../entities/SpellCaster";
 import { Enemy, ARCHETYPE_DAMAGE } from "../entities/Enemy";
 import { spawnWave } from "../systems/WaveLoader";
+import { selectAutoAimTarget } from "../systems/autoAim";
 import {
   ALL_LEVELS,
   TILESET_IMAGE_KEY,
@@ -70,6 +71,12 @@ const CANVAS_HEIGHT = 540;
 /** backlog 2.10 — non-mouse aiming fallback: default cast placement distance along
  * last-move-direction when the pointer hasn't been touched yet this session. */
 const DEFAULT_AIM_DISTANCE = SHAPE_GEOMETRY.CIRCLE_MAX_PLACEMENT_RANGE / 2;
+/** backlog 2.22 / issue #44 — decision 6 (visual feedback): a ring drawn around whichever
+ * enemy auto-aim has soft-locked for the in-progress preview, so which enemy will be hit is
+ * clear before confirming. Sized a little larger than the enemy sprite's 26x26 footprint
+ * (Enemy.ensureTexture) so it reads as a ring around the sprite, not an overlapping outline. */
+const AUTO_AIM_HIGHLIGHT_COLOR = 0xffd75e;
+const AUTO_AIM_HIGHLIGHT_RADIUS = 20;
 /** backlog 3.1 fix (Heckler, 2026-07-25): `slice(0, 6)` on spell-authoring order silently
  * orphaned all 3 Heavy spells and 2 of 3 Standard ones behind no swap UI — exactly the
  * spells the new Level 2/3 escalation assumes are reachable. Curated instead: 2 per
@@ -118,6 +125,12 @@ export class SpellroadScene extends Phaser.Scene {
 
   private previewSpellId: string | null = null;
   private previewGraphics?: Phaser.GameObjects.Graphics;
+  /** backlog 2.22 / issue #44 -- the enemy auto-aim locked onto for the in-progress
+   * preview, chosen once when the preview starts (see `handleHotbarPress`) and tracked
+   * live (not re-evaluated) until confirm/cancel, per the design doc's soft-lock decision.
+   * Only ever set while aiming via the no-mouse fallback (`!pointerHasMoved`); mouse aiming
+   * is untouched and always leaves this null. */
+  private previewLockedEnemy: Enemy | null = null;
 
   private hudText?: Phaser.GameObjects.Text;
   private hotbarText?: Phaser.GameObjects.Text;
@@ -384,8 +397,10 @@ export class SpellroadScene extends Phaser.Scene {
   // ----- casting -----
 
   /** backlog 2.10 — where a cast aims: the mouse once it's been touched this session,
-   * otherwise the player's last movement direction at a fixed default distance (so casting
-   * has a sane, usable target with no mouse/trackpad interaction at all). */
+   * otherwise (backlog 2.22 / issue #44) the auto-aim target locked in when the current
+   * preview started, tracked live so a moving enemy doesn't dodge out of the shape; if
+   * no enemy was locked (or it died mid-preview), falls back to the player's last
+   * movement direction at a fixed default distance, same as before this feature existed. */
   private currentAimPoint(): { x: number; y: number } {
     if (!this.mage) {
       return { x: 0, y: 0 };
@@ -393,13 +408,31 @@ export class SpellroadScene extends Phaser.Scene {
     if (this.pointerHasMoved) {
       return { x: this.input.activePointer.worldX, y: this.input.activePointer.worldY };
     }
+    const lockedEnemy = this.livePreviewLockedEnemy();
+    if (lockedEnemy) {
+      return { x: lockedEnemy.x, y: lockedEnemy.y };
+    }
     return {
       x: this.mage.x + this.lastFacing.x * DEFAULT_AIM_DISTANCE,
       y: this.mage.y + this.lastFacing.y * DEFAULT_AIM_DISTANCE
     };
   }
 
+  /** backlog 2.22 / issue #44 — `previewLockedEnemy` if it's still a live enemy, otherwise
+   * null (it despawned mid-preview, e.g. killed by something else). Shared by
+   * `currentAimPoint` and the highlight-drawing code in `updatePreview` so both agree on
+   * "still locked" without duplicating the liveness check. */
+  private livePreviewLockedEnemy(): Enemy | null {
+    if (this.previewLockedEnemy && this.enemies.includes(this.previewLockedEnemy)) {
+      return this.previewLockedEnemy;
+    }
+    return null;
+  }
+
   private handleHotbarPress(index: number): void {
+    if (!this.mage) {
+      return;
+    }
     const spell = this.equippedSpells[index];
     if (!spell) {
       return;
@@ -414,10 +447,17 @@ export class SpellroadScene extends Phaser.Scene {
       return;
     }
     this.previewSpellId = spell.id;
+    // backlog 2.22 / issue #44 — soft-lock: pick the auto-aim target once, right here,
+    // never re-evaluated until this preview confirms or cancels. Only applies to the
+    // no-mouse fallback path; a mouse player's own aim is untouched.
+    this.previewLockedEnemy = this.pointerHasMoved
+      ? null
+      : selectAutoAimTarget(this.enemies, this.mage.x, this.mage.y, this.lastFacing.x, this.lastFacing.y);
   }
 
   private cancelPreview(): void {
     this.previewSpellId = null;
+    this.previewLockedEnemy = null;
     this.previewGraphics?.clear();
   }
 
@@ -427,6 +467,7 @@ export class SpellroadScene extends Phaser.Scene {
     }
     const spell = this.spells.find((s) => s.id === this.previewSpellId);
     this.previewSpellId = null;
+    this.previewLockedEnemy = null;
     this.previewGraphics?.clear();
     if (!spell) {
       return;
@@ -534,6 +575,14 @@ export class SpellroadScene extends Phaser.Scene {
       );
       this.previewGraphics.fillCircle(center.x, center.y, SHAPE_GEOMETRY.CIRCLE_RADIUS);
       this.previewGraphics.strokeCircle(center.x, center.y, SHAPE_GEOMETRY.CIRCLE_RADIUS);
+    }
+
+    // backlog 2.22 / issue #44 — highlight the auto-aim soft-locked enemy, if any, on top
+    // of the shape preview above.
+    const lockedEnemy = this.livePreviewLockedEnemy();
+    if (lockedEnemy) {
+      this.previewGraphics.lineStyle(2, AUTO_AIM_HIGHLIGHT_COLOR, 0.9);
+      this.previewGraphics.strokeCircle(lockedEnemy.x, lockedEnemy.y, AUTO_AIM_HIGHLIGHT_RADIUS);
     }
   }
 
