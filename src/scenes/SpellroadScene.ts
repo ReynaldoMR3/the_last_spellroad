@@ -11,6 +11,7 @@ import { spawnWave } from "../systems/WaveLoader";
 import { selectAutoAimTarget } from "../systems/autoAim";
 import { isStillInRangedImpactZone } from "../systems/rangedImpact";
 import { WaveSession, shouldAutoAdvance } from "../systems/waveSession";
+import { hasRecentPointerActivity } from "../systems/pointerActivity";
 import {
   ALL_LEVELS,
   TILESET_IMAGE_KEY,
@@ -118,7 +119,14 @@ export class SpellroadScene extends Phaser.Scene {
   private highestLevelReached = 0;
 
   private lastFacing = new Phaser.Math.Vector2(1, 0);
-  private pointerHasMoved = false;
+  /** Issue #49 fix — was a one-way `pointerHasMoved` boolean (set true on the first
+   * post-jitter `pointermove`/`pointerdown`, never reset), which permanently deferred aim
+   * to the mouse once tripped, regardless of idle time. Now a timestamp (`this.time.now` at
+   * the moment of the last qualifying pointer event, or `null` if the pointer has never
+   * moved this session); every read site calls `hasRecentPointerActivity` against the
+   * current time instead of reading a flag. See `systems/pointerActivity.ts` for the pure
+   * recency check and the chosen window's reasoning. */
+  private lastPointerActivityAt: number | null = null;
 
   private health!: HealthSystem;
   private mana!: ManaSystem;
@@ -135,8 +143,9 @@ export class SpellroadScene extends Phaser.Scene {
   /** backlog 2.22 / issue #44 -- the enemy auto-aim locked onto for the in-progress
    * preview, chosen once when the preview starts (see `handleHotbarPress`) and tracked
    * live (not re-evaluated) until confirm/cancel, per the design doc's soft-lock decision.
-   * Only ever set while aiming via the no-mouse fallback (`!pointerHasMoved`); mouse aiming
-   * is untouched and always leaves this null. */
+   * Only ever set while aiming via the no-mouse fallback (no *recent* pointer activity, per
+   * issue #49's `hasRecentPointerActivity` check); mouse aiming is untouched and always
+   * leaves this null. */
   private previewLockedEnemy: Enemy | null = null;
 
   private hudText?: Phaser.GameObjects.Text;
@@ -353,9 +362,11 @@ export class SpellroadScene extends Phaser.Scene {
       key.on("down", () => this.handleHotbarPress(index));
     });
 
-    // backlog 2.10 — non-mouse aiming fallback tracks whether the pointer has genuinely
-    // moved this session (past the jitter threshold); until it has, aiming defaults to
-    // last-move-direction instead.
+    // backlog 2.10 / issue #49 — non-mouse aiming fallback tracks whether the pointer has
+    // moved recently (past the jitter threshold, within `POINTER_ACTIVE_WINDOW_MS`); until
+    // it has, or once that recency window lapses again, aiming defaults to last-move-
+    // direction instead. Recording `this.time.now` (not a boolean) is what lets that window
+    // actually lapse — see `lastPointerActivityAt`'s own comment.
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
       const moved = Phaser.Math.Distance.Between(
         pointer.prevPosition.x,
@@ -364,13 +375,13 @@ export class SpellroadScene extends Phaser.Scene {
         pointer.position.y
       );
       if (moved >= POINTER_JITTER_THRESHOLD_PX) {
-        this.pointerHasMoved = true;
+        this.lastPointerActivityAt = this.time.now;
       }
     });
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (pointer.leftButtonDown()) {
-        this.pointerHasMoved = true;
+        this.lastPointerActivityAt = this.time.now;
         this.confirmCast(pointer.worldX, pointer.worldY);
       } else if (pointer.rightButtonDown()) {
         this.cancelPreview();
@@ -406,16 +417,17 @@ export class SpellroadScene extends Phaser.Scene {
 
   // ----- casting -----
 
-  /** backlog 2.10 — where a cast aims: the mouse once it's been touched this session,
-   * otherwise (backlog 2.22 / issue #44) the auto-aim target locked in when the current
-   * preview started, tracked live so a moving enemy doesn't dodge out of the shape; if
-   * no enemy was locked (or it died mid-preview), falls back to the player's last
-   * movement direction at a fixed default distance, same as before this feature existed. */
+  /** backlog 2.10 / issue #49 — where a cast aims: the mouse if it's moved recently (within
+   * `POINTER_ACTIVE_WINDOW_MS`, not just "at some point this session"), otherwise (backlog
+   * 2.22 / issue #44) the auto-aim target locked in when the current preview started,
+   * tracked live so a moving enemy doesn't dodge out of the shape; if no enemy was locked
+   * (or it died mid-preview), falls back to the player's last movement direction at a fixed
+   * default distance, same as before this feature existed. */
   private currentAimPoint(): { x: number; y: number } {
     if (!this.mage) {
       return { x: 0, y: 0 };
     }
-    if (this.pointerHasMoved) {
+    if (hasRecentPointerActivity(this.lastPointerActivityAt, this.time.now)) {
       return { x: this.input.activePointer.worldX, y: this.input.activePointer.worldY };
     }
     const lockedEnemy = this.livePreviewLockedEnemy();
@@ -457,10 +469,11 @@ export class SpellroadScene extends Phaser.Scene {
       return;
     }
     this.previewSpellId = spell.id;
-    // backlog 2.22 / issue #44 — soft-lock: pick the auto-aim target once, right here,
-    // never re-evaluated until this preview confirms or cancels. Only applies to the
-    // no-mouse fallback path; a mouse player's own aim is untouched.
-    this.previewLockedEnemy = this.pointerHasMoved
+    // backlog 2.22 / issue #44, recency check per issue #49 — soft-lock: pick the auto-aim
+    // target once, right here, never re-evaluated until this preview confirms or cancels.
+    // Only applies to the no-mouse fallback path (no *recent* pointer activity); a mouse
+    // player's own aim is untouched.
+    this.previewLockedEnemy = hasRecentPointerActivity(this.lastPointerActivityAt, this.time.now)
       ? null
       : selectAutoAimTarget(this.enemies, this.mage.x, this.mage.y, this.lastFacing.x, this.lastFacing.y);
   }
