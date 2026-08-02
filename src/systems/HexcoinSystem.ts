@@ -14,6 +14,7 @@ export const MAX_RECOVERIES_HARD_CAP = 2;
  */
 export class HexcoinSystem {
   private expeditionTotal = 0;
+  private levelStartBalance = 0;
   private fightSnapshot: number | null = null;
   private recoveriesUsedThisFight = 0;
 
@@ -28,6 +29,30 @@ export class HexcoinSystem {
   /** Called at every road-segment/expedition checkpoint. */
   resetExpedition(): void {
     this.expeditionTotal = 0;
+    this.levelStartBalance = 0;
+    this.fightSnapshot = null;
+    this.recoveriesUsedThisFight = 0;
+  }
+
+  /**
+   * Call exactly once, the first time a new level (by level number) is reached — records
+   * the floor a death within that level rolls back to. Heckler's 2026-08-01 critique of
+   * backlog 0.2's first pass found that zeroing the balance to 0 on every death, combined
+   * with forward-only progression, permanently locks a player out of Fee 2 (30 Hexcoin)
+   * the instant they die anywhere in or after Level 4 — that level's own kill budget (25)
+   * is below the fee, and forward-only means earlier levels' banked income can never be
+   * re-earned to make up the gap. This floor mechanism fixes that: a death rolls back
+   * only THIS level's in-progress attempt, never below what was already banked by the
+   * time the level began. Earnings from levels already cleared are permanent.
+   */
+  markLevelStart(): void {
+    this.levelStartBalance = this.expeditionTotal;
+  }
+
+  /** Call on death: undo this attempt's partial gains within the current level, but never
+   * below the floor `markLevelStart()` recorded when the level began. */
+  rollbackToLevelStart(): void {
+    this.expeditionTotal = this.levelStartBalance;
     this.fightSnapshot = null;
     this.recoveriesUsedThisFight = 0;
   }

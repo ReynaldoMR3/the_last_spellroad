@@ -98,6 +98,10 @@ export class SpellroadScene extends Phaser.Scene {
    * Recomputed at the start of every boss encounter; meaningless outside one. */
   private bossMaxRecoveries = 0;
   private awaitingPhaseChoice = false;
+  /** backlog 0.2 — highest wave `level` number reached so far; `startWave` only calls
+   * `hexcoin.markLevelStart()` the first time a level number is crossed, never on a
+   * same-level death-retry, so a death can't be used to re-bank an already-recorded floor. */
+  private highestLevelReached = 0;
 
   private lastFacing = new Phaser.Math.Vector2(1, 0);
   private pointerHasMoved = false;
@@ -435,6 +439,7 @@ export class SpellroadScene extends Phaser.Scene {
     }
 
     let hits = 0;
+    let kills = 0;
     for (const enemy of [...this.enemies]) {
       if (hits >= result.maxTargets) {
         break;
@@ -450,10 +455,16 @@ export class SpellroadScene extends Phaser.Scene {
       if (killed) {
         this.removeEnemy(enemy);
         this.hexcoin.earn(1);
+        kills += 1;
       }
     }
 
-    if (hits > 0) {
+    // backlog 0.5, resolved 2026-08-01: gate Mastery progress on a KILL, not any landed
+    // hit. Previously this fired whenever `hits > 0`, so a player could farm unlimited
+    // Mastery progress by deliberately landing non-lethal hits on one enemy, bounded
+    // only by real time, not by level content — see MasterySystem.ts's doc comment and
+    // mastery-template.md for the corrected casts-per-tier derivation this required.
+    if (kills > 0) {
       this.mastery.recordLandedCast(spell.id, (spellId, tier) =>
         this.flashMessage(`${spellId} reached ${tier.toUpperCase()} Mastery!`, 1500)
       );
@@ -536,6 +547,14 @@ export class SpellroadScene extends Phaser.Scene {
     }
     this.waveIndex = index;
     this.renderLevelArt(wave.level);
+
+    // backlog 0.2 (Heckler-fixed 2026-08-01): mark the Hexcoin floor exactly once, the
+    // first time this level number is reached — never on a death-retry of the same level,
+    // since `wave.level` doesn't increase on a retry. See HexcoinSystem.markLevelStart.
+    if (wave.level > this.highestLevelReached) {
+      this.highestLevelReached = wave.level;
+      this.hexcoin.markLevelStart();
+    }
 
     if (wave.is_boss) {
       if (wave.wave_index === 0) {
@@ -730,14 +749,26 @@ export class SpellroadScene extends Phaser.Scene {
     const equipped = this.equippedSpells.map((s) => s.id);
     const affected = this.mastery.applyRandomDeathPenalty(equipped);
     this.flashMessage(
-      affected ? `Died — ${affected} lost a Mastery tier` : "Died — no Mastery lost (all Novice)",
+      affected ? `Died — ${affected} lost a Mastery tier` : "Died — no Mastery lost; the Road grades what you've grown",
       2500
     );
 
-    // Checkpoint/respawn placement is still an open developer decision (backlog item
-    // 0.2 — does a death respawn before or after the pre-boss waves, do those waves
-    // re-award Hexcoin on retry). Placeholder until that's resolved: respawn at the
-    // level start and replay from wave 0. Do not treat this as the shipped policy.
+    // Checkpoint/respawn placement (backlog item 0.2, resolved 2026-08-01 by the
+    // developer): a death respawns at the first wave of the CURRENT level, not the
+    // absolute start of the run, and waves replayed on that retry re-award Hexcoin —
+    // nothing here suppresses that, `confirmCast`'s `hexcoin.earn(1)` fires on every
+    // kill unconditionally.
+    //
+    // Heckler's critique of the first version of this fix (2026-08-01) found a real
+    // BLOCKING bug: calling `resetExpedition()` (zero the balance) on every death,
+    // combined with forward-only progression, permanently locks a player out of Fee 2
+    // (30 Hexcoin) the moment they die in or after Level 4 — that level's own kill
+    // budget (25) is below the fee, and forward-only means earlier levels' already-
+    // banked income can never be re-earned to cover the gap. Fixed by rolling back to
+    // this level's own starting balance instead of zero (`rollbackToLevelStart`) — this
+    // undoes only the failed attempt's partial gains, never Hexcoin already banked from
+    // levels actually cleared, while still bounding what a single retry can add (capped
+    // by that level's own kill count, same intent the zero-reset was reaching for).
     this.enemies.forEach((e) => e.destroy());
     this.enemies = [];
     this.enemiesRemainingToSpawn = 0;
@@ -745,11 +776,11 @@ export class SpellroadScene extends Phaser.Scene {
     this.mana.reset();
     this.debuff.clear();
     this.mage?.setPosition(MAGE_START.x, MAGE_START.y);
-    // Dying mid-boss-fight exits that fight's frozen-Hexcoin-snapshot state — the next
-    // attempt at the boss calls startBossFight() again and takes a fresh snapshot.
-    this.hexcoin.endBossFight();
+    this.hexcoin.rollbackToLevelStart();
     this.awaitingPhaseChoice = false;
-    this.time.delayedCall(1500, () => this.startWave(0));
+    const currentLevel = this.waves[this.waveIndex]?.level;
+    const levelStartIndex = this.waves.findIndex((w) => w.level === currentLevel);
+    this.time.delayedCall(1500, () => this.startWave(levelStartIndex >= 0 ? levelStartIndex : 0));
   }
 
   // ----- hud -----

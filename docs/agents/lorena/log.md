@@ -142,3 +142,15 @@ Met in Level 4, the last regular level before the mini-boss/Director trial. Spea
 **Scope note:** none of the four dialogue beats above offer a rescue action, a Y/N prompt, or any branch — they fire as flavor text on meeting the NPC and end there, matching the MVP's invulnerable/no-rescue-mechanic constraint. The Rootbound explicitly declines rescue in-fiction but the player is never given a mechanical choice to honor or override that — the tension stays narrative, per the developer's own framing of this as a "next-step for a future pass," not vertical-slice scope.
 
 **Status:** authored and logged in full above; not wired into any UI, scene, or `src/data/` file this pass, per the same precedent 4.2 and 4.5 already set (content-only, display integration is separate unscoped engine work). **Content is ready for Heckler's tone/consistency gate (tracked separately).**
+
+## 2026-08-01 (2) — 0.3 / 4.3: All-Novice death-penalty flash message
+
+Per Ana's dispatch: the developer's final call on the 2026-07-23 adversarial-review finding (farming bosses for free by keeping an all-Novice loadout) is that the mechanic stays as-is — no new penalty. My job was only to reframe the existing `"Died — no Mastery lost (all Novice)"` line so the absence of a penalty reads as in-fiction logic rather than an obvious exploit gap.
+
+Leaned on the Invigilator's already-established framing (2026-07-30 entry) — the Director tests and grades rather than punishes out of cruelty. An all-Novice mage hasn't grown anything yet for that grading intelligence to take an interest in; there's nothing on the ledger to dock. That reads as consistent Director behavior rather than the Road "letting someone off easy," which matters since the constraint here was explicitly to frame this narratively, not mechanically.
+
+Replacement line: `Died — no Mastery lost; the Road grades what you've grown` — kept "no Mastery lost" as a literal clause rather than replacing it outright with pure prose, per the 4.1a lesson already on record in this log (mechanical facts stay legible; flavor rides alongside, not instead of). Single line, 57 characters (Heckler's critique caught my own count of 59 as a small arithmetic slip — corrected here, not just noted), comfortably under the ~90-char budget Heckler's Feasibility Lead flagged in the 4.1a revision.
+
+Added one framing bullet to `lore-premise.md`'s Established Named Facts, explicitly scoped as an extension of the existing Invigilator fact rather than a new character — same Director "testing, not cruelty" posture, just applied to the death/Mastery beat instead of the trial-boss beat. No new proper noun introduced, per the task's constraint.
+
+**Status:** wired directly into `src/scenes/SpellroadScene.ts`'s `handleDeath()` flash message by Ana this same session (small enough not to warrant a separate engine dispatch). Not yet Heckler-gated — flagged for the next critique pass rather than silently treated as fully closed.
