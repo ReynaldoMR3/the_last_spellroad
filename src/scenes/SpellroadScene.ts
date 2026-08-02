@@ -9,6 +9,7 @@ import { SpellCaster, SHAPE_GEOMETRY } from "../entities/SpellCaster";
 import { Enemy, ARCHETYPE_DAMAGE } from "../entities/Enemy";
 import { spawnWave } from "../systems/WaveLoader";
 import { selectAutoAimTarget } from "../systems/autoAim";
+import { isStillInRangedImpactZone } from "../systems/rangedImpact";
 import {
   ALL_LEVELS,
   TILESET_IMAGE_KEY,
@@ -689,9 +690,19 @@ export class SpellroadScene extends Phaser.Scene {
           // just never drew anything with them. Visible travel time doubles as the dodge
           // window the competent-play damage-threat model already assumes exists.
           this.spawnRangedProjectile(fromX, fromY, toX, toY);
-          this.time.delayedCall(RANGED_TRAVEL_MS, () =>
-            this.health.applyDamage(ARCHETYPE_DAMAGE.ranged)
-          );
+          // Issue #47 fix: the delayed callback previously applied damage unconditionally,
+          // with nothing backing the visible travel tween above — dodging during the
+          // window could never actually avoid the hit. Recheck the player's live position
+          // against the point the shot was fired at (`toX`/`toY`, the mage's position at
+          // fire time) once the shot actually arrives; only apply damage if still in range.
+          this.time.delayedCall(RANGED_TRAVEL_MS, () => {
+            if (!this.mage) {
+              return;
+            }
+            if (isStillInRangedImpactZone(this.mage.x, this.mage.y, toX, toY)) {
+              this.health.applyDamage(ARCHETYPE_DAMAGE.ranged);
+            }
+          });
         },
         onDebuffPulse: (variant) => {
           this.spawnDebuffPulse(enemy.x, enemy.y, variant);
