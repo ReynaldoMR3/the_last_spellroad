@@ -223,6 +223,8 @@ Spell casting should use two patterns:
 
 For targeted spells, pressing a spell hotkey should show a clear targeting preview on the map. The preview should communicate the spell's shape before the player commits. The vertical slice ships three AoE shapes — line, cone, and circle, covering directional, frontal-area, and centered-area cases — with cross, ring, and sigil shapes deferred past the prototype, the same kind of hedge already given to mouse-click movement and hotkey customization. Left click or pressing the same hotkey again confirms the cast. Right click or `Esc` cancels the cast.
 
+When the pointer hasn't moved (no mouse/trackpad in active use), targeting auto-aims at the nearest enemy within a wide facing cone around the mage's last movement direction, falling back to the nearest enemy anywhere if none is in that cone; the chosen enemy is highlighted and stays locked for the duration of a single preview-and-confirm so it doesn't flicker between candidates while the player is dodging. This replaces the earlier last-facing-direction-only fallback (which pointed wherever the mage was last walking, including away from every enemy mid-dodge) with an actual no-mouse targeting mode. Full design detail: `docs/superpowers/specs/2026-08-01-auto-aim-cone-targeting-design.md`.
+
 This control model should avoid turning the game into a reaction-heavy action RPG. The intended fantasy is that the player reads the battlefield, chooses the right prepared spell, places it well, and wins through planning rather than twitch execution.
 
 ## Screen Flow And Pause
