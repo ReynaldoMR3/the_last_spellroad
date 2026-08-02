@@ -229,3 +229,15 @@ gate this agent's own success criterion requires.
 Branch: `loomwright/wire-tiled-layouts-29`, stacked on `tilesmith/tiled-layouts-28` (PR #35),
 itself stacked on `tilesmith/curate-tile-ids-25` (PR #34) — neither merged to `main` yet, so
 this PR's base is #28's branch, not `main`, keeping the stack in review order (25 -> 28 -> 29).
+
+## 2026-08-02 — Auto-aim: cone-based assisted targeting (backlog 2.22, issue #44)
+
+Built against the approved design doc (`docs/superpowers/specs/2026-08-01-auto-aim-cone-targeting-design.md`, branch `design/auto-aim-cone-targeting`), all 7 decisions there.
+
+**Pure logic** (`src/systems/autoAim.ts`, `autoAim.test.ts`, 7 Vitest cases): `selectAutoAimTarget(candidates, originX, originY, facingX, facingY, coneHalfAngleDeg?)` — nearest candidate within a facing cone (`AUTO_AIM_CONE_HALF_ANGLE_DEG = 82.5`, i.e. a 165° full angle, the middle of the doc's ~150-180° range), falling back to the globally nearest candidate when none qualify; a zero facing vector (e.g. before the mage has ever moved) defaults to +x rather than feeding `atan2(0, 0)` a degenerate case. Same Phaser-free seam convention as `waveThreatBudget.ts`/`enemyStatusOverlay.ts`.
+
+**Scene wiring** (`SpellroadScene.ts`): a new `previewLockedEnemy` field, set once in `handleHotbarPress` when a *new* preview starts (only via the no-mouse fallback path — `pointerHasMoved` gates it exactly like the existing 2.10 fallback, decision 3) and cleared in `cancelPreview`/`confirmCast`. `currentAimPoint()` reads the locked enemy's live position every frame instead of re-selecting, so the preview tracks a moving target without ever swapping it (decision 5) — a shared `livePreviewLockedEnemy()` helper (guards against the enemy having despawned mid-preview via another kill) backs both `currentAimPoint()` and the highlight draw, so there's one liveness check, not two. Because `updatePreview()`'s line/cone/circle branches all derive their geometry from the same `currentAimPoint()` result, the auto-aim point applies uniformly across all 3 shapes with no shape-specific code (decision 4) — same for `confirmCast`'s hit-test. A gold ring (`AUTO_AIM_HIGHLIGHT_COLOR`/`AUTO_AIM_HIGHLIGHT_RADIUS`) highlights the locked enemy on top of the shape preview (decision 6). Target-cycle hotkey and an accessibility toggle are correctly not present (decision 7, explicitly deferred).
+
+**Self-verify:** `docker-compose run --rm game npm run typecheck`, `npm test` (96/96, all suites), and `npm run build` all clean.
+
+**Status:** `in-progress-with-owner` — self-verified only. Per my own success criterion this needs a real developer playtest (dodge-and-cast-back against a live enemy, multiple enemies on screen, an enemy dying mid-preview) before it can move to `shipped-and-validated`; nothing here substitutes for that. Branch: `design/auto-aim-cone-targeting` (already carries the approved design commit; this adds the implementation on top, per Ana's dispatch).

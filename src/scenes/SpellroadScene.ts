@@ -408,13 +408,25 @@ export class SpellroadScene extends Phaser.Scene {
     if (this.pointerHasMoved) {
       return { x: this.input.activePointer.worldX, y: this.input.activePointer.worldY };
     }
-    if (this.previewLockedEnemy && this.enemies.includes(this.previewLockedEnemy)) {
-      return { x: this.previewLockedEnemy.x, y: this.previewLockedEnemy.y };
+    const lockedEnemy = this.livePreviewLockedEnemy();
+    if (lockedEnemy) {
+      return { x: lockedEnemy.x, y: lockedEnemy.y };
     }
     return {
       x: this.mage.x + this.lastFacing.x * DEFAULT_AIM_DISTANCE,
       y: this.mage.y + this.lastFacing.y * DEFAULT_AIM_DISTANCE
     };
+  }
+
+  /** backlog 2.22 / issue #44 — `previewLockedEnemy` if it's still a live enemy, otherwise
+   * null (it despawned mid-preview, e.g. killed by something else). Shared by
+   * `currentAimPoint` and the highlight-drawing code in `updatePreview` so both agree on
+   * "still locked" without duplicating the liveness check. */
+  private livePreviewLockedEnemy(): Enemy | null {
+    if (this.previewLockedEnemy && this.enemies.includes(this.previewLockedEnemy)) {
+      return this.previewLockedEnemy;
+    }
+    return null;
   }
 
   private handleHotbarPress(index: number): void {
@@ -567,13 +579,10 @@ export class SpellroadScene extends Phaser.Scene {
 
     // backlog 2.22 / issue #44 — highlight the auto-aim soft-locked enemy, if any, on top
     // of the shape preview above.
-    if (this.previewLockedEnemy && this.enemies.includes(this.previewLockedEnemy)) {
+    const lockedEnemy = this.livePreviewLockedEnemy();
+    if (lockedEnemy) {
       this.previewGraphics.lineStyle(2, AUTO_AIM_HIGHLIGHT_COLOR, 0.9);
-      this.previewGraphics.strokeCircle(
-        this.previewLockedEnemy.x,
-        this.previewLockedEnemy.y,
-        AUTO_AIM_HIGHLIGHT_RADIUS
-      );
+      this.previewGraphics.strokeCircle(lockedEnemy.x, lockedEnemy.y, AUTO_AIM_HIGHLIGHT_RADIUS);
     }
   }
 
