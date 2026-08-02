@@ -3,23 +3,38 @@ import type { MasteryTier } from "../data/types";
 const TIER_ORDER: MasteryTier[] = ["novice", "adept", "master"];
 
 /**
- * backlog item 0.4, closed 2026-07-25, corrected same-day: the first sizing (20/tier)
- * assumed 1 landed cast ~ 1 kill, which Heckler's critique disproved — a weak Novice spell
- * needs several casts per kill, so raw enemy-count doesn't bound achievable casts. Pato's
- * corrected derivation accounts for actual casts-to-kill (ceil(enemyHP/power)) against the
- * kit's weakest spell (power 2), including Mastery's own power step-up mid-grind, and
- * verified against Level 2's real 374 total enemy HP: ~185 casts are achievable spending
- * this spell against every enemy in the level, short of the 360 needed for full Master.
- * See mastery-template.md and pato/log.md (2026-07-25 (4), supersedes (3)'s Part 2).
+ * backlog item 0.5, resolved 2026-08-01: `recordLandedCast` now only fires on a cast that
+ * lands a KILL (see SpellroadScene.confirmCast), closing the non-lethal-hit farming
+ * exploit the 180-casts/tier number (see git history / mastery-template.md's superseded
+ * 2026-07-25 entries) was explicitly unable to close on its own. This changes the unit
+ * from "landed casts" to "landed kills," which resets the whole derivation — the old
+ * casts-to-kill-ratio arithmetic no longer applies, since only the killing cast of a
+ * multi-cast kill sequence counts at all.
  *
- * Known residual gap, not fixed here (tracked as a Phase 5 adversarial-QA item, not a
- * numeric-sizing question): `recordLandedCast` fires on any hit, not a kill, so this bound
- * only holds against "clear the level" play — a player who deliberately keeps landing
- * hits on a single enemy without killing it isn't bounded by level content at all, only by
- * real time. No finite per-tier number closes that on its own; it would need a mechanic
- * change (e.g. gating progress on kills, not hits), which is a design call, not a resize.
+ * Under kill-gating, one `recordLandedCast` call happens per confirmCast that kills at
+ * least one enemy, regardless of how many casts it took to land that kill — so the
+ * worst case (fastest unwanted progression) is a player isolating one enemy at a time
+ * with any spell, since an AoE cast that kills 3 clustered enemies at once still only
+ * ticks once (the increment happens outside the per-enemy loop). The bound is therefore
+ * total enemy COUNT per level, not total HP: Level 1 = 16, Level 2 = 21, Level 3 = 21,
+ * Level 4 = 25 (see src/data/waves/level-*.json). Level 4 is now the single worst level.
+ *
+ * k = 24 kills/tier (48 kills to fully master one spell): margin vs. Level 4 alone is
+ * 48/25 ≈ 1.92x — consistent with the ~1.9-2.2x margin standard the prior derivation
+ * used, not a razor-thin pass. Across all 4 regular levels (83 total kills), 48/83 ≈ 58%
+ * — a specialist masters one favored spell by roughly level 2-3 of 4 with total
+ * dedication, matching the design intent the original (superseded) derivation stated.
+ * See mastery-template.md, "Resolved 2026-08-01" for the full arithmetic.
+ *
+ * Residual, not fixed here (flagged for Phase 5, backlog 0.2's own entry): backlog 0.2's
+ * resolution lets a player retry the CURRENT level indefinitely via repeated deaths, so
+ * "one level's kill count" isn't a hard ceiling the way it was when death ended the run —
+ * a patient player could out-grind Level 4's 25-kill cap across multiple attempts at it.
+ * Death's own Mastery-tier-drop penalty partially self-limits this (an all-non-Novice
+ * loadout risks losing exactly the spell being ground), but this isn't a airtight bound
+ * and needs a probabilistic look, not another worst-case constant, if it matters later.
  */
-const LANDED_CASTS_PER_TIER = 180;
+const LANDED_CASTS_PER_TIER = 24;
 
 export interface MasteryState {
   tier: MasteryTier;
