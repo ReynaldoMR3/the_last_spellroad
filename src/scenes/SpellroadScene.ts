@@ -5,6 +5,8 @@ import { ManaSystem, MANA_REGEN_PER_SEC, MAX_MANA } from "../systems/ManaSystem"
 import { MasterySystem } from "../systems/MasterySystem";
 import { HexcoinSystem, FEE_PHASE_RECOVERY, PHASE_RECOVERY_HP_FRACTION, MAX_RECOVERIES_HARD_CAP } from "../systems/HexcoinSystem";
 import { DebuffSystem } from "../systems/DebuffSystem";
+import { computeDebuffMagnitude, formatDebuffHudLines } from "../systems/debuffDisplay";
+import { archetypeDisplayName } from "../systems/enemyStatusOverlay";
 import { SpellCaster, SHAPE_GEOMETRY } from "../entities/SpellCaster";
 import { Enemy, ARCHETYPE_DAMAGE } from "../entities/Enemy";
 import { spawnWave } from "../systems/WaveLoader";
@@ -92,6 +94,19 @@ const LANE_RECT = new Phaser.Geom.Rectangle(ROAD_LEFT, ROAD_TOP, ROAD_WIDTH, ROA
  * default-depth (0) gameplay/HUD object. */
 const BACKGROUND_DEPTH = -100;
 const TILE_LAYER_DEPTH = -50;
+/** Heckler critique, 2026-08-02 (8), MAJOR 1: none of the HUD text objects ever called
+ * `setDepth`, so they sat at the same default depth (0) as every `Enemy` and its own
+ * `nameLabel`/`statusBar` overlay (`Enemy.ts` — also never sets one). Phaser breaks
+ * equal-depth ties by display-list insertion order, and enemies are constructed (and thus
+ * inserted) after `createHud()` already ran, so an enemy's name label could paint over the
+ * top-right Level/Wave and debuff HUD boxes whenever it wandered into that screen region —
+ * reachable in ordinary play, not a contrived edge case (see Heckler's finding for the exact
+ * lane-clamp-rectangle overlap math). Deliberately picked a value distinct from
+ * `spawnRangedProjectile`'s own `dot.setDepth(1000)` (that one only means "above every other
+ * *world* object", a different, narrower stacking claim than "above literally everything,
+ * always") rather than reusing 1000 for a different intended meaning. HUD must win against
+ * that projectile too, not just against enemies, hence a value clearly above it. */
+const UI_DEPTH = 2000;
 const CANVAS_WIDTH = 960;
 const CANVAS_HEIGHT = 540;
 /** backlog 2.10 — non-mouse aiming fallback: default cast placement distance along
@@ -183,6 +198,14 @@ export class SpellroadScene extends Phaser.Scene {
   private hotbarText?: Phaser.GameObjects.Text;
   private messageText?: Phaser.GameObjects.Text;
   private messageClearAt = 0;
+  /** backlog 2.32 / issue #58 — persistent, larger, higher-contrast Level/Wave readout, kept
+   * separate from both `hudText`'s small stat block and the transient `flashMessage` banner.
+   * See its own comment at the bottom of `createHud`. */
+  private levelWaveText?: Phaser.GameObjects.Text;
+  /** backlog 2.31 / issue #57 — the debuff-magnitude HUD line, built on top of the existing
+   * `spawnDebuffPulse` visual rather than replacing it. Empty string (no visible line) while
+   * `this.debuff` has no active stacks. */
+  private debuffText?: Phaser.GameObjects.Text;
 
   // backlog 3.8 (issue #29) — the currently-rendered level's real Tiled layout, swapped at
   // every level transition (see `renderLevelArt`). `renderedLevel` starts at 0 (no level is
@@ -340,29 +363,35 @@ export class SpellroadScene extends Phaser.Scene {
   }
 
   private createHud(): void {
-    this.add.text(32, 16, "The Last Spellroad", {
-      color: "#f3e7c2",
-      fontFamily: "Georgia, serif",
-      fontSize: "24px"
-    });
+    this.add
+      .text(32, 16, "The Last Spellroad", {
+        color: "#f3e7c2",
+        fontFamily: "Georgia, serif",
+        fontSize: "24px"
+      })
+      .setDepth(UI_DEPTH);
 
-    this.hudText = this.add.text(32, 46, "", {
-      color: "#9fb0d8",
-      fontFamily: "monospace",
-      fontSize: "14px",
-      lineSpacing: 4
-    });
+    this.hudText = this.add
+      .text(32, 46, "", {
+        color: "#9fb0d8",
+        fontFamily: "monospace",
+        fontSize: "14px",
+        lineSpacing: 4
+      })
+      .setDepth(UI_DEPTH);
 
     // Developer feedback (2026-07-27): "the hotbar now contaminates the gameplay screen"
     // — the per-spell shape/weight tags (backlog 2.14) made the top-left HUD block tall
     // enough to overlap the road (ROAD_TOP=190). Given its own dedicated panel below the
     // road instead of stacking under the top stats, where there's no gameplay to cover.
-    this.hotbarText = this.add.text(32, ROAD_TOP + ROAD_HEIGHT + 14, "", {
-      color: "#9fb0d8",
-      fontFamily: "monospace",
-      fontSize: "14px",
-      lineSpacing: 4
-    });
+    this.hotbarText = this.add
+      .text(32, ROAD_TOP + ROAD_HEIGHT + 14, "", {
+        color: "#9fb0d8",
+        fontFamily: "monospace",
+        fontSize: "14px",
+        lineSpacing: 4
+      })
+      .setDepth(UI_DEPTH);
 
     this.messageText = this.add.text(480, 400, "", {
       color: "#f3e7c2",
@@ -370,6 +399,40 @@ export class SpellroadScene extends Phaser.Scene {
       fontSize: "20px"
     });
     this.messageText.setOrigin(0.5, 0.5);
+    this.messageText.setDepth(UI_DEPTH);
+
+    // Developer feedback (2026-08-02, issue #58): "Level 5, wave 1 its difficult to read in
+    // what level we are" — `Level X, Wave Y` was one line inside the 14px stat block above,
+    // easy to miss mid-combat, and the only other signal was the transient `flashMessage`
+    // banner (1500ms, then gone). This is a dedicated, persistent, fixed-position element:
+    // top-right corner (clear of the title text and the small stat block, both top-left),
+    // large (28px vs. the stat block's 14px) and high-contrast (opaque panel background,
+    // not just colored text over the dark canvas fill). Never cleared by `flashMessage`'s
+    // timer — only `updateHud` ever calls `setText` on it, every frame, same as `hudText`.
+    this.levelWaveText = this.add.text(CANVAS_WIDTH - 16, 16, "", {
+      color: "#ffe08a",
+      fontFamily: "Georgia, serif",
+      fontStyle: "bold",
+      fontSize: "28px",
+      backgroundColor: "#1c1330",
+      padding: { x: 12, y: 6 }
+    });
+    this.levelWaveText.setOrigin(1, 0);
+    this.levelWaveText.setDepth(UI_DEPTH);
+
+    // backlog 2.31 / issue #57 — debuff-magnitude/duration HUD line, directly below the
+    // Level/Wave readout above (same fixed top-right column). Left empty by default;
+    // `updateHud` only ever gives it text while `this.debuff` actually has an active stack,
+    // so it takes no HUD space at all during a fight with no Debuffer in it.
+    this.debuffText = this.add.text(CANVAS_WIDTH - 16, 64, "", {
+      color: "#c9a7f0",
+      fontFamily: "monospace",
+      fontSize: "13px",
+      align: "right",
+      lineSpacing: 3
+    });
+    this.debuffText.setOrigin(1, 0);
+    this.debuffText.setDepth(UI_DEPTH);
 
     this.previewGraphics = this.add.graphics();
     // backlog 2.10 — clip the shape preview to the lane rectangle so line/cone/circle
@@ -1037,10 +1100,12 @@ export class SpellroadScene extends Phaser.Scene {
     const hpLine = `HP    ${this.health.current}/${MAX_HP}`;
     const manaLine = `Mana  ${Math.floor(this.mana.current)}/${MAX_MANA}`;
     const hexLine = `Hexcoin ${this.hexcoin.balance}`;
+    // backlog 2.32 / issue #58 — Level/Wave itself moved to `levelWaveText` (its own
+    // persistent, larger, higher-contrast element, set below); this small block keeps only
+    // the live enemy count, which changes every kill and belongs with the other
+    // glance-frequently combat counters, not with the rarely-changing level/wave value.
+    const enemiesLine = `Enemies  ${this.enemies.length}`;
     const currentWave = this.waves[this.waveIndex];
-    const waveLine = currentWave
-      ? `Level ${currentWave.level}, Wave ${currentWave.wave_index + 1}  (enemies: ${this.enemies.length})`
-      : `Wave  ${this.waveIndex + 1}/${this.waves.length}  (enemies: ${this.enemies.length})`;
     // Developer feedback (2026-07-27): "unclear when i should use which spell" — the
     // hotbar showed only each spell's raw id, which doesn't self-describe its shape/weight
     // (e.g. "arc_lance" gives no hint it's a single-target line). Surfacing shape+weight
@@ -1055,7 +1120,27 @@ export class SpellroadScene extends Phaser.Scene {
       })
       .join("\n");
 
-    this.hudText.setText([hpLine, manaLine, hexLine, waveLine].join("\n"));
+    this.hudText.setText([hpLine, manaLine, hexLine, enemiesLine].join("\n"));
     this.hotbarText?.setText(["Hotbar:", hotbarLine].join("\n"));
+
+    // backlog 2.32 / issue #58 — persistent Level/Wave readout, its own fixed top-right spot.
+    this.levelWaveText?.setText(
+      currentWave
+        ? `Level ${currentWave.level} · Wave ${currentWave.wave_index + 1}`
+        : `Wave ${this.waveIndex + 1}/${this.waves.length}`
+    );
+
+    // backlog 2.31 / issue #57 — debuff magnitude/duration, built on top of the existing
+    // `spawnDebuffPulse` visual rather than replacing it. `archetypeDisplayName("debuffer")`
+    // is the same seam the enemy's own overlay label already uses (see its doc comment in
+    // `enemyStatusOverlay.ts`) and now returns Lorena's "The Tarrywright" (backlog 4.2) —
+    // that one function's "debuffer" case feeds this line and the enemy label together.
+    const debuffMagnitude = computeDebuffMagnitude(
+      this.debuff.speedStackCount,
+      this.debuff.manaRegenStackCount,
+      MANA_REGEN_PER_SEC
+    );
+    const debuffLines = formatDebuffHudLines(debuffMagnitude, archetypeDisplayName("debuffer"));
+    this.debuffText?.setText(debuffLines.join("\n"));
   }
 }
