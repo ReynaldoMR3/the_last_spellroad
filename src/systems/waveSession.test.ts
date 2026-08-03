@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WaveSession, shouldAutoAdvance } from "./waveSession";
+import { WaveSession, canResolvePhaseChoice, shouldAutoAdvance } from "./waveSession";
 import type { WavePhase } from "./waveSession";
 
 const ALL_PHASES: WavePhase[] = [
@@ -150,5 +150,50 @@ describe("shouldAutoAdvance", () => {
     expect(session.isCurrent(wave2Token)).toBe(false);
     // Only wave 1's own spawn timers are honoured.
     expect(session.isCurrent(wave1Token)).toBe(true);
+  });
+});
+
+describe("canResolvePhaseChoice", () => {
+  it("is true while the same phase-break attempt is still awaiting its choice", () => {
+    const session = new WaveSession();
+    const phaseToken = session.beginWave();
+    session.beginPhaseChoice();
+    expect(canResolvePhaseChoice(session.phase, session.generation, phaseToken)).toBe(true);
+  });
+
+  it("is false once the attempt has already resolved (phase moved to advancing)", () => {
+    const session = new WaveSession();
+    const phaseToken = session.beginWave();
+    session.beginPhaseChoice();
+    session.beginAdvance();
+    expect(canResolvePhaseChoice(session.phase, session.generation, phaseToken)).toBe(false);
+  });
+
+  it("is false for a stale attempt once death has interrupted it, even if the session later reaches awaiting-phase-choice again", () => {
+    // Heckler, 2026-08-02 (6): the exact repro. A death interrupts phase-break A
+    // (token = phaseTokenA), the retry replays the boss and reaches phase-break B, which
+    // arms a fresh closure with a *new* token. The stale closure from A must not be able
+    // to resolve just because the session is back in `awaiting-phase-choice` for B.
+    const session = new WaveSession();
+    const phaseTokenA = session.beginWave();
+    session.beginPhaseChoice();
+    session.beginDeath();
+    session.beginWave(); // retry replays the boss's phase 0
+    session.beginPhaseChoice(); // reaches phase-break B
+
+    expect(session.phase).toBe("awaiting-phase-choice");
+    // The phase-string-only guard would wrongly allow this — the token guard must not.
+    expect(canResolvePhaseChoice(session.phase, session.generation, phaseTokenA)).toBe(false);
+
+    const phaseTokenB = session.generation;
+    expect(canResolvePhaseChoice(session.phase, session.generation, phaseTokenB)).toBe(true);
+  });
+
+  it("is false while idle/running/dead/complete regardless of token", () => {
+    const session = new WaveSession();
+    const token = session.beginWave();
+    for (const phase of ALL_PHASES.filter((p) => p !== "awaiting-phase-choice")) {
+      expect(canResolvePhaseChoice(phase, session.generation, token)).toBe(false);
+    }
   });
 });
