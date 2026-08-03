@@ -16,4 +16,4 @@ One job: owns every numeric template in the game (Mana pool/regen, the Mastery t
 
 ## Context to load for a task
 
-Read `docs/agents/pato/CONTEXT.md`, `docs/agents/pato/log.md`, and whichever of `docs/agents/_reference/{mana,mastery,hexcoin}-template.md` the validation concerns. Do not read the full GDD unless a task specifically requires it.
+Read `docs/agents/pato/CONTEXT.md`, `docs/agents/pato/log.md`, and whichever of `docs/agents/_reference/{mana,mastery,hexcoin}-template.md` the validation concerns. Do not read the full GDD, or another agent's log/critique output, by default -- unless a task specifically requires it (e.g. re-validating a resubmission that addressed a specific Heckler finding), the same way Ana's own scoping rule already allows.
