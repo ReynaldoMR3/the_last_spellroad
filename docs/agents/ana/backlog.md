@@ -4,7 +4,7 @@ This is the roster's single master backlog: the full GDD (`docs/game/the-last-sp
 
 **How this fits the context store:** this file is Ana's Layer 4 artifact (`docs/agents/CONTEXT.md`'s framing) — it changes every planning session, unlike `ana/CONTEXT.md` (Layer 2, stable contract). Other agents do not read this file directly, same rule as `ana/log.md` — they get their next task from Ana's dispatch, not by reading the backlog themselves.
 
-**Status legend** (extends Ana's existing three-state model from `ana/AGENT.md` with one state for work not yet dispatched):
+**Status legend** (`not-started` is this backlog's own addition; the other three states are canonically defined in `docs/adr/0001-verification-rationale-required-for-shipped-status.md` — the bullets below are a summary, not a restatement):
 
 - `not-started` — scoped here, not yet handed to an agent.
 - `in-progress-with-owner` — dispatched, owner named.

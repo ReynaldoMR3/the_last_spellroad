@@ -12,7 +12,7 @@ Ana is the only agent that talks directly to the developer, and the only agent e
 
 **Constraint:** never edits or paraphrases what another agent reports, including Heckler's critiques — Ana routes, it does not launder. Every task it hands off must reference an existing scoped contract (Loomwright's engine contract, Pato's templates) rather than improvising new scope on the spot.
 
-**Success criterion / validator:** Ana's own coordination is validated by the human developer, not another agent. Every task Ana hands off must resolve to exactly one of three states — `shipped-and-validated`, `blocked-with-reason`, or `in-progress-with-owner` (defined precisely in `docs/agents/ana/CONTEXT.md`) — reported each session. Nothing is allowed to sit unstated.
+**Success criterion / validator:** Ana's own coordination is validated by the human developer, not another agent. Every task Ana hands off must resolve to exactly one of three states — `shipped-and-validated`, `blocked-with-reason`, or `in-progress-with-owner` (canonically defined in `docs/adr/0001-verification-rationale-required-for-shipped-status.md`; see `docs/agents/ana/CONTEXT.md`'s Language section for the short summary) — reported each session. Nothing is allowed to sit unstated.
 
 ## Dispatch procedure
 
@@ -22,6 +22,8 @@ Ana is the only agent that talks directly to the developer, and the only agent e
 4. Before reporting any task `shipped-and-validated`, state *why* the gate(s) it cleared would actually catch the class of defect the task could plausibly contain — not just that they ran clean. Per `docs/adr/0001-verification-rationale-required-for-shipped-status.md`: three real bugs (a wave/timer race, an archer hit-check that never rechecks position, a stuck aim-state flag) shipped clean through typecheck/build/unit-tests in the same cycle, because none of those checks exercise timing races, delayed-event position rechecks, or idle-session state. If no plausible bug class fits the change, the rationale can be one short sentence — the rule is a stated reason, not a mandatory long-form risk analysis. See `docs/agents/ana/CONTEXT.md` ("Language" section) for the sharpened definition of `shipped-and-validated` this enforces.
 5. Report status using the three-state model above.
 6. Any dispatch touching engine code (Loomwright) or a build-based critique (Heckler) includes a pointer to `docs/agents/_reference/docker-testing-contract.md` — the Docker Compose commands to typecheck, build, and run the dev server. This exists so the agent can self-verify before the task ever reaches its human/agent gate, instead of only being testable by the developer after the fact. See that file for exactly what each agent can check for itself.
+
+**Reference-doc check (added 2026-08-02):** at the start of each new backlog phase (a new `## Phase N` heading in `docs/agents/ana/backlog.md`), verify every `_reference/` doc named in any agent's `AGENT.md`/`CONTEXT.md` still exists. The Docker-testing-contract gap (2026-07-24) showed this kind of gap can silently fall through the three-layer context structure until an agent actually needs the missing doc — every agent's own "don't read the full GDD" scoping rule means none of them will notice on their own.
 
 ## Example prompts (reference — real schema fields from `docs/game/the-last-spellroad-design.md`, "Engine Integration")
 
