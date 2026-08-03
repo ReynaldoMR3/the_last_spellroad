@@ -17,3 +17,20 @@ export function computeCastManaCost(spell: SpellDefinition, masteryTier: Mastery
     ? Math.round(base.cost * (1 - MASTER_DISCOUNT))
     : base.cost;
 }
+
+/**
+ * backlog 2.29 / issue #55 — the cooldown-duration half of the same weight-class-base-minus-
+ * Master-discount formula `SpellCaster.tryCast` already computed inline (mirroring
+ * `computeCastManaCost` above for the cost half), pulled out so `tryCast` (which actually arms
+ * `cooldownsMs`) and the hotbar's cooldown-fraction display (`SpellCaster.cooldownDurationMs` ->
+ * `computeCooldownDisplay`, hotbarLayout.ts) share one source of truth for "how long is this
+ * spell's cooldown" instead of a second copy of the ternary that could silently drift from the
+ * one `tryCast` actually arms the timer with.
+ */
+export function computeCastCooldownMs(spell: SpellDefinition, masteryTier: MasteryTier): number {
+  const base = WEIGHT_CLASS[spell.weight];
+  const isMaster = masteryTier === "master";
+  return isMaster && spell.master_discount === "cooldown"
+    ? Math.round(base.cooldownMs * (1 - MASTER_DISCOUNT))
+    : base.cooldownMs;
+}
