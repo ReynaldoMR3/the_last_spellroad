@@ -1,9 +1,8 @@
 import Phaser from "phaser";
-import type { SpellDefinition } from "../data/types";
-import { MASTER_DISCOUNT, WEIGHT_CLASS } from "../systems/ManaSystem";
+import type { MasteryTier, SpellDefinition } from "../data/types";
 import type { ManaSystem } from "../systems/ManaSystem";
 import type { MasterySystem } from "../systems/MasterySystem";
-import { computeCastManaCost } from "../systems/spellCost";
+import { computeCastCooldownMs, computeCastManaCost } from "../systems/spellCost";
 
 export type ShapeHitTest = (enemyX: number, enemyY: number) => boolean;
 
@@ -49,6 +48,19 @@ export class SpellCaster {
     return this.mana.canAfford(cost);
   }
 
+  /**
+   * backlog 2.29 / issue #55 — read-only total cooldown duration for `spell` at
+   * `masteryTier`, the same formula `tryCast` uses to arm `cooldownsMs` (via
+   * `computeCastCooldownMs`), exposed so the hotbar's cooldown-fraction display
+   * (`SpellroadScene.updateHud` -> `computeCooldownDisplay`, hotbarLayout.ts) has a total to
+   * divide `cooldownRemaining` by without re-deriving the Master-discount ternary a second
+   * time outside this class, mirroring how `canAffordCast` already wraps `computeCastManaCost`
+   * for the cost side.
+   */
+  cooldownDurationMs(spell: SpellDefinition, masteryTier: MasteryTier): number {
+    return computeCastCooldownMs(spell, masteryTier);
+  }
+
   cooldownRemaining(spellId: string): number {
     return this.cooldownsMs.get(spellId) ?? 0;
   }
@@ -69,19 +81,16 @@ export class SpellCaster {
     if (this.isOnCooldown(spell.id)) {
       return null;
     }
-    const base = WEIGHT_CLASS[spell.weight];
     const scaling = this.mastery.getScaling(spell.id);
     const tier = this.mastery.getTier(spell.id);
-    const isMaster = tier === "master";
     // mana-template.md: Master gets -10% off cost OR cooldown, whichever the spell's
     // design leans on more — a per-spell choice (spell.master_discount), never both.
     // Cost side factored out into `computeCastManaCost` (backlog 2.28 / issue #54) so
     // `canAffordCast`'s pre-check above uses the exact same formula, not a second copy.
+    // Cooldown side factored out into `computeCastCooldownMs` (backlog 2.29 / issue #55) so
+    // `cooldownDurationMs`'s hotbar-display pre-check uses the exact same formula too.
     const cost = computeCastManaCost(spell, tier);
-    const cooldownMs =
-      isMaster && spell.master_discount === "cooldown"
-        ? Math.round(base.cooldownMs * (1 - MASTER_DISCOUNT))
-        : base.cooldownMs;
+    const cooldownMs = computeCastCooldownMs(spell, tier);
     if (!this.mana.spend(cost)) {
       return null;
     }
