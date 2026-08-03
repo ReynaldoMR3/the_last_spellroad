@@ -5,6 +5,8 @@ import { ManaSystem, MANA_REGEN_PER_SEC, MAX_MANA } from "../systems/ManaSystem"
 import { MasterySystem } from "../systems/MasterySystem";
 import { HexcoinSystem, FEE_PHASE_RECOVERY, PHASE_RECOVERY_HP_FRACTION, MAX_RECOVERIES_HARD_CAP } from "../systems/HexcoinSystem";
 import { DebuffSystem } from "../systems/DebuffSystem";
+import { computeDebuffMagnitude, formatDebuffHudLines } from "../systems/debuffDisplay";
+import { archetypeDisplayName } from "../systems/enemyStatusOverlay";
 import { SpellCaster, SHAPE_GEOMETRY } from "../entities/SpellCaster";
 import { Enemy, ARCHETYPE_DAMAGE } from "../entities/Enemy";
 import { spawnWave } from "../systems/WaveLoader";
@@ -12,6 +14,12 @@ import { selectAutoAimTarget } from "../systems/autoAim";
 import { isStillInRangedImpactZone } from "../systems/rangedImpact";
 import { WaveSession, canResolvePhaseChoice, shouldAutoAdvance } from "../systems/waveSession";
 import { hasRecentPointerActivity } from "../systems/pointerActivity";
+import {
+  computeCooldownDisplay,
+  computeHotbarSlotRects,
+  formatShapeWeightTag,
+  type HotbarSlotRect
+} from "../systems/hotbarLayout";
 import {
   ALL_LEVELS,
   TILESET_IMAGE_KEY,
@@ -21,6 +29,7 @@ import {
   levelMapKey,
   levelMapUrl
 } from "../systems/levelArt";
+import { SPELL_ICON_ELEMENTS, iconKeyForSpell, spellIconKey, spellIconUrl } from "../systems/spellIcons";
 
 const PLAYER_SPEED = 180;
 /** Widened 160->220 (2026-07-27, developer feedback: not enough room to evade projectiles/
@@ -75,6 +84,59 @@ const RANGED_TRAVEL_MS = 450;
  * explicitly future work per the GDD ("full hotkey customization can be a later feature");
  * this fix widens the pipe and defaults it to the first 6 shipped spells, nothing more. */
 const HOTBAR_KEYS = ["ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX"] as const;
+/** backlog 2.29 / issue #55 — the hotbar used to be a "Hotbar:" header plus one 14px text
+ * line per equipped spell (7 lines total) starting at `ROAD_TOP + ROAD_HEIGHT + 14` = 424 with
+ * the road at its current 130/280 — 7 lines at ~18px each run to ~550px, past the 540px-tall
+ * canvas (`main.ts`), clipping spell 6's line. Redesigned as a horizontal single row of
+ * fixed-size slot rectangles (`computeHotbarSlotRects`, hotbarLayout.ts) below the road instead
+ * — one row's height, not 7 lines', and each slot is a distinct rendered region a future spell
+ * icon (backlog 2.30 / issue #56, Tilesmith) can be drawn into or behind. `HOTBAR_TOP_MARGIN`
+ * keeps the same 14px breathing room below the road the old block used. See `createHud` for
+ * the fits-within-canvas arithmetic this ticket's own instructions require re-verifying:
+ * 130 + 280 + 14 + 96 = 520, comfortably under 540. */
+const HOTBAR_TOP_MARGIN = 14;
+const HOTBAR_SLOT_HEIGHT = 96;
+const HOTBAR_SLOT_GAP = 8;
+const HOTBAR_TEXT_PADDING = 6;
+/** Heckler 2026-08-02 (7), BLOCKING follow-up — Tilesmith's icon (backlog 2.30 / issue #56)
+ * shrank each slot's text budget from ~144px to ~88px (`hotbarTextLeft`, below) without
+ * re-checking the longest label against it, so `thunder_dome`'s `[circle/standard]` tag (17
+ * characters) bled past its own slot border every load, in the default loadout. Fixed two ways,
+ * not one, so the margin is real rather than a hairline: (1) `formatShapeWeightTag`
+ * (`hotbarLayout.ts`) abbreviates every one of the 3 shapes x 3 weights to a fixed 9-character
+ * `[xxx/yyy]` tag instead of the previous 12-17 char spread; (2) this font drops one px, 11->10,
+ * which also gives the *other* two lines in this same text block (the hotkey/cooldown line and
+ * the spell-id line — `glacial_shard`, 13 characters, is the longest of the 12 shipped ids and
+ * was left with near-zero margin of its own by the same icon-driven budget shrink, even though
+ * it isn't in the current default loadout) real headroom instead of a second near-miss. At
+ * 10px monospace, the 9-char worst-case tag and the 13-char worst-case id both render
+ * comfortably inside the ~88px budget — verified live via dev-server screenshot per
+ * `docs/agents/_reference/docker-testing-contract.md`, not just by this arithmetic. */
+const HOTBAR_LABEL_FONT_SIZE_PX = 10;
+const HOTBAR_SLOT_BG_COLOR = 0x1f2130;
+const HOTBAR_SLOT_BG_ALPHA = 0.9;
+/** Slot border colors: which of the three mutually-exclusive states a slot is in — currently
+ * armed (in preview/aim mode, `previewSpellId` match), on cooldown, or ready — takes visual
+ * priority in that order (an armed spell is always also "ready", by construction: you can't
+ * enter preview on a cooling-down or unaffordable spell, see `handleHotbarPress`). */
+const HOTBAR_BORDER_ARMED_COLOR = 0xf3e7c2;
+const HOTBAR_BORDER_READY_COLOR = 0x4caf50;
+const HOTBAR_BORDER_COOLDOWN_COLOR = 0x55597a;
+/** A loadout shorter than 6 spells renders its remaining slots as an empty numbered outline
+ * (this color) rather than leaving them blank/ambiguous about whether that hotkey does
+ * anything. Not reachable with the current fixed 6-spell `DEFAULT_LOADOUT_IDS`, but
+ * `equippedSpells`/`HOTBAR_KEYS` don't guarantee equal length, so handled rather than assumed. */
+const HOTBAR_BORDER_EMPTY_COLOR = 0x33364a;
+/** backlog 2.30 / issue #56 — per-slot spell icon (Tilesmith, hand-authored, one per element:
+ * fire/ice/lightning/earth, see `spellIcons.ts`'s own comment for why element-level granularity
+ * closes the reported "arc_lance and stone_spike look identical" bug without a full 12-icon
+ * commission). Sized to fit inside `HOTBAR_SLOT_HEIGHT` (96) with room to spare, anchored at
+ * the slot's left edge; the existing per-slot label text is shifted right by
+ * `HOTBAR_ICON_SIZE + HOTBAR_ICON_PADDING * 2` so it no longer overlaps the icon. Purely
+ * additive to `createHud`/`updateHotbar` — `computeHotbarSlotRects`'s own math (hotbarLayout.ts)
+ * is untouched. */
+const HOTBAR_ICON_SIZE = 40;
+const HOTBAR_ICON_PADDING = 8;
 /** backlog 2.9 — hit-feedback color bands, keyed off the target's *remaining* HP% after the hit (not an HP bar, per the developer's clash concern with per-enemy bars). */
 const DAMAGE_NUMBER_COLOR = { healthy: "#4caf50", wounded: "#f4c430", critical: "#e05252" } as const;
 /** backlog 2.10 — the lane rectangle the mage and (per this fix) enemies are both clamped
@@ -92,6 +154,19 @@ const LANE_RECT = new Phaser.Geom.Rectangle(ROAD_LEFT, ROAD_TOP, ROAD_WIDTH, ROA
  * default-depth (0) gameplay/HUD object. */
 const BACKGROUND_DEPTH = -100;
 const TILE_LAYER_DEPTH = -50;
+/** Heckler critique, 2026-08-02 (8), MAJOR 1: none of the HUD text objects ever called
+ * `setDepth`, so they sat at the same default depth (0) as every `Enemy` and its own
+ * `nameLabel`/`statusBar` overlay (`Enemy.ts` — also never sets one). Phaser breaks
+ * equal-depth ties by display-list insertion order, and enemies are constructed (and thus
+ * inserted) after `createHud()` already ran, so an enemy's name label could paint over the
+ * top-right Level/Wave and debuff HUD boxes whenever it wandered into that screen region —
+ * reachable in ordinary play, not a contrived edge case (see Heckler's finding for the exact
+ * lane-clamp-rectangle overlap math). Deliberately picked a value distinct from
+ * `spawnRangedProjectile`'s own `dot.setDepth(1000)` (that one only means "above every other
+ * *world* object", a different, narrower stacking claim than "above literally everything,
+ * always") rather than reusing 1000 for a different intended meaning. HUD must win against
+ * that projectile too, not just against enemies, hence a value clearly above it. */
+const UI_DEPTH = 2000;
 const CANVAS_WIDTH = 960;
 const CANVAS_HEIGHT = 540;
 /** backlog 2.10 — non-mouse aiming fallback: default cast placement distance along
@@ -180,9 +255,27 @@ export class SpellroadScene extends Phaser.Scene {
   private previewLockedEnemy: Enemy | null = null;
 
   private hudText?: Phaser.GameObjects.Text;
-  private hotbarText?: Phaser.GameObjects.Text;
+  /** backlog 2.29 / issue #55 — the hotbar's per-slot backgrounds/borders (ready/cooldown/
+   * armed state), redrawn every frame in `updateHotbar`. Replaces the old single vertical
+   * `hotbarText` block. */
+  private hotbarGraphics?: Phaser.GameObjects.Graphics;
+  private hotbarSlotRects: HotbarSlotRect[] = [];
+  private hotbarSlotTexts: Phaser.GameObjects.Text[] = [];
+  /** backlog 2.30 / issue #56 — one `Image` per hotbar slot, texture swapped per-frame in
+   * `updateHotbar` to the equipped spell's element icon (`spellIcons.ts`). Hidden (not
+   * destroyed) for slots with no equipped spell, same pattern the empty-slot branch already
+   * uses for the border/text. */
+  private hotbarSlotIcons: Phaser.GameObjects.Image[] = [];
   private messageText?: Phaser.GameObjects.Text;
   private messageClearAt = 0;
+  /** backlog 2.32 / issue #58 — persistent, larger, higher-contrast Level/Wave readout, kept
+   * separate from both `hudText`'s small stat block and the transient `flashMessage` banner.
+   * See its own comment at the bottom of `createHud`. */
+  private levelWaveText?: Phaser.GameObjects.Text;
+  /** backlog 2.31 / issue #57 — the debuff-magnitude HUD line, built on top of the existing
+   * `spawnDebuffPulse` visual rather than replacing it. Empty string (no visible line) while
+   * `this.debuff` has no active stacks. */
+  private debuffText?: Phaser.GameObjects.Text;
 
   // backlog 3.8 (issue #29) — the currently-rendered level's real Tiled layout, swapped at
   // every level transition (see `renderLevelArt`). `renderedLevel` starts at 0 (no level is
@@ -211,6 +304,13 @@ export class SpellroadScene extends Phaser.Scene {
     this.load.image(TILESET_IMAGE_KEY, TILESET_IMAGE_URL);
     for (const level of ALL_LEVELS) {
       this.load.tilemapTiledJSON(levelMapKey(level), levelMapUrl(level));
+    }
+
+    // backlog 2.30 / issue #56 — one hand-authored icon per element (`spellIcons.ts`), loaded
+    // eagerly up front same as the tileset image above (4 tiny PNGs, no runtime cost worth a
+    // dynamic-loading dance).
+    for (const element of SPELL_ICON_ELEMENTS) {
+      this.load.image(spellIconKey(element), spellIconUrl(element));
     }
   }
 
@@ -340,29 +440,75 @@ export class SpellroadScene extends Phaser.Scene {
   }
 
   private createHud(): void {
-    this.add.text(32, 16, "The Last Spellroad", {
-      color: "#f3e7c2",
-      fontFamily: "Georgia, serif",
-      fontSize: "24px"
-    });
+    this.add
+      .text(32, 16, "The Last Spellroad", {
+        color: "#f3e7c2",
+        fontFamily: "Georgia, serif",
+        fontSize: "24px"
+      })
+      .setDepth(UI_DEPTH);
 
-    this.hudText = this.add.text(32, 46, "", {
-      color: "#9fb0d8",
-      fontFamily: "monospace",
-      fontSize: "14px",
-      lineSpacing: 4
-    });
+    this.hudText = this.add
+      .text(32, 46, "", {
+        color: "#9fb0d8",
+        fontFamily: "monospace",
+        fontSize: "14px",
+        lineSpacing: 4
+      })
+      .setDepth(UI_DEPTH);
 
     // Developer feedback (2026-07-27): "the hotbar now contaminates the gameplay screen"
     // — the per-spell shape/weight tags (backlog 2.14) made the top-left HUD block tall
     // enough to overlap the road (ROAD_TOP=190). Given its own dedicated panel below the
     // road instead of stacking under the top stats, where there's no gameplay to cover.
-    this.hotbarText = this.add.text(32, ROAD_TOP + ROAD_HEIGHT + 14, "", {
-      color: "#9fb0d8",
-      fontFamily: "monospace",
-      fontSize: "14px",
-      lineSpacing: 4
+    //
+    // backlog 2.29 / issue #55 — that panel's own 7-line vertical text block later overflowed
+    // the canvas in turn (see the `HOTBAR_TOP_MARGIN` comment above); redesigned here as a
+    // single row of `HOTBAR_KEYS.length` fixed rectangles below the road, each one a distinct
+    // region (background + border via `hotbarGraphics`, label text via its own `Text` object)
+    // rather than concatenated lines. Fits-within-canvas check: row top =
+    // `ROAD_TOP + ROAD_HEIGHT + HOTBAR_TOP_MARGIN` = 130 + 280 + 14 = 424; row bottom =
+    // 424 + `HOTBAR_SLOT_HEIGHT` (96) = 520 <= `CANVAS_HEIGHT` (540) — 20px of margin left at
+    // the bottom, no clipping.
+    const hotbarTop = ROAD_TOP + ROAD_HEIGHT + HOTBAR_TOP_MARGIN;
+    this.hotbarSlotRects = computeHotbarSlotRects({
+      canvasWidth: CANVAS_WIDTH,
+      top: hotbarTop,
+      slotHeight: HOTBAR_SLOT_HEIGHT,
+      slotCount: HOTBAR_KEYS.length,
+      gapPx: HOTBAR_SLOT_GAP
     });
+    this.hotbarGraphics = this.add.graphics();
+    this.hotbarGraphics.setDepth(UI_DEPTH);
+    // backlog 2.30 / issue #56 — one icon Image per slot, hidden until `updateHotbar` gives it
+    // a real spell's texture; created once here rather than per-frame, same lifecycle as
+    // `hotbarSlotTexts` below.
+    this.hotbarSlotIcons = this.hotbarSlotRects.map((rect) => {
+      const icon = this.add.image(
+        rect.x + HOTBAR_ICON_PADDING + HOTBAR_ICON_SIZE / 2,
+        rect.y + rect.height / 2,
+        spellIconKey(SPELL_ICON_ELEMENTS[0])
+      );
+      icon.setDisplaySize(HOTBAR_ICON_SIZE, HOTBAR_ICON_SIZE);
+      icon.setVisible(false);
+      // backlog 2.32 / issue #58, Heckler MAJOR finding 1 (2026-08-02 (8)) — every persistent
+      // HUD element needs an explicit depth above enemy overlays (`Enemy.ts`'s nameLabel/
+      // statusBar, added to the display list after createHud() runs); the icon/text slots
+      // introduced by #55/#56 predate that fix and need the same UI_DEPTH applied here.
+      icon.setDepth(UI_DEPTH);
+      return icon;
+    });
+    const hotbarTextLeft = HOTBAR_TEXT_PADDING + HOTBAR_ICON_SIZE + HOTBAR_ICON_PADDING * 2;
+    this.hotbarSlotTexts = this.hotbarSlotRects.map((rect) =>
+      this.add
+        .text(rect.x + hotbarTextLeft, rect.y + HOTBAR_TEXT_PADDING, "", {
+          color: "#9fb0d8",
+          fontFamily: "monospace",
+          fontSize: `${HOTBAR_LABEL_FONT_SIZE_PX}px`,
+          lineSpacing: 3
+        })
+        .setDepth(UI_DEPTH)
+    );
 
     this.messageText = this.add.text(480, 400, "", {
       color: "#f3e7c2",
@@ -370,6 +516,40 @@ export class SpellroadScene extends Phaser.Scene {
       fontSize: "20px"
     });
     this.messageText.setOrigin(0.5, 0.5);
+    this.messageText.setDepth(UI_DEPTH);
+
+    // Developer feedback (2026-08-02, issue #58): "Level 5, wave 1 its difficult to read in
+    // what level we are" — `Level X, Wave Y` was one line inside the 14px stat block above,
+    // easy to miss mid-combat, and the only other signal was the transient `flashMessage`
+    // banner (1500ms, then gone). This is a dedicated, persistent, fixed-position element:
+    // top-right corner (clear of the title text and the small stat block, both top-left),
+    // large (28px vs. the stat block's 14px) and high-contrast (opaque panel background,
+    // not just colored text over the dark canvas fill). Never cleared by `flashMessage`'s
+    // timer — only `updateHud` ever calls `setText` on it, every frame, same as `hudText`.
+    this.levelWaveText = this.add.text(CANVAS_WIDTH - 16, 16, "", {
+      color: "#ffe08a",
+      fontFamily: "Georgia, serif",
+      fontStyle: "bold",
+      fontSize: "28px",
+      backgroundColor: "#1c1330",
+      padding: { x: 12, y: 6 }
+    });
+    this.levelWaveText.setOrigin(1, 0);
+    this.levelWaveText.setDepth(UI_DEPTH);
+
+    // backlog 2.31 / issue #57 — debuff-magnitude/duration HUD line, directly below the
+    // Level/Wave readout above (same fixed top-right column). Left empty by default;
+    // `updateHud` only ever gives it text while `this.debuff` actually has an active stack,
+    // so it takes no HUD space at all during a fight with no Debuffer in it.
+    this.debuffText = this.add.text(CANVAS_WIDTH - 16, 64, "", {
+      color: "#c9a7f0",
+      fontFamily: "monospace",
+      fontSize: "13px",
+      align: "right",
+      lineSpacing: 3
+    });
+    this.debuffText.setOrigin(1, 0);
+    this.debuffText.setDepth(UI_DEPTH);
 
     this.previewGraphics = this.add.graphics();
     // backlog 2.10 — clip the shape preview to the lane rectangle so line/cone/circle
@@ -1037,25 +1217,92 @@ export class SpellroadScene extends Phaser.Scene {
     const hpLine = `HP    ${this.health.current}/${MAX_HP}`;
     const manaLine = `Mana  ${Math.floor(this.mana.current)}/${MAX_MANA}`;
     const hexLine = `Hexcoin ${this.hexcoin.balance}`;
+    // backlog 2.32 / issue #58 — Level/Wave itself moved to `levelWaveText` (its own
+    // persistent, larger, higher-contrast element, set below); this small block keeps only
+    // the live enemy count, which changes every kill and belongs with the other
+    // glance-frequently combat counters, not with the rarely-changing level/wave value.
+    const enemiesLine = `Enemies  ${this.enemies.length}`;
     const currentWave = this.waves[this.waveIndex];
-    const waveLine = currentWave
-      ? `Level ${currentWave.level}, Wave ${currentWave.wave_index + 1}  (enemies: ${this.enemies.length})`
-      : `Wave  ${this.waveIndex + 1}/${this.waves.length}  (enemies: ${this.enemies.length})`;
-    // Developer feedback (2026-07-27): "unclear when i should use which spell" — the
-    // hotbar showed only each spell's raw id, which doesn't self-describe its shape/weight
-    // (e.g. "arc_lance" gives no hint it's a single-target line). Surfacing shape+weight
-    // directly is the cheapest legibility fix available without a fuller tooltip/icon
-    // system (future work, not this fix).
-    const hotbarLine = this.equippedSpells
-      .map((spell, index) => {
-        const tier: MasteryTier = this.mastery.getTier(spell.id);
-        const cooldown = this.caster.cooldownRemaining(spell.id);
-        const cdLabel = cooldown > 0 ? `${(cooldown / 1000).toFixed(1)}s` : "ready";
-        return `[${index + 1}] ${spell.id} [${spell.shape}/${spell.weight}] (${tier}, ${cdLabel})`;
-      })
-      .join("\n");
+    this.hudText.setText([hpLine, manaLine, hexLine, enemiesLine].join("\n"));
+    this.updateHotbar();
 
-    this.hudText.setText([hpLine, manaLine, hexLine, waveLine].join("\n"));
-    this.hotbarText?.setText(["Hotbar:", hotbarLine].join("\n"));
+    // backlog 2.32 / issue #58 — persistent Level/Wave readout, its own fixed top-right spot.
+    this.levelWaveText?.setText(
+      currentWave
+        ? `Level ${currentWave.level} · Wave ${currentWave.wave_index + 1}`
+        : `Wave ${this.waveIndex + 1}/${this.waves.length}`
+    );
+
+    // backlog 2.31 / issue #57 — debuff magnitude/duration, built on top of the existing
+    // `spawnDebuffPulse` visual rather than replacing it. `archetypeDisplayName("debuffer")`
+    // is the same seam the enemy's own overlay label already uses (see its doc comment in
+    // `enemyStatusOverlay.ts`) and now returns Lorena's "The Tarrywright" (backlog 4.2) —
+    // that one function's "debuffer" case feeds this line and the enemy label together.
+    const debuffMagnitude = computeDebuffMagnitude(
+      this.debuff.speedStackCount,
+      this.debuff.manaRegenStackCount,
+      MANA_REGEN_PER_SEC
+    );
+    const debuffLines = formatDebuffHudLines(debuffMagnitude, archetypeDisplayName("debuffer"));
+    this.debuffText?.setText(debuffLines.join("\n"));
+  }
+
+  /** backlog 2.29 / issue #55 — redraws the single-row hotbar every frame: one rectangle per
+   * equipped-spell slot, background + border communicating ready (green) vs on-cooldown
+   * (muted) vs currently-armed (gold, `previewSpellId` match — a spell in preview/aim mode is
+   * always also "ready" by construction, see `handleHotbarPress`'s cooldown/mana pre-checks,
+   * so this can't collide with the cooldown state). Each slot's text carries the hotkey
+   * number + cooldown/ready label, the spell id, and its `[shape/weight]` tag from backlog
+   * 2.14 (dropped the tier that used to also appear here — doesn't fit this row's width
+   * alongside the rest, a legibility judgment call, not a data loss: Mastery tier is Pato's
+   * number and still fully tracked, just not surfaced in this compact view).
+   * `equippedSpells.length < HOTBAR_KEYS.length` (not reachable with the current fixed
+   * `DEFAULT_LOADOUT_IDS`, but not assumed away either) renders the remainder as an empty
+   * numbered outline instead of leaving them blank. */
+  private updateHotbar(): void {
+    if (!this.hotbarGraphics) {
+      return;
+    }
+    this.hotbarGraphics.clear();
+    this.hotbarSlotRects.forEach((rect, index) => {
+      const text = this.hotbarSlotTexts[index];
+      const icon = this.hotbarSlotIcons[index];
+      const spell = this.equippedSpells[index];
+      if (!spell) {
+        this.hotbarGraphics?.lineStyle(1, HOTBAR_BORDER_EMPTY_COLOR, 1);
+        this.hotbarGraphics?.strokeRect(rect.x, rect.y, rect.width, rect.height);
+        text?.setText(`[${index + 1}]`);
+        icon?.setVisible(false);
+        return;
+      }
+
+      const tier: MasteryTier = this.mastery.getTier(spell.id);
+      const remaining = this.caster.cooldownRemaining(spell.id);
+      const total = this.caster.cooldownDurationMs(spell, tier);
+      const cooldown = computeCooldownDisplay(remaining, total);
+      const isArmed = this.previewSpellId === spell.id;
+      const borderColor = isArmed
+        ? HOTBAR_BORDER_ARMED_COLOR
+        : cooldown.isReady
+        ? HOTBAR_BORDER_READY_COLOR
+        : HOTBAR_BORDER_COOLDOWN_COLOR;
+
+      this.hotbarGraphics?.fillStyle(HOTBAR_SLOT_BG_COLOR, HOTBAR_SLOT_BG_ALPHA);
+      this.hotbarGraphics?.fillRect(rect.x, rect.y, rect.width, rect.height);
+      this.hotbarGraphics?.lineStyle(isArmed ? 3 : 2, borderColor, 1);
+      this.hotbarGraphics?.strokeRect(rect.x, rect.y, rect.width, rect.height);
+
+      // backlog 2.30 / issue #56 — the actual per-spell (per-element) icon, so `arc_lance`
+      // (lightning) and `stone_spike` (earth) — same shape/weight, the reported bug — now
+      // render visibly different icons rather than only differing in the text label below.
+      icon?.setTexture(iconKeyForSpell(spell));
+      icon?.setVisible(true);
+
+      text?.setText(
+        [`[${index + 1}] ${cooldown.label}`, spell.id, formatShapeWeightTag(spell.shape, spell.weight)].join(
+          "\n"
+        )
+      );
+    });
   }
 }

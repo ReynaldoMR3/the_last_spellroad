@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import { archetypeDisplayName, computeHpFraction, computeHpBarColor, HP_BAR_COLOR } from "./enemyStatusOverlay";
 
 describe("archetypeDisplayName", () => {
-  it("capitalizes each shipped archetype for display since no lore-name exists yet", () => {
+  it("capitalizes melee/ranged for display since no lore-name exists yet for those two", () => {
     expect(archetypeDisplayName("melee")).toBe("Melee");
     expect(archetypeDisplayName("ranged")).toBe("Ranged");
-    expect(archetypeDisplayName("debuffer")).toBe("Debuffer");
+  });
+
+  it("returns the Tarrywright's established lore name for debuffer (backlog 4.2 / issue #57)", () => {
+    expect(archetypeDisplayName("debuffer")).toBe("The Tarrywright");
   });
 });
 

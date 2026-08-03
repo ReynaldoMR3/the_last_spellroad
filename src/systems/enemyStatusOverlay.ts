@@ -9,10 +9,19 @@ import type { EnemyArchetype } from "../data/types";
  * instead, per `docs/agents/_reference/docker-testing-contract.md`.
  */
 
-/** No richer lore-name exists per archetype yet — the backlog explicitly defers naming
- * enemies to Lorena, out of scope for this ticket. The capitalized archetype string
- * ("Melee"/"Ranged"/"Debuffer") is the display name until that lands. */
+/** "melee" and "ranged" have no richer lore-name yet — the backlog explicitly defers naming
+ * enemies to Lorena, out of scope for this ticket, so those two stay the capitalized archetype
+ * string ("Melee"/"Ranged") as a display-name stand-in. "debuffer" is the one archetype Lorena
+ * has since named (backlog 4.2 / issue #57): "the Tarrywright", per `lore-premise.md`'s
+ * Established Named Facts. Display-cased to "The Tarrywright" here — same capitalization
+ * convention this function already applies to every other archetype string — since this one
+ * value feeds both a standalone name label above the enemy sprite and the lead-in of a HUD
+ * sentence (`debuffDisplay.ts`'s `formatDebuffHudLines`), and a capitalized proper noun reads
+ * correctly in both places. */
 export function archetypeDisplayName(archetype: EnemyArchetype): string {
+  if (archetype === "debuffer") {
+    return "The Tarrywright";
+  }
   return archetype.charAt(0).toUpperCase() + archetype.slice(1);
 }
 

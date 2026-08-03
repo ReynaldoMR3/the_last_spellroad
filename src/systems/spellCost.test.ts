@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeCastManaCost } from "./spellCost";
+import { computeCastCooldownMs, computeCastManaCost } from "./spellCost";
 import type { SpellDefinition } from "../data/types";
 
 /**
@@ -37,5 +37,31 @@ describe("computeCastManaCost", () => {
 
   it("leaves cost at the full base when master_discount is 'cooldown', even at Master tier", () => {
     expect(computeCastManaCost(makeSpell({ weight: "standard", master_discount: "cooldown" }), "master")).toBe(20);
+  });
+});
+
+/**
+ * backlog 2.29 / issue #55 — `computeCastCooldownMs` is the cooldown-duration formula
+ * `SpellCaster.tryCast` already computed inline, extracted the same way `computeCastManaCost`
+ * was for the cost side (backlog 2.28 / issue #54) so `tryCast` and the hotbar's new
+ * cooldown-fraction display (`SpellCaster.cooldownDurationMs` -> `computeCooldownDisplay`,
+ * hotbarLayout.ts) share one source of truth instead of two copies of the same ternary.
+ */
+describe("computeCastCooldownMs", () => {
+  it("returns the weight class's base cooldown at novice/adept tiers, regardless of master_discount", () => {
+    expect(computeCastCooldownMs(makeSpell({ weight: "light", master_discount: "cooldown" }), "novice")).toBe(2000);
+    expect(computeCastCooldownMs(makeSpell({ weight: "standard", master_discount: "cooldown" }), "adept")).toBe(4000);
+    expect(computeCastCooldownMs(makeSpell({ weight: "heavy", master_discount: "cooldown" }), "adept")).toBe(8000);
+  });
+
+  it("applies the -10% Master discount only when master_discount is 'cooldown'", () => {
+    // heavy base 8000 * 0.9 = 7200
+    expect(computeCastCooldownMs(makeSpell({ weight: "heavy", master_discount: "cooldown" }), "master")).toBe(7200);
+    // light base 2000 * 0.9 = 1800
+    expect(computeCastCooldownMs(makeSpell({ weight: "light", master_discount: "cooldown" }), "master")).toBe(1800);
+  });
+
+  it("leaves cooldown at the full base when master_discount is 'cost', even at Master tier", () => {
+    expect(computeCastCooldownMs(makeSpell({ weight: "standard", master_discount: "cost" }), "master")).toBe(4000);
   });
 });

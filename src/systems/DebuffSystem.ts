@@ -28,6 +28,17 @@ export class DebuffSystem {
     this.manaRegenStacks = 0;
   }
 
+  /** backlog 2.31 / issue #57 — read-only accessors so the HUD can display the actual
+   * applied magnitude (stack counts feed `debuffDisplay.ts`'s pure arithmetic) instead of
+   * a HUD element re-deriving or guessing at state this class already owns. */
+  get speedStackCount(): number {
+    return this.speedStacks;
+  }
+
+  get manaRegenStackCount(): number {
+    return this.manaRegenStacks;
+  }
+
   /** Multiplier to apply to base movement speed (1 = no drain, floors toward 0.76 at 2 stacks). */
   get speedMultiplier(): number {
     return 1 - this.speedStacks * SPEED_DRAIN_PER_APPLICATION;

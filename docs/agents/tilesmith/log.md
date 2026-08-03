@@ -175,3 +175,115 @@ Sign-off status: no new binary/licensed asset introduced this pass (pure JSON la
 from already-signed-off tile picks) -- nothing new here requires the human compliance check;
 existing Pack 1 sign-off (2026-07-30 entry) still covers the underlying tileset PNG these layouts
 reference.
+
+## 2026-08-02 -- Backlog 2.30 (issue #56): per-spell icon art for the hotbar, hand-authored
+
+**Problem:** developer playtest reported `arc_lance` and `stone_spike` look identical in play --
+both `shape: line, weight: light` (`src/data/spells/spells.json`), differing only in
+element/power/target-count, none of which had any on-screen representation beyond hotbar text.
+Decision (per the issue, already grilled before dispatch): commission real per-spell icon art,
+sourced via this agent's own Art Sourcing pipeline, feeding into Loomwright's new single-row
+hotbar (#55).
+
+**Granularity decision: 4 icons, one per element, not 12 unique per-spell icons.** Read
+`src/data/spells/spells.json` directly: 12 shipped spells span exactly 4 elements (fire, ice,
+lightning, earth) x 3 shapes x 3 weights. The reported bug is specifically an
+element-blindness problem -- shape is already visible via the cast-preview geometry, and both
+shape and weight already have a text tag in the hotbar (backlog 2.14's `[shape/weight]` label).
+An icon per element closes the actual gap (`arc_lance` = lightning, `stone_spike` = earth, now
+visibly different) without re-encoding information already on screen. This matches the
+project's low-spec/readable-silhouette direction and the vertical-slice floor-vs-stretch cut
+philosophy -- a full 12-icon commission is flagged as a legitimate stretch/later pass if a
+future playtest finds two same-element spells still get confused, not ruled out permanently.
+
+**Step 1 (Kenney.nl) -- checked, nothing suitable found:**
+- https://kenney.nl/assets/game-icons -- CC0, 105 assets, but the pack is gamepad/controller/
+  input-prompt icons (confirmed via the page's own tag list: icon, gamepad, joystick, prompt,
+  interface), not fantasy/elemental iconography.
+- https://kenney.nl/assets/ui-pack-rpg-expansion -- CC0, 85 assets, but is buttons/panels/
+  sliders (UI chrome), not spell/item icons.
+- https://kenney.nl/assets/fantasy-ui-borders -- CC0, window/dialog border frames, not icons.
+- Browsed the Kenney asset catalog itself (kenney.nl/assets, icon-tagged) -- no pack dedicated
+  to elemental/magic/spell icons exists in the catalog.
+- Also re-checked the two packs already in this repo (Kenney Roguelike/RPG Pack, Kenney Tiny
+  Dungeon, both CC0, 2026-07-30 sign-off) -- neither contains a discrete icon-shaped asset (gem,
+  orb, rune) suited to spell iconography; both are terrain tiles and character/creature sprites
+  only, per `tile-legend.md`.
+
+**Step 2 (OpenGameArt.org, CC0 filter) -- checked, nothing suitable found:**
+- https://opengameart.org/content/12-elemental-type-symbolsicons -- exact element match (Fire,
+  Ice, Electric, Earth among its 12), but license is **CC-BY 4.0** ("you must give credit to
+  me"), confirmed by reading the page directly -- disqualified per this project's own
+  CC0-filter-only rule (step 2 never accepts CC-BY).
+- https://opengameart.org/content/skill-item-and-spell-icons -- CC0 confirmed, but 100 icons at
+  567x567px, painterly-gradient style with no confirmed ice/lightning/earth coverage -- wrong
+  scale and wrong art style for the project's 16x16/32x32 low-spec pixel direction.
+- https://opengameart.org/content/element-icons -- CC0 confirmed, but only 4 classical-Greek
+  elements (fire, earth, water, air -- no ice or lightning) as a flat SVG, not pixel art.
+- https://opengameart.org/content/magic-spell-icons -- CC0 confirmed, but 6 generic flat-SVG
+  icons, not an elemental set, same style mismatch as above.
+- No CC0, pixel-scale, exactly-4-element (fire/ice/lightning/earth) icon set exists on
+  OpenGameArt that was found after this search.
+
+**Step 3 (recolor/recombine a sourced CC0 asset) -- ruled out:** neither already-downloaded pack
+(Roguelike/RPG Pack, Tiny Dungeon) contains an icon-shaped base asset (the packs are terrain and
+character sprites, not items/gems/runes) that would read as a "spell icon" once recolored --
+forcing a terrain or creature tile into an icon role would be a worse fit than drawing new,
+simple shapes from scratch.
+
+**Step 4 (hand-authored, last resort) -- what was actually shipped:**
+- `public/assets/spell-icons/fire.png`, `ice.png`, `lightning.png`, `earth.png` -- 4 new,
+  hand-authored 32x32 PNG icons (flame teardrop / snowflake-hex crystal / lightning bolt / rock
+  cluster with a moss fleck), flat-color silhouettes with a dark outline, matching the existing
+  16x16-tile-doubled scale convention already established by the Kenney packs in this repo.
+  Drawn programmatically (Python/Pillow, supersampled 4x then downsampled) rather than by hand
+  in Piskel, but the output is the same kind of asset the contract's step 4 describes: simple,
+  low-spec pixel icons at the project's tile scale, with no third-party license to track since
+  nothing was copied or derived from a specific external source file.
+- No attribution/license entry needed for these 4 files (wholly original, no CC0/CC-BY source
+  material incorporated) -- logged here anyway per this file's own "every asset, every step,
+  regardless of license" rule, so nothing in the repo is untracked.
+
+**Engine wiring (small, additive, per the ticket's own scope guidance):**
+- New `src/systems/spellIcons.ts` -- pure, Phaser-free module (same pattern as `levelArt.ts`)
+  mapping an `Element` to its icon's load key/URL (`spellIconKey`, `spellIconUrl`,
+  `iconKeyForSpell`).
+- `src/scenes/SpellroadScene.ts`: `preload()` now loads the 4 icon PNGs via `this.load.image()`
+  (same pattern as the existing tileset image load); `createHud()` now creates one hidden
+  `Image` GameObject per hotbar slot (`hotbarSlotIcons`) sized to `HOTBAR_ICON_SIZE` (40px) and
+  shifts the existing per-slot label text right by that width + padding so the two don't
+  overlap; `updateHotbar()` now sets each visible slot's icon texture to
+  `iconKeyForSpell(spell)` and shows/hides it alongside the existing ready/cooldown/armed
+  border logic. `computeHotbarSlotRects` (hotbarLayout.ts) itself, cooldown logic, and every
+  other part of the hotbar's math were not touched, per the ticket's explicit constraint.
+
+**Self-verification (`docker-compose`, per `docs/agents/_reference/docker-testing-contract.md`):**
+- `docker-compose run --rm game npm run typecheck` -- clean, no errors.
+- `docker-compose run --rm game npm test` -- 9 test files, 76 tests, all passed (unchanged from
+  before this change -- no new test file added, since the changed code is Phaser-scene wiring
+  self-verified via the dev server instead, same convention `hotbarLayout.ts`'s own doc comment
+  states for `SpellroadScene.ts`).
+- `docker-compose run --rm game npm run build` -- clean production build.
+- `docker-compose up -d game` + browser screenshot at `http://localhost:5173` confirmed all 6
+  default-loadout slots render a distinct icon: `arc_lance`/`thunder_dome` (lightning bolt),
+  `flame_sweep`/`magma_lance` (flame), `frost_nova` (ice crystal), `stone_spike` (rock cluster)
+  -- `arc_lance` and `stone_spike` specifically now read as visibly different at a glance,
+  which is the exact bug this ticket reports. No console errors during the session.
+
+**Verification-rationale (ADR-0001):** typecheck/test/build/screenshot together prove the icons
+load without a runtime error, render at the correct position/size in every slot, and that the
+element-to-icon mapping is correct for the shipped default loadout -- the class of bug this
+change could plausibly introduce (wrong texture key, a slot rect miscalculation, a load-order
+race between `preload`/`create`) is exactly what a clean build plus an actual rendered
+screenshot rules out, not merely a clean compile. What this verification does **not** prove, and
+is explicitly left to human review: (1) license compliance sign-off for the 4 hand-authored
+PNGs -- per this agent's own standing rule, that check is human-only regardless of how the
+asset was produced; (2) aesthetic fit / whether these specific silhouettes and colors read well
+against the rest of the game's art direction once a developer looks at them outside a
+screenshot; (3) whether element-level granularity is the right long-term call once more spells
+ship, per this entry's own granularity-decision framing above.
+
+Sign-off status: **pending human developer review** -- both on the 4 hand-authored icon files
+themselves (asset-quality/fit judgment) and as a compliance formality (no external license to
+verify since nothing was copied from a third-party source, but per this agent's own rule an
+asset is never self-certified as compliant, hand-authored or not).
