@@ -414,6 +414,40 @@ export class SpellroadScene extends Phaser.Scene {
     // clean generation/phase, not one inherited from the previous run.
     this.session = new WaveSession();
 
+    // backlog 5.8 follow-up — developer playtest, 2026-08-04: "Quit to Title" -> "New Game"
+    // rendered the road fully black (only the mage/enemies/spells/text showed) on the second
+    // playthrough. Root cause: before 5.8 added a real Quit-to-Title/New-Game restart path,
+    // `create()` only ever ran once per page load, so every mutable field below that isn't
+    // reassigned above (the `new HealthSystem()`/etc. block, and the `waves`/`equippedSpells`
+    // assignments) silently carried its value across a `scene.start("SpellroadScene")` restart
+    // instead of resetting — Phaser reuses the same Scene instance across `start()` calls, it
+    // does not recreate the class from scratch. `renderedLevel` (the tile-art re-render guard,
+    // `renderLevelArt`) is the one that visibly broke: it survived from the previous life at
+    // whatever level the player last reached, so the fresh scene's first `startWave(0)` ->
+    // `renderLevelArt(1)` call saw `renderedLevel` already at some non-zero value and, if that
+    // value happened to be 1 (the common case — most restarts happen after dying or quitting
+    // on Level 1), skipped building a tile layer entirely, leaving only the near-black
+    // `createRoad()` placeholder rect visible. `highestLevelReached` has the same latent bug
+    // with no visible symptom yet: `hexcoin.markLevelStart()` only fires the first time a
+    // level number is crossed, so a stale non-zero value from a deeper previous run would
+    // silently skip re-arming the Hexcoin floor on the level the new run actually starts at.
+    // Reset every field here that this same class of bug can reach, not just the one that
+    // happened to be visible, matching the precedent the `session` reset above already set.
+    this.renderedLevel = 0;
+    this.currentLevelTilemap = undefined;
+    this.currentLevelLayer = undefined;
+    this.enemies = [];
+    this.enemiesRemainingToSpawn = 0;
+    this.waveIndex = 0;
+    this.highestLevelReached = 0;
+    this.bossMaxRecoveries = 0;
+    this.previewSpellId = null;
+    this.previewLockedEnemy = null;
+    this.phaseChoiceListeners = null;
+    this.lastFacing = new Phaser.Math.Vector2(1, 0);
+    this.lastPointerActivityAt = null;
+    this.messageClearAt = 0;
+
     this.createRoad();
     this.createMage();
     this.createHud();
