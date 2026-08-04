@@ -1,12 +1,12 @@
 import Phaser from "phaser";
-import type { DebuffVariant, MasteryTier, SpellDefinition, WaveDefinition } from "../data/types";
+import type { AoEShape, DebuffVariant, Element, MasteryTier, SpellDefinition, WaveDefinition } from "../data/types";
 import { HealthSystem, MAX_HP } from "../systems/HealthSystem";
 import { ManaSystem, MANA_REGEN_PER_SEC, MAX_MANA } from "../systems/ManaSystem";
 import { MasterySystem } from "../systems/MasterySystem";
 import { HexcoinSystem, FEE_PHASE_RECOVERY, PHASE_RECOVERY_HP_FRACTION, MAX_RECOVERIES_HARD_CAP } from "../systems/HexcoinSystem";
 import { DebuffSystem } from "../systems/DebuffSystem";
 import { computeDebuffMagnitude, formatDebuffHudLines } from "../systems/debuffDisplay";
-import { archetypeDisplayName } from "../systems/enemyStatusOverlay";
+import { archetypeDisplayName, computeHpBarColor, computeHpFraction } from "../systems/enemyStatusOverlay";
 import { SpellCaster, SHAPE_GEOMETRY } from "../entities/SpellCaster";
 import { Enemy, ARCHETYPE_DAMAGE } from "../entities/Enemy";
 import { spawnWave } from "../systems/WaveLoader";
@@ -144,6 +144,54 @@ const HOTBAR_ICON_SIZE = 40;
 const HOTBAR_ICON_PADDING = 8;
 /** backlog 2.9 — hit-feedback color bands, keyed off the target's *remaining* HP% after the hit (not an HP bar, per the developer's clash concern with per-enemy bars). */
 const DAMAGE_NUMBER_COLOR = { healthy: "#4caf50", wounded: "#f4c430", critical: "#e05252" } as const;
+/** backlog 2.37 / issue #80 — developer playtest: "Not enough Mana" reads as flat gold-on-dark
+ * text identical to every other transient flashMessage (a Level-up beat, a level transition
+ * banner), so a rejection warning has no visual weight of its own and gets lost mid-combat.
+ * `flashMessage`'s `emphasis` param (default vs warning) swaps color + gives the warning case an
+ * opaque background panel (the default case stays fully transparent, matching every other
+ * existing flashMessage call site's prior look exactly, so this is additive, not a redesign of
+ * the shared banner). */
+const MESSAGE_DEFAULT_COLOR = "#f3e7c2";
+const MESSAGE_WARNING_COLOR = "#ffb4a8";
+const MESSAGE_WARNING_BG = "#4a1f1f";
+/** backlog 2.33 / issue #76 — developer full playtest of #30: "add floating HP/Mana status
+ * bars above the player (Tibia-style)". `Enemy.ts` already draws exactly this pattern per
+ * enemy (backlog 2.19); this reuses that same fraction/color arithmetic
+ * (`enemyStatusOverlay.ts`'s `computeHpFraction`/`computeHpBarColor`, both generic ratio
+ * helpers despite the module's enemy-facing name) rather than inventing a second one. Sized a
+ * little wider than `Enemy.ts`'s 28px (the mage's 32x32 sprite vs. an enemy's 26x26) and offset
+ * further up so two stacked bars (HP then Mana) both clear the sprite's top edge.
+ * `PLAYER_MANA_BAR_COLOR` is a single fixed tone rather than banded: Mana running low isn't a
+ * danger signal the way HP is (no death is triggered by 0 Mana), so a red "critical" band would
+ * misread as a threat that isn't there. */
+const PLAYER_STATUS_BAR_WIDTH = 36;
+const PLAYER_STATUS_BAR_HEIGHT = 5;
+const PLAYER_STATUS_BAR_GAP = 3;
+const PLAYER_STATUS_BAR_HP_OFFSET_Y = -30;
+const PLAYER_MANA_BAR_COLOR = 0x4a90d9;
+/** backlog 2.36 / issue #79 — developer full playtest of #30: "spell casts/impacts have no
+ * visual effect — combat reads as flat now that the full engine loop is confirmed working
+ * end to end." Scoped to the ticket's own floor: one lightweight flash per AoE shape at cast
+ * time (`spawnCastEffect`) plus a small burst at each individual hit (`spawnImpactBurst`), not
+ * a full particle/VFX subsystem. Tinted by the spell's own element (`spellIcons.ts` already
+ * establishes fire/ice/lightning/earth as this project's visual-identity axis for a spell, via
+ * the hotbar icon — reusing that same axis here rather than inventing a second color scheme). */
+const ELEMENT_EFFECT_COLOR: Record<Element, number> = {
+  fire: 0xff6b3d,
+  ice: 0x7fd8f0,
+  lightning: 0xf5e14a,
+  earth: 0x8a6b3d
+};
+const CAST_EFFECT_DURATION_MS = 220;
+const IMPACT_BURST_DURATION_MS = 260;
+/** backlog 2.35 / issue #78 — developer full playtest of #30: add an onboarding prompt
+ * explaining hotbar targeting. Sized to the ticket's own floor (a one-time overlay/hint), not
+ * a full tutorial system — see the ticket's own note that this may later fold into the
+ * Boot/Title scene work (5.8) instead; kept standalone here since 5.8's own scope (scene flow,
+ * not in-gameplay teaching copy) doesn't have a natural slot for combat-specific instructions. */
+const ONBOARDING_HINT_TEXT =
+  "Press 1-6 to aim a spell.\nPress it again (or click) to fire — Esc or right-click cancels.";
+const ONBOARDING_HINT_FALLBACK_MS = 9000;
 /** backlog 2.10 — the lane rectangle the mage and (per this fix) enemies are both clamped
  * to, and the shape preview is visually clipped to via a geometry mask. Hit-tests don't
  * need their own separate clip: once enemies can't exist outside this rect, there's
@@ -201,6 +249,12 @@ const POINTER_JITTER_THRESHOLD_PX = 4;
 
 export class SpellroadScene extends Phaser.Scene {
   private mage?: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
+  /** backlog 2.33 / issue #76 — floating HP/Mana bars above the mage, redrawn every frame in
+   * `updatePlayerStatusBars`. Given `UI_DEPTH` (not left at the default depth `Enemy.ts`'s own
+   * equivalent overlay uses) so a melee enemy standing on top of the mage during a pile-up
+   * can't paint over the player's own status readout — the same reasoning Heckler's 2026-08-02
+   * critique already applied to every other persistent HUD element (see `UI_DEPTH`'s comment). */
+  private playerStatusBar?: Phaser.GameObjects.Graphics;
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private keys?: Record<"W" | "A" | "S" | "D", Phaser.Input.Keyboard.Key>;
   private hotbarKeys: Phaser.Input.Keyboard.Key[] = [];
@@ -284,6 +338,14 @@ export class SpellroadScene extends Phaser.Scene {
    * `spawnDebuffPulse` visual rather than replacing it. Empty string (no visible line) while
    * `this.debuff` has no active stacks. */
   private debuffText?: Phaser.GameObjects.Text;
+  /** backlog 2.35 / issue #78 — one-time onboarding hint explaining hotbar targeting (1-6
+   * arms a spell, press/click again to confirm-fire, or Esc/right-click to cancel). Shown once
+   * per run; dismissed the first time the player actually arms a spell (`handleHotbarPress`,
+   * the natural "I get it now" signal) or after a fixed fallback delay, whichever comes first —
+   * see `dismissOnboardingHint`'s own comment for why both triggers exist. `undefined` once
+   * dismissed (destroyed, not just hidden) so `dismissOnboardingHint` is a cheap no-op on every
+   * later hotbar press. */
+  private onboardingHintText?: Phaser.GameObjects.Text;
 
   // backlog 3.8 (issue #29) — the currently-rendered level's real Tiled layout, swapped at
   // every level transition (see `renderLevelArt`). `renderedLevel` starts at 0 (no level is
@@ -371,9 +433,15 @@ export class SpellroadScene extends Phaser.Scene {
     this.updateEnemies(deltaMs);
     this.updatePreview();
     this.updateHud();
+    this.updatePlayerStatusBars();
 
     if (this.messageText && this.time.now > this.messageClearAt) {
       this.messageText.setText("");
+      // backlog 2.37 — an expired warning banner's background panel must not linger (even
+      // invisibly) onto whatever plain message shows next; `flashMessage` also resets this on
+      // every new call, but clearing it here too means an empty banner is never left mid-style.
+      this.messageText.setBackgroundColor("");
+      this.messageText.setColor(MESSAGE_DEFAULT_COLOR);
     }
   }
 
@@ -444,6 +512,9 @@ export class SpellroadScene extends Phaser.Scene {
     graphics.destroy();
 
     this.mage.setTexture("mage-placeholder");
+
+    this.playerStatusBar = this.add.graphics();
+    this.playerStatusBar.setDepth(UI_DEPTH);
   }
 
   private createHud(): void {
@@ -518,9 +589,10 @@ export class SpellroadScene extends Phaser.Scene {
     );
 
     this.messageText = this.add.text(480, 400, "", {
-      color: "#f3e7c2",
+      color: MESSAGE_DEFAULT_COLOR,
       fontFamily: "Georgia, serif",
-      fontSize: "20px"
+      fontSize: "20px",
+      padding: { x: 10, y: 6 }
     });
     this.messageText.setOrigin(0.5, 0.5);
     this.messageText.setDepth(UI_DEPTH);
@@ -557,6 +629,20 @@ export class SpellroadScene extends Phaser.Scene {
     });
     this.debuffText.setOrigin(1, 0);
     this.debuffText.setDepth(UI_DEPTH);
+
+    // backlog 2.35 / issue #78 — centered in the upper lane, clear of the hotbar row below
+    // and the top-left/top-right HUD corners, so it doesn't compete with any always-on element.
+    this.onboardingHintText = this.add.text(CANVAS_WIDTH / 2, ROAD_TOP + 40, ONBOARDING_HINT_TEXT, {
+      color: "#f3e7c2",
+      fontFamily: "monospace",
+      fontSize: "14px",
+      align: "center",
+      backgroundColor: "#1c1330",
+      padding: { x: 14, y: 10 }
+    });
+    this.onboardingHintText.setOrigin(0.5, 0);
+    this.onboardingHintText.setDepth(UI_DEPTH);
+    this.time.delayedCall(ONBOARDING_HINT_FALLBACK_MS, () => this.dismissOnboardingHint());
 
     this.previewGraphics = this.add.graphics();
     // backlog 2.10 — clip the shape preview to the lane rectangle so line/cone/circle
@@ -606,7 +692,21 @@ export class SpellroadScene extends Phaser.Scene {
       }
     });
 
-    this.input.keyboard?.on("keydown-ESC", () => this.cancelPreview());
+    // backlog 5.8 / the 2026-08-01 boot-title-pause design spec, decision 4 — Esc is
+    // contextual with the existing preview-cancel binding: an active spell preview cancels
+    // first (unchanged), otherwise Esc opens the hard-pause menu. `scene.pause()` freezes this
+    // scene's own `update()` (enemies, wave timers, Mana regen all stop) while `PauseScene`
+    // renders on top, un-paused, and owns Resume/Quit-to-Title from here on — this scene's own
+    // input listeners stop firing once paused, so there is no risk of this same handler
+    // double-triggering a second pause launch.
+    this.input.keyboard?.on("keydown-ESC", () => {
+      if (this.previewSpellId) {
+        this.cancelPreview();
+        return;
+      }
+      this.scene.pause();
+      this.scene.launch("PauseScene", { gameplaySceneKey: "SpellroadScene" });
+    });
   }
 
   // ----- movement -----
@@ -673,6 +773,10 @@ export class SpellroadScene extends Phaser.Scene {
     if (!this.mage) {
       return;
     }
+    // backlog 2.35 / issue #78 — any hotbar press at all is the "the player is engaging with
+    // the hotbar" signal, whether or not that slot holds a spell; dismissing here rather than
+    // only after a successful arm covers the case of tapping toward an empty slot first.
+    this.dismissOnboardingHint();
     const spell = this.equippedSpells[index];
     if (!spell) {
       return;
@@ -694,7 +798,7 @@ export class SpellroadScene extends Phaser.Scene {
     // `confirmCast` already uses for the same underlying reason (`this.mana.canAfford`
     // via `SpellCaster.canAffordCast`, which never mutates the Mana pool).
     if (!this.caster.canAffordCast(spell)) {
-      this.flashMessage("Not enough Mana", 500);
+      this.flashMessage("Not enough Mana", 900, "warning");
       return;
     }
     this.previewSpellId = spell.id;
@@ -727,9 +831,14 @@ export class SpellroadScene extends Phaser.Scene {
 
     const result = this.caster.tryCast(spell, this.mage.x, this.mage.y, targetX, targetY);
     if (!result) {
-      this.flashMessage("Not enough Mana", 500);
+      this.flashMessage("Not enough Mana", 900, "warning");
       return;
     }
+
+    // backlog 2.36 / issue #79 — the cast itself gets a visual beat regardless of whether it
+    // lands a hit (a whiff should still visibly confirm the spell fired), fired once here
+    // rather than per-enemy inside the hit loop below.
+    this.spawnCastEffect(spell, targetX, targetY);
 
     let hits = 0;
     let kills = 0;
@@ -745,6 +854,7 @@ export class SpellroadScene extends Phaser.Scene {
       const enemyY = enemy.y;
       const killed = enemy.takeDamage(result.power);
       this.spawnDamageNumber(enemyX, enemyY, result.power, enemy.hp, enemy.maxHp);
+      this.spawnImpactBurst(enemyX, enemyY, ELEMENT_EFFECT_COLOR[spell.element]);
       if (killed) {
         this.removeEnemy(enemy);
         this.hexcoin.earn(1);
@@ -764,6 +874,52 @@ export class SpellroadScene extends Phaser.Scene {
     }
   }
 
+  /** backlog 2.36 / issue #79 — shared mage-to-target shape geometry between the live preview
+   * (`updatePreview`) and the one-shot cast-effect flash (`spawnCastEffect`): both need
+   * identical line/cone/circle math, differing only in which `Graphics` object and fill/stroke
+   * style is active when it runs. Draws into whatever style the caller already set on
+   * `graphics` — this method only computes and traces geometry, never touches style, so a
+   * translucent preview and an opaque flash can share it without either dictating the other's
+   * look. */
+  private traceAoEShape(
+    graphics: Phaser.GameObjects.Graphics,
+    shape: AoEShape,
+    originX: number,
+    originY: number,
+    targetX: number,
+    targetY: number
+  ): void {
+    const direction = new Phaser.Math.Vector2(targetX - originX, targetY - originY);
+    if (direction.length() === 0) {
+      direction.x = 1;
+    }
+    direction.normalize();
+
+    if (shape === "line") {
+      const angle = Math.atan2(direction.y, direction.x);
+      graphics.save();
+      graphics.translateCanvas(originX, originY);
+      graphics.rotateCanvas(angle);
+      graphics.fillRect(0, -SHAPE_GEOMETRY.LINE_WIDTH / 2, SHAPE_GEOMETRY.LINE_LENGTH, SHAPE_GEOMETRY.LINE_WIDTH);
+      graphics.strokeRect(0, -SHAPE_GEOMETRY.LINE_WIDTH / 2, SHAPE_GEOMETRY.LINE_LENGTH, SHAPE_GEOMETRY.LINE_WIDTH);
+      graphics.restore();
+    } else if (shape === "cone") {
+      const facing = Math.atan2(direction.y, direction.x);
+      const half = Phaser.Math.DegToRad(SHAPE_GEOMETRY.CONE_HALF_ANGLE_DEG);
+      graphics.slice(originX, originY, SHAPE_GEOMETRY.CONE_RADIUS, facing - half, facing + half, false);
+      graphics.fillPath();
+      graphics.strokePath();
+    } else {
+      const distance = Math.min(
+        Phaser.Math.Distance.Between(originX, originY, targetX, targetY),
+        SHAPE_GEOMETRY.CIRCLE_MAX_PLACEMENT_RANGE
+      );
+      const center = new Phaser.Math.Vector2(originX, originY).add(direction.clone().scale(distance));
+      graphics.fillCircle(center.x, center.y, SHAPE_GEOMETRY.CIRCLE_RADIUS);
+      graphics.strokeCircle(center.x, center.y, SHAPE_GEOMETRY.CIRCLE_RADIUS);
+    }
+  }
+
   private updatePreview(): void {
     if (!this.previewGraphics) {
       return;
@@ -777,57 +933,10 @@ export class SpellroadScene extends Phaser.Scene {
       return;
     }
     const aim = this.currentAimPoint();
-    const direction = new Phaser.Math.Vector2(aim.x - this.mage.x, aim.y - this.mage.y);
-    if (direction.length() === 0) {
-      direction.x = 1;
-    }
-    direction.normalize();
 
     this.previewGraphics.fillStyle(0x8fd3ff, 0.28);
     this.previewGraphics.lineStyle(2, 0x8fd3ff, 0.8);
-
-    if (spell.shape === "line") {
-      const angle = Math.atan2(direction.y, direction.x);
-      this.previewGraphics.save();
-      this.previewGraphics.translateCanvas(this.mage.x, this.mage.y);
-      this.previewGraphics.rotateCanvas(angle);
-      this.previewGraphics.fillRect(
-        0,
-        -SHAPE_GEOMETRY.LINE_WIDTH / 2,
-        SHAPE_GEOMETRY.LINE_LENGTH,
-        SHAPE_GEOMETRY.LINE_WIDTH
-      );
-      this.previewGraphics.strokeRect(
-        0,
-        -SHAPE_GEOMETRY.LINE_WIDTH / 2,
-        SHAPE_GEOMETRY.LINE_LENGTH,
-        SHAPE_GEOMETRY.LINE_WIDTH
-      );
-      this.previewGraphics.restore();
-    } else if (spell.shape === "cone") {
-      const facing = Math.atan2(direction.y, direction.x);
-      const half = Phaser.Math.DegToRad(SHAPE_GEOMETRY.CONE_HALF_ANGLE_DEG);
-      this.previewGraphics.slice(
-        this.mage.x,
-        this.mage.y,
-        SHAPE_GEOMETRY.CONE_RADIUS,
-        facing - half,
-        facing + half,
-        false
-      );
-      this.previewGraphics.fillPath();
-      this.previewGraphics.strokePath();
-    } else {
-      const distance = Math.min(
-        Phaser.Math.Distance.Between(this.mage.x, this.mage.y, aim.x, aim.y),
-        SHAPE_GEOMETRY.CIRCLE_MAX_PLACEMENT_RANGE
-      );
-      const center = new Phaser.Math.Vector2(this.mage.x, this.mage.y).add(
-        direction.clone().scale(distance)
-      );
-      this.previewGraphics.fillCircle(center.x, center.y, SHAPE_GEOMETRY.CIRCLE_RADIUS);
-      this.previewGraphics.strokeCircle(center.x, center.y, SHAPE_GEOMETRY.CIRCLE_RADIUS);
-    }
+    this.traceAoEShape(this.previewGraphics, spell.shape, this.mage.x, this.mage.y, aim.x, aim.y);
 
     // backlog 2.22 / issue #44 — highlight the auto-aim soft-locked enemy, if any, on top
     // of the shape preview above.
@@ -1129,6 +1238,47 @@ export class SpellroadScene extends Phaser.Scene {
     });
   }
 
+  /** backlog 2.36 / issue #79 — a one-shot flash of the actual cast shape (line/cone/circle),
+   * tinted by the spell's element, fading out fast. Reuses `updatePreview`'s own
+   * mage-to-target geometry (angle/distance math), drawn once on a fresh `Graphics` instead of
+   * the persistent, cleared-every-frame `previewGraphics` this shares its shape logic with. */
+  private spawnCastEffect(spell: SpellDefinition, targetX: number, targetY: number): void {
+    if (!this.mage) {
+      return;
+    }
+    const color = ELEMENT_EFFECT_COLOR[spell.element];
+    const flash = this.add.graphics();
+    flash.fillStyle(color, 0.55);
+    flash.lineStyle(2, color, 0.9);
+    this.traceAoEShape(flash, spell.shape, this.mage.x, this.mage.y, targetX, targetY);
+
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      duration: CAST_EFFECT_DURATION_MS,
+      ease: "Cubic.Out",
+      onComplete: () => flash.destroy()
+    });
+  }
+
+  /** backlog 2.36 / issue #79 — a small expanding+fading burst at each individual hit,
+   * layered alongside the existing floating damage number (backlog 2.9) rather than
+   * replacing it — the number carries the amount, this carries the "something just hit"
+   * beat, tinted by the same per-element color `spawnCastEffect` uses for the same cast. */
+  private spawnImpactBurst(x: number, y: number, color: number): void {
+    const burst = this.add.circle(x, y, 4, color, 0.5);
+    burst.setStrokeStyle(2, color, 1);
+    this.tweens.add({
+      targets: burst,
+      radius: 18,
+      alpha: 0,
+      duration: IMPACT_BURST_DURATION_MS,
+      ease: "Cubic.Out",
+      onUpdate: () => burst.setStrokeStyle(2, color, burst.alpha),
+      onComplete: () => burst.destroy()
+    });
+  }
+
   /** backlog 2.13 — a Debuffer's pulse previously applied its stack with zero visible
    * signal at all (unlike melee/ranged, it has no HP consequence, so nothing else hinted a
    * debuff had just landed). A brief expanding ring at the Debuffer, tinted by variant. */
@@ -1145,6 +1295,41 @@ export class SpellroadScene extends Phaser.Scene {
       onUpdate: () => ring.setStrokeStyle(2, color, ring.alpha),
       onComplete: () => ring.destroy()
     });
+  }
+
+  /** backlog 2.33 / issue #76 — redraws the mage's HP/Mana bars every frame, same seam
+   * convention as `Enemy.ts`'s `refreshStatusOverlay` (the fraction/color arithmetic is the
+   * pure, already-tested part; this method is purely the Phaser-side drawing). Two segments
+   * stacked above the sprite: HP on top (banded, matches the floating damage-number colors —
+   * backlog 2.9), Mana below it (single fixed tone — see `PLAYER_MANA_BAR_COLOR`'s comment). */
+  private updatePlayerStatusBars(): void {
+    if (!this.mage || !this.playerStatusBar) {
+      return;
+    }
+    const barX = this.mage.x - PLAYER_STATUS_BAR_WIDTH / 2;
+    const hpY = this.mage.y + PLAYER_STATUS_BAR_HP_OFFSET_Y;
+    const manaY = hpY + PLAYER_STATUS_BAR_HEIGHT + PLAYER_STATUS_BAR_GAP;
+
+    const hpFraction = computeHpFraction(this.health.current, MAX_HP);
+    const manaFraction = computeHpFraction(this.mana.current, MAX_MANA);
+
+    this.playerStatusBar.clear();
+    this.drawPlayerStatusSegment(barX, hpY, hpFraction, computeHpBarColor(hpFraction));
+    this.drawPlayerStatusSegment(barX, manaY, manaFraction, PLAYER_MANA_BAR_COLOR);
+  }
+
+  private drawPlayerStatusSegment(x: number, y: number, fraction: number, fillColor: number): void {
+    if (!this.playerStatusBar) {
+      return;
+    }
+    this.playerStatusBar.fillStyle(0x14161f, 0.85);
+    this.playerStatusBar.fillRect(x, y, PLAYER_STATUS_BAR_WIDTH, PLAYER_STATUS_BAR_HEIGHT);
+    if (fraction > 0) {
+      this.playerStatusBar.fillStyle(fillColor, 1);
+      this.playerStatusBar.fillRect(x, y, PLAYER_STATUS_BAR_WIDTH * fraction, PLAYER_STATUS_BAR_HEIGHT);
+    }
+    this.playerStatusBar.lineStyle(1, 0x000000, 0.6);
+    this.playerStatusBar.strokeRect(x, y, PLAYER_STATUS_BAR_WIDTH, PLAYER_STATUS_BAR_HEIGHT);
   }
 
   // ----- death -----
@@ -1217,8 +1402,34 @@ export class SpellroadScene extends Phaser.Scene {
 
   // ----- hud -----
 
-  private flashMessage(text: string, durationMs: number): void {
-    this.messageText?.setText(text);
+  /** backlog 2.35 / issue #78 — idempotent (checks the field, not a separate boolean) so
+   * either dismiss trigger (first hotbar press, or the fallback timer) can call this safely
+   * regardless of which one fires first. */
+  private dismissOnboardingHint(): void {
+    if (!this.onboardingHintText) {
+      return;
+    }
+    this.onboardingHintText.destroy();
+    this.onboardingHintText = undefined;
+  }
+
+  /** @param emphasis "warning" gives the banner a distinct color + opaque background panel
+   * (backlog 2.37 / issue #80) instead of the default plain colored text over the gameplay
+   * canvas — reserved for rejection messages the player needs to notice mid-combat, not every
+   * flashMessage (a Level-up beat or a level-transition banner has no legibility complaint on
+   * record and keeps its prior look unchanged). */
+  private flashMessage(text: string, durationMs: number, emphasis: "default" | "warning" = "default"): void {
+    if (!this.messageText) {
+      return;
+    }
+    this.messageText.setText(text);
+    if (emphasis === "warning") {
+      this.messageText.setColor(MESSAGE_WARNING_COLOR);
+      this.messageText.setBackgroundColor(MESSAGE_WARNING_BG);
+    } else {
+      this.messageText.setColor(MESSAGE_DEFAULT_COLOR);
+      this.messageText.setBackgroundColor("");
+    }
     this.messageClearAt = this.time.now + durationMs;
   }
 

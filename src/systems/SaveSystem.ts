@@ -32,6 +32,16 @@ export function defaultSave(): SaveBlob {
   };
 }
 
+/** backlog 5.8 — Title scene's "Continue" vs. "New Game only" choice (see the 2026-08-01
+ * boot-title-pause design spec) needs to know whether a save exists at all, distinct from
+ * `loadSave`'s always-succeeds-with-a-default behavior. A raw key check rather than
+ * `loadSave(...).schemaVersion` comparison, so a stale-schema blob still correctly reports
+ * "yes, something is there" (Title can still offer to load it, and `loadSave` decides
+ * separately whether that blob is usable or gets clean-reset). */
+export function hasSave(storage: Storage = localStorage): boolean {
+  return storage.getItem(SAVE_KEY) !== null;
+}
+
 /** Schema-version mismatch triggers a clean reset (Save Data And Persistence, GDD) — no silent migration attempt. */
 export function loadSave(storage: Storage = localStorage): SaveBlob {
   const raw = storage.getItem(SAVE_KEY);
