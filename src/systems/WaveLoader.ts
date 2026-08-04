@@ -42,7 +42,9 @@ export function spawnWave(
           spawnPoint.y + jitterY,
           registryEntry.archetype,
           registryEntry.debuffVariant ?? "speed",
-          laneRect
+          laneRect,
+          wave.hp_modifier,
+          wave.damage_modifier
         );
         onSpawn(enemy);
       });
