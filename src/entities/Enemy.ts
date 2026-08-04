@@ -107,6 +107,10 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   public readonly archetype: EnemyArchetype;
   public readonly maxHp: number;
   public hp: number;
+  /** Issue #71 — the spawning wave's `damage_modifier`, applied by the scene's own damage
+   * callbacks (`ARCHETYPE_DAMAGE[archetype] * enemy.damageModifier`) rather than here, since
+   * `ARCHETYPE_DAMAGE` is a flat per-archetype constant read at hit time, not per-enemy state. */
+  public readonly damageModifier: number;
   private attackCooldownMs = 0;
   private readonly debuffVariant: DebuffVariant;
   /** backlog 2.19 / issue #26 — sibling GameObjects, not children of this Sprite (Phaser
@@ -122,12 +126,17 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     y: number,
     archetype: EnemyArchetype,
     debuffVariant: DebuffVariant = "speed",
-    private readonly lane: Phaser.Geom.Rectangle = new Phaser.Geom.Rectangle(0, 0, Infinity, Infinity)
+    private readonly lane: Phaser.Geom.Rectangle = new Phaser.Geom.Rectangle(0, 0, Infinity, Infinity),
+    /** Issue #71 — `WaveDefinition.hp_modifier`/`.damage_modifier`, previously authored but
+     * never read. Defaults to 1 (unscaled) so every existing call site stays correct as-is. */
+    hpModifier = 1,
+    damageModifier = 1
   ) {
     super(scene, x, y, Enemy.ensureTexture(scene, archetype));
     this.archetype = archetype;
-    this.maxHp = PLACEHOLDER_ENEMY_HP[archetype];
+    this.maxHp = Math.round(PLACEHOLDER_ENEMY_HP[archetype] * hpModifier);
     this.hp = this.maxHp;
+    this.damageModifier = damageModifier;
     this.debuffVariant = debuffVariant;
     this.attackCooldownMs = Phaser.Math.Between(
       0,

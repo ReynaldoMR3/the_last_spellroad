@@ -6,7 +6,8 @@
     "weight": "light",
     "base_power": 3,
     "base_targets": 2,
-    "master_discount": "cooldown"
+    "master_discount": "cooldown",
+    "default_loadout_slot": 1
   },
   {
     "id": "flame_sweep",
@@ -15,7 +16,8 @@
     "weight": "standard",
     "base_power": 5,
     "base_targets": 2,
-    "master_discount": "cost"
+    "master_discount": "cost",
+    "default_loadout_slot": 2
   },
   {
     "id": "frost_nova",
@@ -24,7 +26,8 @@
     "weight": "heavy",
     "base_power": 7,
     "base_targets": 3,
-    "master_discount": "cooldown"
+    "master_discount": "cooldown",
+    "default_loadout_slot": 3
   },
   {
     "id": "stone_spike",
@@ -33,7 +36,8 @@
     "weight": "light",
     "base_power": 4,
     "base_targets": 1,
-    "master_discount": "cooldown"
+    "master_discount": "cooldown",
+    "default_loadout_slot": 4
   },
   {
     "id": "flare_jab",
@@ -78,7 +82,8 @@
     "weight": "standard",
     "base_power": 5,
     "base_targets": 4,
-    "master_discount": "cooldown"
+    "master_discount": "cooldown",
+    "default_loadout_slot": 5
   },
   {
     "id": "magma_lance",
@@ -87,7 +92,8 @@
     "weight": "heavy",
     "base_power": 9,
     "base_targets": 1,
-    "master_discount": "cost"
+    "master_discount": "cost",
+    "default_loadout_slot": 6
   },
   {
     "id": "frost_breath",

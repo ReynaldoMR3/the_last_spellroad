@@ -10,6 +10,9 @@ import { archetypeDisplayName } from "../systems/enemyStatusOverlay";
 import { SpellCaster, SHAPE_GEOMETRY } from "../entities/SpellCaster";
 import { Enemy, ARCHETYPE_DAMAGE } from "../entities/Enemy";
 import { spawnWave } from "../systems/WaveLoader";
+import { ENEMY_REGISTRY } from "../data/enemyRegistry";
+import { countSpawnableEnemies } from "../systems/waveEnemyCounts";
+import { selectDefaultLoadout } from "../systems/defaultLoadout";
 import { selectAutoAimTarget } from "../systems/autoAim";
 import { isStillInRangedImpactZone } from "../systems/rangedImpact";
 import { WaveSession, canResolvePhaseChoice, shouldAutoAdvance } from "../systems/waveSession";
@@ -124,8 +127,10 @@ const HOTBAR_BORDER_READY_COLOR = 0x4caf50;
 const HOTBAR_BORDER_COOLDOWN_COLOR = 0x55597a;
 /** A loadout shorter than 6 spells renders its remaining slots as an empty numbered outline
  * (this color) rather than leaving them blank/ambiguous about whether that hotkey does
- * anything. Not reachable with the current fixed 6-spell `DEFAULT_LOADOUT_IDS`, but
- * `equippedSpells`/`HOTBAR_KEYS` don't guarantee equal length, so handled rather than assumed. */
+ * anything. Not reachable with the shipped `spells.json` (exactly 6 spells carry a
+ * `default_loadout_slot`), but `equippedSpells`/`HOTBAR_KEYS` don't guarantee equal length —
+ * a future re-curation with fewer than 6 slotted spells is real data, not just a hypothetical
+ * — so handled rather than assumed. */
 const HOTBAR_BORDER_EMPTY_COLOR = 0x33364a;
 /** backlog 2.30 / issue #56 — per-slot spell icon (Tilesmith, hand-authored, one per element:
  * fire/ice/lightning/earth, see `spellIcons.ts`'s own comment for why element-level granularity
@@ -181,10 +186,13 @@ const AUTO_AIM_HIGHLIGHT_RADIUS = 20;
 /** backlog 3.1 fix (Heckler, 2026-07-25): `slice(0, 6)` on spell-authoring order silently
  * orphaned all 3 Heavy spells and 2 of 3 Standard ones behind no swap UI — exactly the
  * spells the new Level 2/3 escalation assumes are reachable. Curated instead: 2 per
- * weight class, spanning shape and element as widely as 6 slots allow. Full loadout
- * selection is still explicitly future work (see HOTBAR_KEYS comment) — this is only a
- * better fixed default, not that feature. */
-const DEFAULT_LOADOUT_IDS = ["arc_lance", "flame_sweep", "frost_nova", "stone_spike", "thunder_dome", "magma_lance"];
+ * weight class, spanning shape and element as widely as 6 slots allow.
+ *
+ * Issue #71 — that curation now lives in data (`default_loadout_slot` on each spell in
+ * `spells.json`, selected by `systems/defaultLoadout.ts`) instead of this file's own hardcoded
+ * ID array, so Frieren can re-curate it without an engine change. Full player-facing loadout
+ * *selection/swapping* between expeditions is still explicitly future work (see HOTBAR_KEYS
+ * comment) — this only moves which six spells start equipped, not that feature. */
 /** backlog 2.10 fix (Heckler, 2026-07-25): a plain "has the pointer ever moved" boolean
  * never resets, so an incidental trackpad jitter (common — resting a finger, OS cursor
  * accel) permanently defeats the fallback it was built for. A single pointermove event
@@ -316,11 +324,10 @@ export class SpellroadScene extends Phaser.Scene {
 
   create(): void {
     this.spells = this.cache.json.get("spells") as SpellDefinition[];
-    // Fixed default loadout (see HOTBAR_KEYS/DEFAULT_LOADOUT_IDS comments) — a curated
-    // 2-per-weight-class set, not just the first N in file order.
-    this.equippedSpells = DEFAULT_LOADOUT_IDS.map((id) => this.spells.find((s) => s.id === id)).filter(
-      (s): s is SpellDefinition => s !== undefined
-    );
+    // Fixed default loadout (see HOTBAR_KEYS comment) — data-driven via each spell's own
+    // `default_loadout_slot` (issue #71), a curated 2-per-weight-class set authored in
+    // `spells.json`, not just the first N in file order.
+    this.equippedSpells = selectDefaultLoadout(this.spells);
     // backlog 3.3/3.8 — flatten all shipped levels into one sequential wave list; each
     // entry already carries its own `level`/`wave_index`, so no extra bookkeeping needed
     // to walk from Level 1's last wave straight into Level 2's first.
@@ -882,7 +889,12 @@ export class SpellroadScene extends Phaser.Scene {
     }
 
     this.debuff.clear();
-    this.enemiesRemainingToSpawn = wave.enemies.reduce((sum, e) => sum + e.count, 0);
+    // Issue #71 fix — was `wave.enemies.reduce((sum, e) => sum + e.count, 0)`, counting every
+    // authored entry including ones `spawnWave` silently skips for an unregistered `type`. That
+    // skip never called `onSpawn`, so the counter could never reach zero and the wave soft-locked
+    // permanently even after every spawnable enemy died. `countSpawnableEnemies` counts only
+    // entries `ENEMY_REGISTRY` actually recognizes, matching what `spawnWave` will really spawn.
+    this.enemiesRemainingToSpawn = countSpawnableEnemies(wave, ENEMY_REGISTRY);
     spawnWave(
       this,
       wave,
@@ -995,7 +1007,7 @@ export class SpellroadScene extends Phaser.Scene {
         continue;
       }
       enemy.update(deltaMs, this.mage.x, this.mage.y, {
-        onMeleeHit: () => this.health.applyDamage(ARCHETYPE_DAMAGE.melee),
+        onMeleeHit: () => this.health.applyDamage(Math.round(ARCHETYPE_DAMAGE.melee * enemy.damageModifier)),
         onRangedFire: (fromX, fromY, toX, toY) => {
           // Developer feedback (2026-07-27): no way to tell a non-melee hit is coming.
           // `EnemyCallbacks` already carried the shot's start/end coordinates — the scene
@@ -1018,7 +1030,7 @@ export class SpellroadScene extends Phaser.Scene {
               return;
             }
             if (isStillInRangedImpactZone(this.mage.x, this.mage.y, toX, toY)) {
-              this.health.applyDamage(ARCHETYPE_DAMAGE.ranged);
+              this.health.applyDamage(Math.round(ARCHETYPE_DAMAGE.ranged * enemy.damageModifier));
             }
           });
         },
@@ -1256,9 +1268,9 @@ export class SpellroadScene extends Phaser.Scene {
    * 2.14 (dropped the tier that used to also appear here — doesn't fit this row's width
    * alongside the rest, a legibility judgment call, not a data loss: Mastery tier is Pato's
    * number and still fully tracked, just not surfaced in this compact view).
-   * `equippedSpells.length < HOTBAR_KEYS.length` (not reachable with the current fixed
-   * `DEFAULT_LOADOUT_IDS`, but not assumed away either) renders the remainder as an empty
-   * numbered outline instead of leaving them blank. */
+   * `equippedSpells.length < HOTBAR_KEYS.length` (not reachable with the shipped `spells.json`,
+   * but not assumed away either) renders the remainder as an empty numbered outline instead of
+   * leaving them blank. */
   private updateHotbar(): void {
     if (!this.hotbarGraphics) {
       return;
