@@ -167,4 +167,26 @@ Per Ana's dispatch, my half of backlog 2.31 / issue #57 (Loomwright built the HU
 
 **Self-verify (docker-compose):** `npm run typecheck` clean, `npm test` — 9 test files / 75 tests passed (including the updated `enemyStatusOverlay.test.ts`, now 7 tests), `npm run build` clean (only the pre-existing >500kB chunk-size advisory, unrelated to this change).
 
+## 2026-08-04 — 4.9: First music brief, the mini-boss/Director trial (the Invigilator)
+
+Per Ana's dispatch (backlog item 4.9, unblocked same day as `docs/adr/0002-unblock-audio-scope-add-composer-agent.md`), my first briefing task under the new Composer role. Picking one already-shipped target and writing its mood/tempo/instrumentation brief for Composer to generate against.
+
+**Target chosen: the mini-boss/Director trial's combat loop — the music bed under the shipped 3-phase fight (`src/data/waves/boss-1.json`), not the intro/outro narration text itself (4.5, already logged above), which stays prose-only.** Reasoning: of the two example targets Ana's dispatch offered (a level opening, or the trial), the trial is the stronger first track for three reasons. First, it already carries the richest established tone anchor in this log — the Invigilator's intro/outro (4.5 entry above) gives Composer a fully-written fictional frame to score against, rather than a level opening that has no dedicated narration yet. Second, it's a single, bounded, already-numerically-locked encounter (3 phases / 2 phase-breaks, Warden's `boss-1.json`, Pato-validated) — one clear scene, not an ambiguous "which part of Level 1's opening" judgment call. Third, structurally a boss/trial track is exactly the kind of first-track investment that pays off regardless of which level ships more content later, since there is exactly one mini-boss per the vertical slice by design (GDD, Seven-Week Vertical Slice) — it will never be superseded by a second, different mini-boss track.
+
+**Mood:** melancholic-tense, not bombastic. The Invigilator "tests and grades rather than punishes out of cruelty" (per the 2026-07-30 intro/outro and the 2026-08-01(2) all-Novice framing already established in `lore-premise.md`) — this is a fight that should feel like being measured, not mauled. Keep the long-lived-mage's weary sorrow present even under combat pressure: dread and fatigue first, adrenaline second. Avoid genre-standard "epic orchestral boss" bombast (no bwah-bwah brass hits, no choir climax) — that tone belongs to a different kind of antagonist than a "too smooth, too attentive, more curious than cruel" testing intelligence. The track should feel unhurried even while the player is under threat, echoing the outro's own line: "you do not feel triumphant so much as tired."
+
+**Tempo:** 96 BPM, straight 4/4, deliberate rather than frantic — matches "The Invigilator turns toward you, unhurried, and begins" (4.5 intro). Not a slow dirge (this still has to function as combat music the player hears many times per playtest) and not a fast action tempo either; it sits in a controlled, metronomic middle that reads as *precision*, not excitement.
+
+**Key/harmony:** D minor. Sparse, mostly diatonic harmony (i, iv, v, VI) — nothing chromatically "evil"; the Invigilator is not a monster, it's a grading intelligence, so the harmonic language should stay legible and almost clinical rather than dissonant or horror-coded.
+
+**Instrumentation:**
+- A solo low string melodic line (cello register) carrying the primary weary/sorrowful theme — the "someone's careful work" pathos from the outro.
+- A sparse plucked ostinato (harp or pizzicato strings), steady 8th/16th-note pulse — represents the hex-lines "brightening, one ring at a time, like a spell being read aloud" from the intro: mechanical, precise, ticking.
+- A sustained low pad/drone (strings or held organ tone) underneath, for dread and scale without adding bombast.
+- One sparse deep bell or low gong accent, used rarely (e.g. once per 8-16 bars) rather than on a driving rhythm — marking the sense of ritual/ledger-closing rather than punctuating action beats.
+
+**Length/loop:** roughly 45-75 seconds, structured to loop cleanly (this scores a fight the player may spend several minutes in across phases/retries) — Composer's call on exact bar count as long as the loop point is clean and the mood doesn't escalate into a different track by the end (no big finale swell; the piece should feel like it could keep going indefinitely, same as the Road itself).
+
+**Status:** brief only — not separately Heckler-gated per Lorena's own AGENT.md ("a music brief itself isn't separately Heckler-gated... the resulting track is"). Handed to Composer for backlog 4.9's generation stage.
+
 **Not touched, per my own contract:** `docs/agents/ana/backlog.md`, `docs/agents/loomwright/log.md`, `lore-premise.md` (no new fact — the Tarrywright entry already exists and needed no edit). Nothing committed; left for review per Ana's dispatch instructions.
