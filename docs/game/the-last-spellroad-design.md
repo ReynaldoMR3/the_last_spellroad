@@ -233,7 +233,7 @@ Before gameplay starts, the game boots through a Boot/Preload scene (loads asset
 
 Pausing mid-expedition is a **hard pause**: the entire gameplay scene freezes (enemies, wave timers, Mana regen) while a separate pause-menu scene runs on top of it. `Esc` opens and closes the pause menu when nothing is being previewed; if a spell preview is active, `Esc` cancels the preview first (unchanged from Core Controls And Casting above) — pause is one step further out, not a competing binding. The pause menu offers only **Resume** and **Quit to Title**; there is no **Restart**, since death already owns the game's one voluntary-reset path (see Death And Mastery Loss). Quitting to the title screen also prompts a confirmation, since it can lose progress made since the last autosaved state-changing event.
 
-No Options/Settings menu ships in the vertical slice — nothing in the locked design has a player-facing setting yet. A future audio/music option is a plausible later addition, explicitly out of scope now.
+No Options/Settings menu ships in the vertical slice — nothing in the locked design has a player-facing setting yet. Audio/music itself is a separate question from that menu, and is no longer categorically out of scope: per `docs/adr/0002-unblock-audio-scope-add-composer-agent.md` (2026-08-04), it's unblocked as stretch scope — see Agent Role Definitions (Composer) below and the Minimal-Build Floor Vs. Stretch table in Seven-Week Vertical Slice.
 
 This is Loomwright's engine scope (scene wiring and UI shell), the same kind of scope clarification as the runtime-ownership extension in Agent Role Definitions — see `docs/agents/ana/backlog.md` item 0.7.
 
@@ -373,17 +373,19 @@ The roster follows the One Agent, One Wow rule: each agent does one thing extrao
 | Frieren | Authors a new spell when a spell design brief is scoped against Loomwright's engine contract and Pato's templates. |
 | Warden | Generates a wave composition or boss/trial modifier when a new encounter needs content against the Spam-Waves-Vs.-Tactical-Trials pacing target. |
 | Lorena | Writes flavor text or dialogue when a new NPC, item, or trial event needs content consistent with the Lore Premise. |
-| Tilesmith | Sources or creates art/level assets when a new tileset, level layout, or VFX needs to fit the low-spec, stylized direction. |
-| Heckler | Critiques a build when a spell, wave, level, or the GDD itself is ready for adversarial review. |
+| Composer | Composes a music track when Lorena has briefed the mood/tempo/instrumentation for an already-shipped level, scene, or trial event. |
+| Tilesmith | Sources or creates art/level/audio assets when a new tileset, level layout, VFX, or sound effect needs to fit the low-spec, stylized direction. |
+| Heckler | Critiques a build when a spell, wave, level, music track, or the GDD itself is ready for adversarial review. |
 
 **Formalized inputs and outputs.** Every agent that touches shipped content runs at **dev-time only** — through Claude Code or the API, authored and reviewed by the developer — never as a live call during a player's session (see Technical Requirements And Constraints, API Limits below). For each agent: what it takes in, what it produces, and what the player actually experiences as a result.
 
 - **Warden** (encounter generation) takes Pato's Mana/weight-class/Mastery templates plus the Spam-Waves-Vs.-Tactical-Trials pacing target and the three base enemy stat blocks, and produces wave-composition and boss/trial-modifier JSON — enemy counts, spawn timing, HP/damage modifiers, phase triggers. The player sees this as the actual enemy waves and mini-boss/Director trial fought in Gameplay Loop steps 2 and 7.
 - **Frieren** (spell content) takes a spell design brief plus Pato's weight-class (Light/Standard/Heavy) and three-tier Mastery templates, and produces a spell-definition JSON — element, AoE shape, weight class, base Power/target-count values. The player sees this as a castable spell in their hotbar, with its visual effect, cooldown, and Mastery growth.
 - **Lorena** (narrative & lore) takes the Lore Premise plus companion/ending-path consistency rules, and produces flavor-text and dialogue strings tagged to NPCs, items, and trial events. The player sees this as in-game text: NPC lines, item descriptions, trial intro/outro narration.
+- **Composer** (music composition, not generation of the numbers or the lore itself) takes a mood/tempo/instrumentation brief from Lorena, scoped to an already-shipped level, scene, or trial event, and produces a rendered music track. The player hears this as the score playing under that level, scene, or trial.
 - **Pato** (validation, not generation) takes Warden's and Frieren's JSON output plus its own numeric templates, and produces a pass/fail or flagged-diff validation report. The player never sees Pato directly — its gatekeeping is what the player experiences as spells and waves that feel numerically consistent, instead of a broken outlier slipping through.
 - **Ana** (orchestration, not generation) takes developer direction plus the current state of every other agent's in-flight work, and produces scoped task assignments and a tracked status of what's owed and delivered. The player never sees Ana directly — its coordination is what keeps Warden's, Frieren's, Lorena's, and Pato's output landing as one coherent build instead of four disconnected pieces.
-- **Heckler** (adversarial review, not generation) takes built content — a spell, a wave, a level, or the GDD itself — and produces blunt, unfiltered critique from synthetic audience personas. The player never sees Heckler directly — its critique is what catches a spell or wave that plays badly before a real player ever does.
+- **Heckler** (adversarial review, not generation) takes built content — a spell, a wave, a level, a music track, or the GDD itself — and produces blunt, unfiltered critique from synthetic audience personas. The player never sees Heckler directly — its critique is what catches a spell, wave, or track that plays badly before a real player ever does.
 
 #### Ana — Orchestration
 
@@ -411,15 +413,19 @@ One job: generates wave compositions and boss/trial modifiers against the Spam-W
 
 #### Lorena — Narrative & Lore
 
-Keeps the Lore Premise, companion authenticity, and ending-path scope (destroy, outwit, or transform the Director) consistent across every other agent's output, and writes flavor text and dialogue.
+Keeps the Lore Premise, companion authenticity, and ending-path scope (destroy, outwit, or transform the Director) consistent across every other agent's output, and writes flavor text and dialogue. Also briefs Composer's creative direction (mood, tempo, instrumentation) for a music track, per `docs/adr/0002-unblock-audio-scope-add-composer-agent.md` — Lorena directs the tone, it does not compose or render audio itself.
+
+#### Composer — Music Composition
+
+**Added 2026-08-04, per `docs/adr/0002-unblock-audio-scope-add-composer-agent.md`.** One job: composes a music track once Lorena has briefed its mood, tempo, and instrumentation for an already-shipped level, scene, or trial event — never for content that doesn't exist yet. Generation is model-driven: an LLM makes the actual creative/notational calls from Lorena's brief, run as a real Claude Code or Codex agent-dispatch session (spawned directly by Ana when her session supports it, a GitHub issue only as the fallback), never a raw API call and never local Ollama — a small local model already showed unreliable structured-output on strict schemas in `agent-crew`'s CrewAI/Ollama run, and asking a model to emit music notation directly is the same failure shape. Composer never sets its own creative brief and never validates its own output, keeping generation and validation on separate agents the same way Warden/Frieren never grade themselves.
 
 #### Tilesmith — Art & Level Layout
 
-Produces the Spellroad tileset, level layouts, and lightweight VFX within the low-spec constraint. Tilesmith is not required to build every asset from scratch: it should first look for free-to-use art (tilesets, sprites, VFX) that fits the low-spec, stylized, readable-silhouette direction, and only originate new art where nothing suitable exists. Any sourced asset must carry a license that permits use in a shipped project (e.g. CC0, public domain, or an explicit free-for-commercial-use license), and Tilesmith tracks the source and license of everything it brings in so attribution requirements are never lost track of. See Art Sourcing And Origination Pipeline for the concrete search order, license-compliance rule, and how sourced art actually loads into Phaser — this was previously undescribed at the technical level every other content-generating agent already had.
+Produces the Spellroad tileset, level layouts, lightweight VFX, and (per `docs/adr/0002-unblock-audio-scope-add-composer-agent.md`) sound-effect one-shots — hit-cue, cast/impact/death SFX, ambient/footstep/UI audio — within the low-spec constraint. Tilesmith is not required to build every asset from scratch: it should first look for free-to-use art or audio (tilesets, sprites, VFX, SFX) that fits the low-spec, stylized, readable-silhouette direction, and only originate new assets where nothing suitable exists. Any sourced asset must carry a license that permits use in a shipped project (e.g. CC0, public domain, or an explicit free-for-commercial-use license), and Tilesmith tracks the source and license of everything it brings in so attribution requirements are never lost track of. Like the rest of this pass's audio scope, SFX sourcing is reactive — only for elements already shipped, never speculative. See Art Sourcing And Origination Pipeline for the concrete search order, license-compliance rule, and how sourced art actually loads into Phaser — this was previously undescribed at the technical level every other content-generating agent already had.
 
 #### Heckler — Adversarial Review
 
-Heckler wants the project to fail, and its job is to say so. It spawns synthetic sub-agent personas representing a spread of audience reactions to this specific kind of game — some who love slow tactical spellcraft, some who have no patience for it — and produces blunt, sometimes unfair, mixed feedback on whatever the other agents have built. Nothing it says is filtered for the developer's comfort. Ana routes its reports like any other agent's, but does not soften the critique itself.
+Heckler wants the project to fail, and its job is to say so. It spawns synthetic sub-agent personas representing a spread of audience reactions to this specific kind of game — some who love slow tactical spellcraft, some who have no patience for it — and produces blunt, sometimes unfair, mixed feedback on whatever the other agents have built, including Composer's music tracks against Lorena's brief. Nothing it says is filtered for the developer's comfort. Ana routes its reports like any other agent's, but does not soften the critique itself.
 
 This is the same shape as the six-reviewer panel already used to review this document (systems designer, narrative critic, player psychologist, feasibility lead, adversarial QA, business analyst) — Heckler generalizes that one-time GDD review into a standing tool the developer can invoke against any build, spell, level, or encounter, not just the design document.
 
@@ -536,6 +542,7 @@ Mapped against `docs/agents/ana/backlog.md`'s existing phase targets (Weeks 1-2 
 | Levels | 5 | up to 10 |
 | Narrative pass (Phase 4, Lorena) | Fee framing + Debuffer lore identity only (the two items already flagged MAJOR) | Full NPC/companion dialogue set across all levels + trial narration polish |
 | Targeting/lane UX (2.9, 2.10) | Basic fix — enemy/shape lane clamp, per-enemy hit feedback | Non-mouse targeting alternative (e.g. last-move-direction or nearest-enemy auto-target) |
+| Audio (SFX + music, unblocked 2026-08-04 per `docs/adr/0002-unblock-audio-scope-add-composer-agent.md`) | None — not a floor item | Hit-cue + cast/impact/death SFX + ambient/footstep/UI audio (Tilesmith, CC0-first) and Composer-authored music per level/scene/trial (briefed by Lorena, Heckler-validated); coverage stays reactive to already-shipped content only, built in parallel without blocking or being blocked by non-audio work |
 
 If the Week 5 re-tune shows a floor item isn't on track, the response is to cut a stretch item, per this GDD's own already-stated policy (Token Budget And Projections) — not to quietly extend past Week 7.
 

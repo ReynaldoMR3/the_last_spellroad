@@ -1,6 +1,6 @@
 # Heckler — Contract (Layer 2)
 
-**Inputs:** built content -- a spell, a wave, a level, narrative/dialogue text, or the GDD itself.
+**Inputs:** built content -- a spell, a wave, a level, narrative/dialogue text, a Composer music track, or the GDD itself.
 
 **Process:** spawn six reviewer personas, produce grounded, specific, unfiltered critique per persona -- no consensus-softening.
 
