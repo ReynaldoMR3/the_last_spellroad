@@ -13,8 +13,9 @@ This file is the canonical, tool-agnostic entry point for the AI dev-agent roste
 | Pato | Economy & validation (Mana/Mastery/Hexcoin numbers) | `docs/agents/pato/AGENT.md` |
 | Frieren | Spell content authoring (the "One Wow" agent) | `docs/agents/frieren/AGENT.md` |
 | Warden | Encounter/wave generation | `docs/agents/warden/AGENT.md` |
-| Lorena | Narrative & lore | `docs/agents/lorena/AGENT.md` |
-| Tilesmith | Art & level layout | `docs/agents/tilesmith/AGENT.md` |
+| Lorena | Narrative & lore (also briefs Composer's music direction) | `docs/agents/lorena/AGENT.md` |
+| Composer | Music composition | `docs/agents/composer/AGENT.md` |
+| Tilesmith | Art, level layout & SFX | `docs/agents/tilesmith/AGENT.md` |
 | Heckler | Adversarial review | `docs/agents/heckler/AGENT.md` |
 
 **Working model:** hierarchical star topology -- Ana is the sole point of contact with the developer and the sole router between agents; no agent talks to another agent directly. See `docs/agents/ana/AGENT.md` for the full dispatch procedure and example prompts.

@@ -17,8 +17,9 @@ This is the entry point for the ICM-style context store behind The Last Spellroa
 | Pato | Economy & validation (Mana/Mastery/Hexcoin numbers) | `pato/` |
 | Frieren | Spell content authoring (the "One Wow" agent) | `frieren/` |
 | Warden | Encounter/wave generation | `warden/` |
-| Lorena | Narrative & lore | `lorena/` |
-| Tilesmith | Art & level layout | `tilesmith/` |
+| Lorena | Narrative & lore (also briefs Composer's music direction) | `lorena/` |
+| Composer | Music composition (added 2026-08-04, `docs/adr/0002-unblock-audio-scope-add-composer-agent.md`) | `composer/` |
+| Tilesmith | Art, level layout & SFX | `tilesmith/` |
 | Heckler | Adversarial review | `heckler/` |
 
 **Reference layer:** `_reference/mana-template.md`, `mastery-template.md`, `hexcoin-template.md` (all Pato's authority), `engine-contract.md` (Loomwright's authority), `lore-premise.md` (Lorena's authority), `docker-testing-contract.md` (Loomwright's authority — the shared Docker commands for typecheck/build/dev-server, so any agent whose task needs to actually run or build the game doesn't have to read the README or GDD to find them).
