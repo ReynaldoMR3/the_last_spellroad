@@ -33,6 +33,7 @@ import {
   levelMapUrl
 } from "../systems/levelArt";
 import { SPELL_ICON_ELEMENTS, iconKeyForSpell, spellIconKey, spellIconUrl } from "../systems/spellIcons";
+import { ALL_SFX_CUES, sfxKey, sfxUrl } from "../systems/sfx";
 
 const PLAYER_SPEED = 180;
 /** Widened 160->220 (2026-07-27, developer feedback: not enough room to evade projectiles/
@@ -382,6 +383,15 @@ export class SpellroadScene extends Phaser.Scene {
     for (const element of SPELL_ICON_ELEMENTS) {
       this.load.image(spellIconKey(element), spellIconUrl(element));
     }
+
+    // backlog 3.10 / issue #81 (ADR-0002) — hit/cast/impact/death one-shots, sourced from
+    // Kenney.nl (CC0); see `systems/sfx.ts` for the per-cue source/rationale and
+    // `docs/agents/tilesmith/log.md`'s 2026-08-04 entry for the full license record. Same
+    // eager-preload convention as the tileset image and spell icons above — 5 tiny (<1.3s)
+    // .ogg files, not worth a dynamic-loading dance.
+    for (const cue of ALL_SFX_CUES) {
+      this.load.audio(sfxKey(cue), sfxUrl(cue));
+    }
   }
 
   create(): void {
@@ -403,7 +413,14 @@ export class SpellroadScene extends Phaser.Scene {
 
     this.health = new HealthSystem(
       () => this.handleDeath(),
-      () => this.flashMessage("Hit!", 300)
+      // backlog 3.10 / issue #81 — the original developer ask ("we need sound to know when we
+      // are getting hit, so you can run away"): played from the same `onDamage` callback the
+      // existing "Hit!" flash already uses, so the audio and visual cues fire on the identical
+      // event, never drift out of sync.
+      () => {
+        this.flashMessage("Hit!", 300);
+        this.sound.play(sfxKey("hit"));
+      }
     );
     this.mana = new ManaSystem();
     this.mastery = new MasterySystem();
@@ -1218,6 +1235,11 @@ export class SpellroadScene extends Phaser.Scene {
   }
 
   private removeEnemy(enemy: Enemy): void {
+    // backlog 3.10 / issue #81 — enemy death SFX; `removeEnemy` is only ever called from
+    // `confirmCast`'s `if (killed)` branch, so this is exactly the "enemy dying" event the
+    // ticket scopes, never a despawn/cleanup path (e.g. `handleDeath`'s own
+    // `this.enemies.forEach((e) => e.destroy())` calls `destroy()` directly, not this method).
+    this.sound.play(sfxKey("enemyDeath"));
     this.enemies = this.enemies.filter((e) => e !== enemy);
     enemy.destroy();
   }
@@ -1280,6 +1302,11 @@ export class SpellroadScene extends Phaser.Scene {
     if (!this.mage) {
       return;
     }
+    // backlog 3.10 / issue #81 — cast SFX wired alongside this existing visual hook, the
+    // natural integration point per the ticket: the sound and the shape flash fire from the
+    // same call, once per cast regardless of whether it lands a hit (a whiff still confirms
+    // audibly, matching `confirmCast`'s own comment on why the visual flash fires unconditionally).
+    this.sound.play(sfxKey("cast"));
     const color = ELEMENT_EFFECT_COLOR[spell.element];
     const flash = this.add.graphics();
     flash.fillStyle(color, 0.55);
@@ -1300,6 +1327,11 @@ export class SpellroadScene extends Phaser.Scene {
    * replacing it — the number carries the amount, this carries the "something just hit"
    * beat, tinted by the same per-element color `spawnCastEffect` uses for the same cast. */
   private spawnImpactBurst(x: number, y: number, color: number): void {
+    // backlog 3.10 / issue #81 — impact SFX wired alongside this existing per-hit visual beat,
+    // same integration point as the cast SFX above. Fires once per landed hit (`confirmCast`'s
+    // per-enemy loop calls this per hit, not per cast), matching the existing damage-number/
+    // burst cadence for an AoE that lands on multiple enemies at once.
+    this.sound.play(sfxKey("impact"));
     const burst = this.add.circle(x, y, 4, color, 0.5);
     burst.setStrokeStyle(2, color, 1);
     this.tweens.add({
@@ -1369,6 +1401,11 @@ export class SpellroadScene extends Phaser.Scene {
   // ----- death -----
 
   private handleDeath(): void {
+    // backlog 3.10 / issue #81 — player death SFX, played first (before any of the state
+    // resets below) so it fires exactly once per actual death regardless of how the rest of
+    // this method's cleanup unfolds — mirrors the existing `flashMessage` call a few lines
+    // down, which also fires unconditionally on every `handleDeath` invocation.
+    this.sound.play(sfxKey("playerDeath"));
     // Issue #48 — taken first, before any state is cleared: from this line on, every callback
     // scheduled by the wave the player just died in (its remaining staggered spawn timers, a
     // wave-advance that may already be pending from having cleared it, a boss phase-break
