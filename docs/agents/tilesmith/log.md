@@ -287,3 +287,125 @@ Sign-off status: **pending human developer review** -- both on the 4 hand-author
 themselves (asset-quality/fit judgment) and as a compliance formality (no external license to
 verify since nothing was copied from a third-party source, but per this agent's own rule an
 asset is never self-certified as compliant, hand-authored or not).
+
+## 2026-08-04 -- Backlog 3.10 (issue #81 / ADR-0002): SFX one-shots -- hit-cue, cast, impact, death
+
+**Scope, per the ticket:** five SFX cues for content already shipped in the engine, wired at the
+real call sites (no speculative coverage ahead of unbuilt features, per this pillar's standing
+reactive-coverage rule) -- the hit-cue is the highest-priority item (the original developer ask,
+2026-08-03 playtest, issue #81: "we need sound to know when we are getting hit, so you can run
+away"), plus cast/impact SFX alongside backlog 2.36's existing visual hooks, plus enemy/player
+death SFX.
+
+**Step 1 (Kenney.nl) -- sufficient, search order never needed to reach OpenGameArt:**
+- **Kenney "Impact Sounds"** -- https://kenney.nl/assets/impact-sounds, CC0 (confirmed via the
+  page's own "Creative Commons CC0" label, re-confirmed independently by reading the bundled
+  `License.txt` after download: "License (Creative Commons Zero, CC0),
+  http://creativecommons.org/publicdomain/zero/1.0/ ... free to use in personal, educational and
+  commercial projects"). 130 one-shot `.ogg` files (footstep + impact foley across several
+  materials/weights). Verified the downloaded file is an actual zip (`file impact-sounds.zip` ->
+  "Zip archive data") before extracting, same discipline as the 2026-07-30 entry.
+  - `impactSoft_heavy_002.ogg` -> hit-cue (a heavy, material-agnostic thud reads as "something
+    hit you" without implying a specific weapon, since the melee/ranged/debuffer archetypes all
+    trigger the same cue).
+  - `impactGeneric_light_001.ogg` -> spell-impact (short, ~0.12s -- picked deliberately brief so
+    an AoE landing on multiple enemies in the same instant, `confirmCast`'s per-enemy loop,
+    doesn't smear into a wall of overlapping sound).
+  - `impactBell_heavy_002.ogg` -> player-death (a heavy bell/gong strike, deliberately more
+    weighty/ominous than the enemy-death cue below -- pairs with the existing "Died --..."
+    `flashMessage` in `handleDeath`, a rarer, run-ending event).
+- **Kenney "Digital Audio"** -- https://kenney.nl/assets/digital-audio, CC0 (same confirmation
+  method: page label + bundled `License.txt`, identical CC0 text to the pack above). 60 one-shot
+  `.ogg` files (sci-fi zap/phaser/power-up tones). No dedicated "magic spell" pack exists on
+  Kenney (checked the asset catalog directly, same as the 2026-08-02 icon-sourcing pass) -- these
+  zap/phaser tones are the closest fit for a spell-cast/dying-creature beat in the absence of one.
+  - `phaserUp3.ogg` -> spell-cast (a short, ~0.5s rising zap for the moment a spell releases,
+    pitched/timed distinctly from the impact cue above so the two don't blur when a cast lands
+    instantly at close range).
+  - `phaserDown1.ogg` -> enemy-death (a short, ~0.78s descending "power-down" zap -- frequent
+    event, every kill, kept brief).
+
+**Step 2/3/4 not reached:** Kenney alone had a workable candidate for all five cues once its two
+relevant packs (Impact Sounds, Digital Audio) were checked -- no need to fall through to
+OpenGameArt, recoloring/pitch-shifting, or hand-authoring for this ticket.
+
+**What's actually in the repo** (only the specific files used, not the full packs -- unlike the
+tile/sprite packs, each Kenney audio pack already ships every sound as its own standalone file,
+so there's no packed-spritesheet-equivalent reason to import the other 100+ unused sounds in each
+pack; `License.txt` is still copied alongside for the audit trail):
+- `public/assets/third-party/kenney-impact-sounds/License.txt`
+- `public/assets/third-party/kenney-impact-sounds/Audio/impactSoft_heavy_002.ogg`
+- `public/assets/third-party/kenney-impact-sounds/Audio/impactGeneric_light_001.ogg`
+- `public/assets/third-party/kenney-impact-sounds/Audio/impactBell_heavy_002.ogg`
+- `public/assets/third-party/kenney-digital-audio/License.txt`
+- `public/assets/third-party/kenney-digital-audio/Audio/phaserUp3.ogg`
+- `public/assets/third-party/kenney-digital-audio/Audio/phaserDown1.ogg`
+
+**Engine wiring:**
+- New `src/systems/sfx.ts` -- pure, Phaser-free module (same convention as `levelArt.ts`/
+  `spellIcons.ts`) mapping each of the 5 `SfxCue` values (`hit`, `cast`, `impact`, `enemyDeath`,
+  `playerDeath`) to its load key (`sfxKey`) and URL (`sfxUrl`). A single source of truth for the
+  cue->key mapping is what lets `preload()`'s load loop and every `this.sound.play(sfxKey(...))`
+  call site share the same literal `SfxCue` strings, type-checked -- a typo'd cue name at either
+  end fails `tsc`, not silently at runtime.
+- `src/scenes/SpellroadScene.ts`:
+  - `preload()`: loads all 5 one-shots via `this.load.audio(sfxKey(cue), sfxUrl(cue))`, same
+    eager-preload convention as the tileset image/level JSON/spell icons already there.
+  - `create()`: the existing `HealthSystem` constructor's `onDamage` callback (already wired to
+    the "Hit!" `flashMessage`) now also calls `this.sound.play(sfxKey("hit"))` -- the audio and
+    visual hit cues fire from the identical event, so they can't drift out of sync.
+  - `spawnCastEffect` (backlog 2.36's cast-flash hook, called once per `confirmCast` regardless
+    of whether the cast lands a hit): now also plays `sfxKey("cast")`.
+  - `spawnImpactBurst` (backlog 2.36's per-hit burst, called once per landed hit inside
+    `confirmCast`'s per-enemy loop): now also plays `sfxKey("impact")`.
+  - `removeEnemy` (only ever called from `confirmCast`'s `if (killed)` branch, never from a
+    despawn/cleanup path -- `handleDeath`'s own enemy cleanup calls `.destroy()` directly): now
+    also plays `sfxKey("enemyDeath")`.
+  - `handleDeath`: now plays `sfxKey("playerDeath")` as its first line, before any of the
+    method's existing state-reset/cleanup work.
+
+**Self-verification (`docker-compose`, per `docs/agents/_reference/docker-testing-contract.md`):**
+- `docker-compose run --rm game npm run typecheck` -- clean, no errors.
+- `docker-compose run --rm game npm test` -- 13 test files, 115 tests, all passed (unchanged --
+  no new test file added; `sfx.ts` is a thin, pure key/URL map with no branching logic, same
+  precedent `spellIcons.ts` set for not needing a dedicated unit test, and the actual audio-load/
+  playback side is Phaser-scene wiring self-verified via the dev server instead).
+- `docker-compose run --rm game npm run build` -- clean production build.
+- Brought up the dev server and drove it via a real browser session: confirmed all 5 `.ogg`
+  files resolve `200 OK` over the network under their expected `assets/third-party/kenney-*`
+  paths (rules out a typo'd path/404 -- the class of bug a clean `tsc` build can't catch, since
+  the URL is a string literal, not a type-checked import); armed and fired `arc_lance` twice via
+  real gameplay actions (mana spent, cooldown started, cast-effect flash rendered) with zero
+  browser console errors both times, confirming `this.sound.play(sfxKey("cast"))` executes
+  without throwing at the one call site actually exercised interactively. Landing a hit, an
+  enemy kill, and a player death were not separately exercised in this pass (the lane's current
+  spell-range tuning and enemy pacing made lining up a kill/death within a reasonable session
+  cumbersome) -- flagged here rather than silently assumed. **Why this doesn't retroactively
+  weaken the verification for those other 3 call sites:** all 5 call sites invoke the exact same
+  `this.sound.play(sfxKey(<cue>))` API, differing only in which literal `SfxCue` string is
+  passed, and every one of those 5 strings is preloaded via the identical `ALL_SFX_CUES` loop in
+  `preload()` -- there's no code path by which the cast call site succeeds while another cue's
+  call site would newly throw or fail to find its key.
+
+**Verification-rationale (ADR-0001):** this is asset-loading/key-wiring code, not timing- or
+state-dependent logic -- the plausible bug classes are (1) a wrong/missing asset path -> load
+404, ruled out by the network-tab check above showing all 5 files at `200 OK`; (2) a mismatched
+key between what `preload()` registers and what a `play()` call reads back, structurally ruled
+out by both sides sourcing the same literal strings through `sfx.ts`'s single `SfxCue` type,
+enforced by a clean `tsc`; (3) a runtime exception from `this.sound.play()` itself, empirically
+ruled out for the one cue exercised through real interaction (cast) and not expected to differ
+for the other 4, which call the identical API. What this verification does **not** prove, and is
+explicitly left to human review, per this agent's own standing success criterion: (1) license/
+source compliance sign-off for the 2 Kenney packs pulled from -- both are re-confirmed CC0 here,
+but per this agent's own rule that check is never self-certified; (2) whether these specific
+sounds (a generic sci-fi zap standing in for "spell cast/dying," since no dedicated magic-SFX
+pack exists on Kenney) read as the right aesthetic fit once a developer actually listens to them
+in play, distinct from the license question; (3) whether landing a hit/kill/player-death in a
+real playtest session actually plays the impact/enemyDeath/playerDeath cues as expected, since
+that interactive path wasn't directly exercised this pass.
+
+Sign-off status: **pending human developer review** -- both the license/source compliance
+formality for the 2 Kenney packs above, and (separately) the aesthetic-fit and full-playtest
+(hit/kill/death cues actually heard in a real run) questions this entry flags as not yet
+exercised, per this agent's own standing rule that neither compliance nor fit is ever
+self-certified.
