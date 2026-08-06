@@ -371,6 +371,13 @@ export class SpellroadScene extends Phaser.Scene {
    * showing, same reasoning as `messageText`: one persistent element `showBossBanner`/
    * `hideBossBanner` toggle, not a create/destroy pair, since it fires at most twice a run. */
   private bossBannerText?: Phaser.GameObjects.Text;
+  /** Code review, 2026-08-05: the auto-hide `delayedCall` `showBossBanner` schedules must be
+   * cancelled by whatever ends the banner's display early (a manual `hideBossBanner`, or a
+   * fresh `showBossBanner` call), or a death-and-retry within the display window leaves a
+   * stale timer that fires mid-way through the *new* banner's own display and cuts it short.
+   * Tracked so both paths can `.remove()` this exact pending call rather than letting it fire
+   * unconditionally. */
+  private bossBannerHideTimer?: Phaser.Time.TimerEvent;
   /** backlog 4.11 / issue #97 — the currently-playing boss-theme instance, or `undefined` if
    * none is active. Tracked (not just fire-and-forget `this.sound.play()`) so `stopBossTheme`
    * can stop this exact instance — the track loops for the whole multi-phase encounter, so
@@ -513,6 +520,8 @@ export class SpellroadScene extends Phaser.Scene {
     // so this has to be stopped explicitly rather than assumed to reset on its own.
     this.bossThemeSound?.stop();
     this.bossThemeSound = undefined;
+    this.bossBannerHideTimer?.remove();
+    this.bossBannerHideTimer = undefined;
 
     this.createRoad();
     this.createMage();
@@ -1597,6 +1606,10 @@ export class SpellroadScene extends Phaser.Scene {
     if (!this.bossBannerText) {
       return;
     }
+    // See `bossBannerHideTimer`'s own comment: a still-pending auto-hide from a previous
+    // display (e.g. the intro banner, cut short by a death) must not fire mid-way through
+    // this new display and hide it early.
+    this.bossBannerHideTimer?.remove();
     this.bossBannerText.setText(text);
     this.tweens.killTweensOf(this.bossBannerText);
     this.bossBannerText.setAlpha(0);
@@ -1605,12 +1618,14 @@ export class SpellroadScene extends Phaser.Scene {
       alpha: 1,
       duration: 400,
       onComplete: () => {
-        this.time.delayedCall(BOSS_BANNER_DISPLAY_MS, () => this.hideBossBanner());
+        this.bossBannerHideTimer = this.time.delayedCall(BOSS_BANNER_DISPLAY_MS, () => this.hideBossBanner());
       }
     });
   }
 
   private hideBossBanner(): void {
+    this.bossBannerHideTimer?.remove();
+    this.bossBannerHideTimer = undefined;
     if (!this.bossBannerText) {
       return;
     }

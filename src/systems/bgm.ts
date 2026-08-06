@@ -11,6 +11,9 @@
  * stays in the repo alongside it as the authored source of truth; only the `.ogg` is loaded by
  * the game. A single named export (not a `BgmCue` union like `sfx.ts`'s multi-cue registry) —
  * add the union/lookup pattern back if a second track ever ships.
+ *
+ * A pure, Phaser-free module, same convention as `sfx.ts` — `SpellroadScene.ts` is the only
+ * caller and the only place that touches `this.load`/`this.sound`.
  */
 
 export const BOSS_THEME_KEY = "bgm-boss-1-invigilator-trial-theme";
