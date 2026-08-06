@@ -574,3 +574,11 @@ Developer merged PR #99 directly, no separate review-comment round-trip. Per the
 **4.11's standing caveat carried forward, not resolved by this closure:** the merge confirms the wiring (plays, loops, stops correctly) — it is not a sign-off that the synthesized sine-wave audio quality is final. Stated explicitly in the backlog row so a future session doesn't read the closed issue as "audio quality settled."
 
 **Filed as GitHub issues, same session:** #94 (3.11, SFX-fatigue direction, `question`), #95 (3.12, level/wave pacing direction, `question`), #96 (4.10, Invigilator banner wiring, `enhancement`/`ready-for-agent`), #97 (4.11, boss theme playback wiring, `enhancement`/`ready-for-agent`). Item 2's reinforcement added as a comment on the existing #87 rather than a duplicate issue. Backlog rows 3.11/3.12/4.10/4.11 updated with the actual issue numbers in place of "not filed yet."
+
+## 2026-08-06 (2) — #76-#80 (backlog 2.33-2.37) closed on the developer's own dev-server playtest
+
+The gate explicitly left open in the entry above got cleared same day: developer ran `docker-compose up -d game`, played the build at `localhost:5173`, and went through all 5 items directly (not a merge-as-signoff proxy this time — an actual interactive playtest, the same gate class as 2.6/2.9/2.21/2.25). Verdicts: #76 (floating HP/Mana bars) "feels right"; #77 (8/sec Mana regen) "okay" — no need to fall back to the flagged 6/sec; #78 (hotbar onboarding overlay) "okay"; #79 (cast/impact VFX) "ok"; #80 (emphasized "Not enough Mana" message) "ok."
+
+All 5 backlog rows (2.33-2.37) updated to `shipped-and-validated`, each citing this playtest directly rather than a generic restatement. GitHub issues #76-#80 closed with a comment recording the developer's own words. Branch `ana/close-76-80-2026-08-06`, docs-only, PR to follow per this repo's standing branch/PR rule.
+
+**Not resolved by this closure, flagged so it isn't lost:** 2.34's confirmed 8/sec base still leaves **2.39** (the Debuffer regen-drain-cap residual) open and now unambiguously actionable — it was deferred specifically because 8/sec was "itself still pending a developer playtest," and that condition no longer holds. Worth raising with Pato next, not silently left stale now that its blocking condition cleared.
