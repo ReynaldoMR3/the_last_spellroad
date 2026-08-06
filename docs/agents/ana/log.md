@@ -563,4 +563,14 @@ Developer asked for every open `ready-for-agent` ticket implemented, with an exp
 
 **Not touched this session, unchanged:** #87/#88 (Pato balance calls), #94/#95 (SFX-fatigue and level/wave-pacing direction, both still needing the developer), #68/#69/#70 (the #64 go-forward map's atmosphere-gap children).
 
+## 2026-08-06 — 4.10/4.11 closed on developer's PR #99 merge
+
+Standards-axis code review (2026-08-05, run before merge) found one real bug — `showBossBanner`'s auto-hide `delayedCall` wasn't cancelled by an earlier `hideBossBanner`/a fresh `showBossBanner` call, so a death-and-retry inside the display window could hide the new banner mid-way through its own display — plus two doc-parity gaps (`bgm.ts` missing the "Phaser-free/single-caller" note `sfx.ts` states, `engine-contract.md` not naming the audio/banner-wiring scope backlog 3.10 had already established as practice). All three fixed same session, re-verified clean, second commit added to the branch.
+
+Developer merged PR #99 directly, no separate review-comment round-trip. Per the same sign-off-by-merge precedent already used for backlog 2.30/3.10/4.9 (a developer's own act of reviewing and merging counts as their playtest-equivalent sign-off for changes whose risk is legibility/behavior-on-review rather than something only interactive play surfaces), closed **GitHub issues #96 and #97** and updated backlog 4.10/4.11 to `shipped-and-validated` — see each row's own stated rationale for why this particular gate catches this particular defect class.
+
+**Explicitly not extended to #76-#80 (backlog 2.33-2.37):** those remain `in-progress-with-owner`. PR #99 doesn't touch any of that code, so its merge isn't a playtest of it — closing those still needs the developer to actually play through and confirm the HP/Mana bars, cast-effect visuals, onboarding hint, Mana-regen feel, and message legibility work as intended, not just that they exist. Not treating "developer is closing tickets today" as blanket license to close ones no interaction has confirmed.
+
+**4.11's standing caveat carried forward, not resolved by this closure:** the merge confirms the wiring (plays, loops, stops correctly) — it is not a sign-off that the synthesized sine-wave audio quality is final. Stated explicitly in the backlog row so a future session doesn't read the closed issue as "audio quality settled."
+
 **Filed as GitHub issues, same session:** #94 (3.11, SFX-fatigue direction, `question`), #95 (3.12, level/wave pacing direction, `question`), #96 (4.10, Invigilator banner wiring, `enhancement`/`ready-for-agent`), #97 (4.11, boss theme playback wiring, `enhancement`/`ready-for-agent`). Item 2's reinforcement added as a comment on the existing #87 rather than a duplicate issue. Backlog rows 3.11/3.12/4.10/4.11 updated with the actual issue numbers in place of "not filed yet."
