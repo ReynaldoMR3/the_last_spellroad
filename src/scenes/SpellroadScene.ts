@@ -34,6 +34,7 @@ import {
 } from "../systems/levelArt";
 import { SPELL_ICON_ELEMENTS, iconKeyForSpell, spellIconKey, spellIconUrl } from "../systems/spellIcons";
 import { ALL_SFX_CUES, sfxKey, sfxUrl } from "../systems/sfx";
+import { BOSS_THEME_KEY, BOSS_THEME_URL, BOSS_THEME_VOLUME } from "../systems/bgm";
 
 const PLAYER_SPEED = 180;
 /** Widened 160->220 (2026-07-27, developer feedback: not enough room to evade projectiles/
@@ -193,6 +194,32 @@ const IMPACT_BURST_DURATION_MS = 260;
 const ONBOARDING_HINT_TEXT =
   "Press 1-6 to aim a spell.\nPress it again (or click) to fire — Esc or right-click cancels.";
 const ONBOARDING_HINT_FALLBACK_MS = 9000;
+/** backlog 4.10 / issue #96 — developer full playtest (2026-08-05): "nothing shows this is
+ * the Director trial, no clear mini boss." Lorena's intro/outro narration (`lorena/log.md`,
+ * 2026-07-30) was already written and Heckler-cleared, just never given a display surface.
+ * Displayed verbatim (Loomwright doesn't author or edit lore) at the boss encounter's first
+ * phase (intro) and at trial victory (outro, destroy-ending only — this vertical slice's only
+ * shipped ending path). Deliberately its own element, not `flashMessage`/`onboardingHintText`
+ * reused: a serif/italic treatment (matching `levelWaveText`'s existing Georgia serif rather
+ * than the HUD's monospace) plus a wider word-wrapped panel is what makes it "clearly read as
+ * the mini-boss," the developer's own framing of the gap. */
+const BOSS_BANNER_INTRO_TEXT =
+  "The trial chamber closes behind you with no sound of a door — only the hex-lines in the " +
+  "floor brightening, one ring at a time, like a spell being read aloud. At the center, the " +
+  "Director's avatar assembles itself out of the same sacred geometry that built the Road: too " +
+  "smooth, too attentive, more curious than cruel. You feel measured rather than hated, the way " +
+  "a lesson feels measured, and understand, distantly, that surviving this is not escape — it " +
+  "is only passing the part of the test that lets you keep walking. The Invigilator turns " +
+  "toward you, unhurried, and begins.";
+const BOSS_BANNER_OUTRO_TEXT =
+  "The Invigilator's geometry comes apart the way frost leaves a window — not shattered, just " +
+  "no longer held together, its hex-lines guttering into ordinary dark stone. For one long " +
+  "moment there is a quiet the Road has never given you before, unscored by any generated " +
+  "thing. You do not feel triumphant so much as tired, and faintly, uselessly sorry — this was " +
+  "also, once, someone's careful work. Somewhere in the ledger a line closes; you do not know " +
+  "yet whether the Director notices, or minds, or is already writing the next trial. The road " +
+  "ahead stays exactly as endless as it was an hour ago, and you walk it anyway.";
+const BOSS_BANNER_DISPLAY_MS = 9000;
 /** backlog 2.10 — the lane rectangle the mage and (per this fix) enemies are both clamped
  * to, and the shape preview is visually clipped to via a geometry mask. Hit-tests don't
  * need their own separate clip: once enemies can't exist outside this rect, there's
@@ -339,6 +366,24 @@ export class SpellroadScene extends Phaser.Scene {
    * `spawnDebuffPulse` visual rather than replacing it. Empty string (no visible line) while
    * `this.debuff` has no active stacks. */
   private debuffText?: Phaser.GameObjects.Text;
+  /** backlog 4.10 / issue #96 — the boss intro/outro narration banner (see
+   * `BOSS_BANNER_INTRO_TEXT`'s own comment). Hidden (alpha 0) rather than absent when not
+   * showing, same reasoning as `messageText`: one persistent element `showBossBanner`/
+   * `hideBossBanner` toggle, not a create/destroy pair, since it fires at most twice a run. */
+  private bossBannerText?: Phaser.GameObjects.Text;
+  /** Code review, 2026-08-05: the auto-hide `delayedCall` `showBossBanner` schedules must be
+   * cancelled by whatever ends the banner's display early (a manual `hideBossBanner`, or a
+   * fresh `showBossBanner` call), or a death-and-retry within the display window leaves a
+   * stale timer that fires mid-way through the *new* banner's own display and cuts it short.
+   * Tracked so both paths can `.remove()` this exact pending call rather than letting it fire
+   * unconditionally. */
+  private bossBannerHideTimer?: Phaser.Time.TimerEvent;
+  /** backlog 4.11 / issue #97 — the currently-playing boss-theme instance, or `undefined` if
+   * none is active. Tracked (not just fire-and-forget `this.sound.play()`) so `stopBossTheme`
+   * can stop this exact instance — the track loops for the whole multi-phase encounter, so
+   * unlike the one-shot SFX cues, something must be able to end it early (victory, death, or a
+   * scene shutdown mid-fight). */
+  private bossThemeSound?: Phaser.Sound.BaseSound;
   /** backlog 2.35 / issue #78 — one-time onboarding hint explaining hotbar targeting (1-6
    * arms a spell, press/click again to confirm-fire, or Esc/right-click to cancel). Shown once
    * per run; dismissed the first time the player actually arms a spell (`handleHotbarPress`,
@@ -392,6 +437,10 @@ export class SpellroadScene extends Phaser.Scene {
     for (const cue of ALL_SFX_CUES) {
       this.load.audio(sfxKey(cue), sfxUrl(cue));
     }
+
+    // backlog 4.11 / issue #97 — mini-boss/Director trial theme, same eager-preload
+    // convention as the SFX cues above (one small .ogg, not worth a dynamic-loading dance).
+    this.load.audio(BOSS_THEME_KEY, BOSS_THEME_URL);
   }
 
   create(): void {
@@ -464,11 +513,27 @@ export class SpellroadScene extends Phaser.Scene {
     this.lastFacing = new Phaser.Math.Vector2(1, 0);
     this.lastPointerActivityAt = null;
     this.messageClearAt = 0;
+    // backlog 4.11 / issue #97 — same class of stale-state bug this comment block already
+    // documents above: a `New Game`/scene restart reuses this Scene instance, so a boss theme
+    // still playing from a fight the player quit out of mid-encounter would otherwise keep
+    // looping right over the fresh run. Phaser's SoundManager is game-level, not scene-level,
+    // so this has to be stopped explicitly rather than assumed to reset on its own.
+    this.bossThemeSound?.stop();
+    this.bossThemeSound = undefined;
+    this.bossBannerHideTimer?.remove();
+    this.bossBannerHideTimer = undefined;
 
     this.createRoad();
     this.createMage();
     this.createHud();
     this.createInput();
+
+    // backlog 4.11 / issue #97 — safety net for exit paths this ticket's own acceptance
+    // criteria don't explicitly name (e.g. `PauseScene`'s "Quit to Title" mid-fight): whatever
+    // ends this scene stops the boss theme too, so the two explicit stop call sites (trial
+    // victory, death) don't have to be the only things standing between this track and playing
+    // forever over a screen it no longer belongs to.
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stopBossTheme());
 
     this.startWave(0);
   }
@@ -694,6 +759,27 @@ export class SpellroadScene extends Phaser.Scene {
     this.onboardingHintText.setOrigin(0.5, 0);
     this.onboardingHintText.setDepth(UI_DEPTH);
     this.time.delayedCall(ONBOARDING_HINT_FALLBACK_MS, () => this.dismissOnboardingHint());
+
+    // backlog 4.10 / issue #96 — the Invigilator intro/outro banner. Centered, wider than the
+    // onboarding hint (word-wrapped, since the authored narration runs several sentences), and
+    // deliberately in `levelWaveText`'s serif font rather than the HUD's monospace — a
+    // narrative beat should not read as another status readout. Starts hidden (alpha 0); only
+    // `showBossBanner`/`hideBossBanner` toggle it, same persistent-element pattern as
+    // `messageText`.
+    this.bossBannerText = this.add.text(CANVAS_WIDTH / 2, ROAD_TOP + 30, "", {
+      color: "#ffe08a",
+      fontFamily: "Georgia, serif",
+      fontStyle: "italic",
+      fontSize: "16px",
+      align: "center",
+      lineSpacing: 4,
+      backgroundColor: "#1c1330",
+      padding: { x: 20, y: 14 },
+      wordWrap: { width: 640 }
+    });
+    this.bossBannerText.setOrigin(0.5, 0);
+    this.bossBannerText.setDepth(UI_DEPTH);
+    this.bossBannerText.setAlpha(0);
 
     this.previewGraphics = this.add.graphics();
     // backlog 2.10 — clip the shape preview to the lane rectangle so line/cone/circle
@@ -1036,6 +1122,8 @@ export class SpellroadScene extends Phaser.Scene {
         this.hexcoin.startBossFight();
         this.health.reset();
         this.flashMessage("Director Trial — Phase 1", 1800);
+        this.playBossTheme();
+        this.showBossBanner(BOSS_BANNER_INTRO_TEXT);
       } else {
         this.flashMessage(`Director Trial — Phase ${wave.wave_index + 1}`, 1800);
       }
@@ -1221,6 +1309,8 @@ export class SpellroadScene extends Phaser.Scene {
         // Last phase of the boss just cleared.
         this.hexcoin.endBossFight();
         this.flashMessage("Director Trial — Victory!", 2500);
+        this.stopBossTheme();
+        this.showBossBanner(BOSS_BANNER_OUTRO_TEXT);
       }
       this.time.delayedCall(1200, () => {
         // If the player died during this 1200ms gap (a ranged shot already in flight when the
@@ -1406,6 +1496,13 @@ export class SpellroadScene extends Phaser.Scene {
     // this method's cleanup unfolds — mirrors the existing `flashMessage` call a few lines
     // down, which also fires unconditionally on every `handleDeath` invocation.
     this.sound.play(sfxKey("playerDeath"));
+    // backlog 4.11 / issue #97 — a death respawns at the current level's start (0.2's
+    // resolution), which for the boss level is Phase 1 — `startWave` below will restart the
+    // theme/banner on its own once the respawn delay elapses. Stopped here first so neither
+    // lingers, unstyled, over the "Died —..." beat in the meantime; harmless no-op if the death
+    // didn't happen mid-boss-fight (nothing is playing/visible to stop).
+    this.stopBossTheme();
+    this.hideBossBanner();
     // Issue #48 — taken first, before any state is cleared: from this line on, every callback
     // scheduled by the wave the player just died in (its remaining staggered spawn timers, a
     // wave-advance that may already be pending from having cleared it, a boss phase-break
@@ -1482,6 +1579,58 @@ export class SpellroadScene extends Phaser.Scene {
     }
     this.onboardingHintText.destroy();
     this.onboardingHintText = undefined;
+  }
+
+  // ----- boss encounter (backlog 4.10/4.11, issues #96/#97) -----
+
+  /** Starts looping if nothing is already playing; a no-op otherwise so a same-fight
+   * phase-break (`startWave` re-entering with `wave_index !== 0`) never restarts the track
+   * mid-loop — only a fresh Phase 1 entry (first attempt or a death-retry) calls this. */
+  private playBossTheme(): void {
+    if (this.bossThemeSound?.isPlaying) {
+      return;
+    }
+    this.bossThemeSound = this.sound.add(BOSS_THEME_KEY, { loop: true, volume: BOSS_THEME_VOLUME });
+    this.bossThemeSound.play();
+  }
+
+  private stopBossTheme(): void {
+    this.bossThemeSound?.stop();
+    this.bossThemeSound = undefined;
+  }
+
+  /** Fades in, holds, then fades back out — non-blocking (combat continues underneath),
+   * matching the onboarding hint's "doesn't delay input" acceptance criterion (#78) this
+   * ticket's own banner criterion implicitly shares. */
+  private showBossBanner(text: string): void {
+    if (!this.bossBannerText) {
+      return;
+    }
+    // See `bossBannerHideTimer`'s own comment: a still-pending auto-hide from a previous
+    // display (e.g. the intro banner, cut short by a death) must not fire mid-way through
+    // this new display and hide it early.
+    this.bossBannerHideTimer?.remove();
+    this.bossBannerText.setText(text);
+    this.tweens.killTweensOf(this.bossBannerText);
+    this.bossBannerText.setAlpha(0);
+    this.tweens.add({
+      targets: this.bossBannerText,
+      alpha: 1,
+      duration: 400,
+      onComplete: () => {
+        this.bossBannerHideTimer = this.time.delayedCall(BOSS_BANNER_DISPLAY_MS, () => this.hideBossBanner());
+      }
+    });
+  }
+
+  private hideBossBanner(): void {
+    this.bossBannerHideTimer?.remove();
+    this.bossBannerHideTimer = undefined;
+    if (!this.bossBannerText) {
+      return;
+    }
+    this.tweens.killTweensOf(this.bossBannerText);
+    this.tweens.add({ targets: this.bossBannerText, alpha: 0, duration: 400 });
   }
 
   /** @param emphasis "warning" gives the banner a distinct color + opaque background panel
