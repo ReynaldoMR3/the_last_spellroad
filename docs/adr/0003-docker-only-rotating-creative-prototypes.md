@@ -1,0 +1,3 @@
+# Keep creative tooling in Docker and maintain one active prototype
+
+Creative tools, model runtimes, converters, preview servers, and verification commands run in Docker so art and audio exploration cannot pollute the developer's 8 GB M1 host. The reusable Phaser prototype harness stays on `main`, but only one Active Prototype scene and registry entry may exist there at a time; a resolved prototype is captured on its branch and as decision evidence, then removed. When production changes affect the Active Prototype's Level 1 baseline, that change must update and re-check the prototype too. This trades a permanent gallery of runnable experiments for a clean, current workbench with bounded maintenance cost.
