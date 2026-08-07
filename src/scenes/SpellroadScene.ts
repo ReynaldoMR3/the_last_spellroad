@@ -222,8 +222,13 @@ const BOSS_BANNER_OUTRO_TEXT =
   "yet whether the Director notices, or minds, or is already writing the next trial. The road " +
   "ahead stays exactly as endless as it was an hour ago, and you walk it anyway.";
 const BOSS_BANNER_DISPLAY_MS = 9000;
-/** Issue #116 — see `bossNameText`'s own comment. */
-const BOSS_NAME_TEXT = "⚔ The Invigilator";
+/** Issue #116 — see `bossNameText`'s own comment. Names the encounter's actual boss
+ * explicitly rather than just its title, since the fight's individual enemies (ordinary
+ * registry archetypes per `boss-1.json`) keep showing their own archetype label — e.g. a
+ * Debuffer-archetype enemy's name tag still reads "The Tarrywright" — throughout the fight;
+ * "wears many faces" preempts the "wait, which one is the real boss?" confusion that could
+ * otherwise cause, without this HUD element having to override those per-enemy labels too. */
+const BOSS_NAME_TEXT = "⚔ The Invigilator — wears many faces this fight";
 /** backlog 2.10 — the lane rectangle the mage and (per this fix) enemies are both clamped
  * to, and the shape preview is visually clipped to via a geometry mask. Hit-tests don't
  * need their own separate clip: once enemies can't exist outside this rect, there's
@@ -768,7 +773,7 @@ export class SpellroadScene extends Phaser.Scene {
     // outside the Level 5 encounter — `startWave`/`updateEnemies` are the only two call
     // sites that ever set/clear its text.
     this.bossNameText = this.add.text(CANVAS_WIDTH / 2, 16, "", {
-      color: "#ffb4a8",
+      color: MESSAGE_WARNING_COLOR,
       fontFamily: "Georgia, serif",
       fontStyle: "bold",
       fontSize: "18px",
@@ -883,10 +888,14 @@ export class SpellroadScene extends Phaser.Scene {
 
     // Issues #112/#113 — same dismiss-early contract for the keyboard: any keypress ends the
     // boss banner's display rather than waiting out `BOSS_BANNER_DISPLAY_MS`. Phaser fires
-    // this generic `keydown` event alongside (not instead of) the specific `keydown-ESC`/
-    // `keydown-Y`/`keydown-N`/hotbar-digit handlers below, so none of those need to change.
-    this.input.keyboard?.on("keydown", () => {
-      if (this.bossBannerActive) {
+    // this generic `keydown` event alongside (not instead of) the specific `keydown-Y`/
+    // `keydown-N`/hotbar-digit handlers below, so none of those need to change. Esc is
+    // excluded deliberately (code review, 2026-08-06): it already has its own contextual
+    // meaning below (cancel preview, or open the pause menu) — letting it also dismiss the
+    // banner here would fire both on the same keypress (banner vanishes AND PauseScene
+    // launches at once), a confusing combination neither #112 nor #113 asked for.
+    this.input.keyboard?.on("keydown", (event: KeyboardEvent) => {
+      if (this.bossBannerActive && event.code !== "Escape") {
         this.hideBossBanner();
       }
     });
@@ -1188,7 +1197,12 @@ export class SpellroadScene extends Phaser.Scene {
         // hp-template.md's per-wave reset is real (this is the one reset point for the
         // fight), but nothing told the player it's also the LAST one until Phase 3 — every
         // other level fully resets HP every wave, and this trial deliberately doesn't.
-        this.flashMessage("Director Trial — Phase 1 (HP won't reset again until you win or die)", 2400);
+        // Code review, 2026-08-06 (spec check against #115): the recovery-prompt reminder at
+        // the actual decision point (`startPhaseBreak`, below) already got #114's "warning"
+        // treatment, but this earlier, first-told-here announcement was left on the plain
+        // "default" emphasis #114 exists specifically to move away from — the one place this
+        // HP-reset rule is announced ahead of any decision hinging on it.
+        this.flashMessage("Director Trial — Phase 1 (HP won't reset again until you win or die)", 2400, "warning");
         this.playBossTheme();
         this.showBossBanner(BOSS_BANNER_INTRO_TEXT);
         this.bossNameText?.setText(BOSS_NAME_TEXT);
@@ -1734,14 +1748,28 @@ export class SpellroadScene extends Phaser.Scene {
   }
 
   private hideBossBanner(): void {
-    this.bossBannerActive = false;
     this.bossBannerHideTimer?.remove();
     this.bossBannerHideTimer = undefined;
     if (!this.bossBannerText) {
+      this.bossBannerActive = false;
       return;
     }
     this.tweens.killTweensOf(this.bossBannerText);
-    this.tweens.add({ targets: this.bossBannerText, alpha: 0, duration: 400 });
+    // Code review, 2026-08-06 (spec check against #112/#113): `bossBannerActive` used to
+    // clear synchronously here, before this 400ms fade-out even started — for that whole
+    // window (including the ordinary auto-timeout path, not just a manual dismiss) enemies
+    // resumed attacking while the banner graphic was still visibly on screen mid-fade,
+    // reproducing in miniature exactly #112's complaint ("it blcoks your vision and the
+    // enemies hit you"). Clearing it in `onComplete` instead means the banner is fully
+    // invisible before combat resumes.
+    this.tweens.add({
+      targets: this.bossBannerText,
+      alpha: 0,
+      duration: 400,
+      onComplete: () => {
+        this.bossBannerActive = false;
+      }
+    });
   }
 
   /** @param emphasis "warning" gives the banner a distinct color + opaque background panel
