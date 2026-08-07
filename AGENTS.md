@@ -39,3 +39,7 @@ This is a single-scene Phaser game, not a routable web app, so the `/prototype` 
 ### PR sync
 
 Many parallel branches/worktrees can touch the same file without knowing about each other. Sync against `origin/main` before opening a PR and again right before merging it — don't rely on a green local test suite alone. See `docs/eng-skills/pr-sync.md`.
+
+### Debug level skip
+
+`?debugLevel=<n>` boots straight into level `<n>`'s first wave instead of playing through every level before it — for verifying a level-specific change without the full playthrough each time. See `docs/eng-skills/debug-level-skip.md`.

@@ -44,6 +44,7 @@ import {
 } from "../systems/sfx";
 import { computeSfxVariation, computeSpellSfxVariation } from "../systems/sfxVariation";
 import { BOSS_THEME_KEY, BOSS_THEME_URL, BOSS_THEME_VOLUME } from "../systems/bgm";
+import { resolveDebugStartWave } from "../systems/debugStart";
 
 const PLAYER_SPEED = 180;
 /** Widened 160->220 (2026-07-27, developer feedback: not enough room to evade projectiles/
@@ -611,7 +612,7 @@ export class SpellroadScene extends Phaser.Scene {
     // forever over a screen it no longer belongs to.
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stopBossTheme());
 
-    this.startWave(0);
+    this.startWave(resolveDebugStartWave(this.waves));
   }
 
   update(_time: number, deltaMs: number): void {
