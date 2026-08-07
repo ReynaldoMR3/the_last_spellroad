@@ -158,6 +158,16 @@ const DAMAGE_NUMBER_COLOR = { healthy: "#4caf50", wounded: "#f4c430", critical: 
 const MESSAGE_DEFAULT_COLOR = "#f3e7c2";
 const MESSAGE_WARNING_COLOR = "#ffb4a8";
 const MESSAGE_WARNING_BG = "#4a1f1f";
+/** Issue #117 — developer playtest: "its also not clear when you advanced on the spells
+ * levels, at level 5 i felt it was easier to kill the monsters." The tier-up notification has
+ * existed since the very first engine commit (2026-07-22) and `MasterySystem`'s own trigger
+ * logic is correct (see `MasterySystem.test.ts`, added alongside this fix) — a player played
+ * through 4 full levels without ever registering it firing regardless. Backs `tierUpText`
+ * (see its own comment for why that's a dedicated element, not a `flashMessage` emphasis):
+ * gold/dark-gold rather than backlog 2.37/#80's salmon/dark-red, since this is a reward beat,
+ * not a warning. */
+const MESSAGE_MILESTONE_COLOR = "#ffe08a";
+const MESSAGE_MILESTONE_BG = "#332a0f";
 /** backlog 2.33 / issue #76 — developer full playtest of #30: "add floating HP/Mana status
  * bars above the player (Tibia-style)". `Enemy.ts` already draws exactly this pattern per
  * enemy (backlog 2.19); this reuses that same fraction/color arithmetic
@@ -367,6 +377,11 @@ export class SpellroadScene extends Phaser.Scene {
   private hotbarSlotIcons: Phaser.GameObjects.Image[] = [];
   private messageText?: Phaser.GameObjects.Text;
   private messageClearAt = 0;
+  /** Issue #117 — the Mastery tier-up notification's own dedicated element, cleared on its
+   * own `tierUpClearAt` timer rather than sharing `messageText`/`messageClearAt` — see
+   * `flashTierUp`'s own comment for why. */
+  private tierUpText?: Phaser.GameObjects.Text;
+  private tierUpClearAt = 0;
   /** backlog 2.32 / issue #58 — persistent, larger, higher-contrast Level/Wave readout, kept
    * separate from both `hudText`'s small stat block and the transient `flashMessage` banner.
    * See its own comment at the bottom of `createHud`. */
@@ -538,6 +553,7 @@ export class SpellroadScene extends Phaser.Scene {
     this.lastFacing = new Phaser.Math.Vector2(1, 0);
     this.lastPointerActivityAt = null;
     this.messageClearAt = 0;
+    this.tierUpClearAt = 0;
     // backlog 4.11 / issue #97 — same class of stale-state bug this comment block already
     // documents above: a `New Game`/scene restart reuses this Scene instance, so a boss theme
     // still playing from a fight the player quit out of mid-encounter would otherwise keep
@@ -594,6 +610,11 @@ export class SpellroadScene extends Phaser.Scene {
       // every new call, but clearing it here too means an empty banner is never left mid-style.
       this.messageText.setBackgroundColor("");
       this.messageText.setColor(MESSAGE_DEFAULT_COLOR);
+    }
+    // Issue #117 — `tierUpText`'s own independent clear timer; see `flashTierUp`'s comment
+    // for why it doesn't share `messageText`/`messageClearAt`.
+    if (this.tierUpText && this.time.now > this.tierUpClearAt) {
+      this.tierUpText.setText("");
     }
   }
 
@@ -748,6 +769,22 @@ export class SpellroadScene extends Phaser.Scene {
     });
     this.messageText.setOrigin(0.5, 0.5);
     this.messageText.setDepth(UI_DEPTH);
+
+    // Issue #117 — see `flashTierUp`'s own comment for why this is a separate element from
+    // `messageText` rather than another `flashMessage` emphasis. Stacked just above
+    // `messageText` (400) with enough gap that the two never visually overlap, still clear of
+    // the hotbar row starting at 424.
+    this.tierUpText = this.add.text(480, 340, "", {
+      color: MESSAGE_MILESTONE_COLOR,
+      fontFamily: "Georgia, serif",
+      fontStyle: "bold",
+      fontSize: "18px",
+      align: "center",
+      backgroundColor: MESSAGE_MILESTONE_BG,
+      padding: { x: 12, y: 6 }
+    });
+    this.tierUpText.setOrigin(0.5, 0.5);
+    this.tierUpText.setDepth(UI_DEPTH);
 
     // Developer feedback (2026-08-02, issue #58): "Level 5, wave 1 its difficult to read in
     // what level we are" — `Level X, Wave Y` was one line inside the 14px stat block above,
@@ -1076,8 +1113,13 @@ export class SpellroadScene extends Phaser.Scene {
     // only by real time, not by level content — see MasterySystem.ts's doc comment and
     // mastery-template.md for the corrected casts-per-tier derivation this required.
     if (kills > 0) {
+      // Issue #117 — was 1500ms on the shared `flashMessage` channel, identical styling to a
+      // throwaway "Hit!"/wave-transition beat and just as vulnerable to being clobbered by
+      // one; a player played through 4 full levels without ever registering it. `flashTierUp`
+      // is a dedicated element (see its own comment) so a "Hit!" moments later can't erase it;
+      // 2600ms matches the death message's own weight for a comparably significant event.
       this.mastery.recordLandedCast(spell.id, (spellId, tier) =>
-        this.flashMessage(`${spellId} reached ${tier.toUpperCase()} Mastery!`, 1500)
+        this.flashTierUp(`${spellId} reached ${tier.toUpperCase()} Mastery!`, 2600)
       );
     }
   }
@@ -1790,6 +1832,24 @@ export class SpellroadScene extends Phaser.Scene {
       this.messageText.setBackgroundColor("");
     }
     this.messageClearAt = this.time.now + durationMs;
+  }
+
+  /** Issue #117 (code review, 2026-08-06) — a Mastery tier-up used to route through
+   * `flashMessage`'s shared `messageText` channel, but that channel gets unconditionally
+   * overwritten by whatever fires next: "Hit!" (300ms, `HealthSystem`'s `onDamage` callback),
+   * "Not enough Mana" (900ms), or a wave/level transition banner. A tier-up fires mid-combat
+   * (right after a landed kill) — exactly when a "Hit!" or another cast is likely within the
+   * next couple seconds — so even a longer duration and its own color on the shared channel
+   * would still routinely get clobbered before the player reads it. Same reasoning
+   * `bossBannerText`/`onboardingHintText` already have their own dedicated elements for: a
+   * message that must survive concurrent combat noise needs its own channel, not the shared
+   * transient one `flashMessage` owns. */
+  private flashTierUp(text: string, durationMs: number): void {
+    if (!this.tierUpText) {
+      return;
+    }
+    this.tierUpText.setText(text);
+    this.tierUpClearAt = this.time.now + durationMs;
   }
 
   private updateHud(): void {
