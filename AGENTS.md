@@ -32,6 +32,10 @@ Issues live in this repo's GitHub Issues; use the `gh` CLI. See `docs/eng-skills
 
 Single-context layout, but pointed at this repo's actual ICM docs (`docs/context.md`, `docs/agents/CONTEXT.md`) rather than a root `CONTEXT.md`. See `docs/eng-skills/domain.md`.
 
+### Prototyping
+
+This is a single-scene Phaser game, not a routable web app, so the `/prototype` skill's UI branch is adapted: throwaway variants live in their own `Phaser.Scene`, booted via `?prototype=<key>` (`src/dev/prototypeHarness.ts`) instead of a `?variant=` page. See `docs/eng-skills/prototype-harness.md`.
+
 ### PR sync
 
 Many parallel branches/worktrees can touch the same file without knowing about each other. Sync against `origin/main` before opening a PR and again right before merging it — don't rely on a green local test suite alone. See `docs/eng-skills/pr-sync.md`.
