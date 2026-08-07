@@ -3,6 +3,7 @@ import type { DebuffVariant, EnemyArchetype } from "../data/types";
 import { archetypeDisplayName, computeHpBarColor, computeHpFraction } from "../systems/enemyStatusOverlay";
 import { RANGED_STRAFE_SPEED, computeStrafeDirection } from "../systems/rangedStrafe";
 import { computeSeparationNudge, type Point } from "../systems/meleeSeparation";
+import { resolveWallSlideWantsNegativeY } from "../systems/wallSlideDirection";
 
 /** hp-template.md, "Enemy Archetype Per-Hit Damage" — fixed, never invented per-encounter. */
 export const ARCHETYPE_DAMAGE: Record<EnemyArchetype, number> = {
@@ -139,6 +140,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
    * preferred range (ranged) or attack range (melee, issue #110); randomized per-enemy so
    * same-wave enemies of the same archetype don't drift in lockstep. */
   private strafeDirection: 1 | -1 = Phaser.Math.Between(0, 1) === 0 ? 1 : -1;
+  /** backlog/issue #95 follow-up (2026-08-06) — persists which way a wall-blocked retreat
+   * is currently sliding, so it isn't re-decided (and flip-flopped) every single frame.
+   * `null` means no wall-slide episode is in progress; cleared whenever the retreat branch
+   * isn't wall-blocked on a given frame, per `wallSlideDirection.ts`'s own doc comment. */
+  private wallSlideWantsNegativeY: boolean | null = null;
   /** backlog 2.19 / issue #26 — sibling GameObjects, not children of this Sprite (Phaser
    * Arcade Sprites don't support a display-container parent/child relationship the way
    * Containers do). Phaser does NOT destroy these automatically just because this sprite
@@ -318,6 +324,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const preferredRange = this.archetype === "ranged" ? RANGED_PREFERRED_RANGE : DEBUFFER_PREFERRED_RANGE;
     const speed = ARCHETYPE_SPEED[this.archetype];
     if (distance > preferredRange + 20) {
+      this.wallSlideWantsNegativeY = null;
       body.setVelocity(direction.x * speed, direction.y * speed);
     } else if (distance < preferredRange - 20) {
       const retreatX = -direction.x * speed;
@@ -337,16 +344,33 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         // direction.x — multiplying the whole vector by a single scalar could still
         // drive the y-component away from center. Instead, pick whichever orientation of
         // the perpendicular actually has a y-component pointing toward the centerline.
+        //
+        // Fix (2026-08-06, backlog/issue #95 follow-up): the line above re-derived
+        // "which way is toward the centerline" from live position every single frame —
+        // the instant this branch's own corrective slide crossed the exact centerline,
+        // the target flipped again, driving it back across every frame indefinitely (a
+        // persistent limit cycle, confirmed by direct simulation before touching this
+        // code). Now decided once per wall-slide episode via `wallSlideDirection.ts` and
+        // persisted on `wallSlideWantsNegativeY` until the retreat is no longer blocked.
         const perpendicular = new Phaser.Math.Vector2(direction.y, -direction.x);
-        const wantsNegativeY = this.y >= this.lane.centerY; // below/at center -> slide up
-        if ((wantsNegativeY && perpendicular.y > 0) || (!wantsNegativeY && perpendicular.y < 0)) {
+        this.wallSlideWantsNegativeY = resolveWallSlideWantsNegativeY(
+          this.y,
+          this.lane.centerY,
+          this.wallSlideWantsNegativeY
+        );
+        if (
+          (this.wallSlideWantsNegativeY && perpendicular.y > 0) ||
+          (!this.wallSlideWantsNegativeY && perpendicular.y < 0)
+        ) {
           perpendicular.negate();
         }
         body.setVelocity(perpendicular.x * speed, perpendicular.y * speed);
       } else {
+        this.wallSlideWantsNegativeY = null;
         body.setVelocity(retreatX, retreatY);
       }
     } else if (this.archetype === "ranged") {
+      this.wallSlideWantsNegativeY = null;
       // backlog/issue #95 — developer: "the archers are always at the same spot, so its
       // easier to kill them". Stopping dead in-band (the old behavior, still used by
       // Debuffer below) combined with always approaching from the same spawn point along a
@@ -358,6 +382,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       const strafe = this.strafeVelocity(direction, RANGED_STRAFE_SPEED);
       body.setVelocity(strafe.x, strafe.y);
     } else {
+      this.wallSlideWantsNegativeY = null;
       body.setVelocity(0, 0);
     }
 
