@@ -1,0 +1,20 @@
+Electricity Game Sound Pack (one file used: groundhit.wav)
+
+Author: faxcorp
+Source: https://opengameart.org/content/electricity-game-sound-pack
+File used: groundhit.wav (one of 16 in the pack -- only this file was pulled in)
+Downloaded from: https://opengameart.org/sites/default/files/groundhit.wav
+
+License: CC0 (Creative Commons Zero / public domain), single license for the whole pack
+https://creativecommons.org/publicdomain/zero/1.0/
+
+No attribution required.
+
+Disclosed tradeoff: no dedicated CC0 "lightning spell" one-shot turned up in this search pass
+(OpenGameArt's "Spell Sounds" electricspell.ogg/electricspell2.ogg were disqualified -- that
+page states "OGA-BY 3.0 and CC0" as a mixed license across its files, and this project's search
+order only accepts assets that are individually, unambiguously CC0, same bar Kenney's own packs
+meet). This pack's own flavor is a generic sci-fi electric-game effect, not a fantasy lightning
+spell -- picked as the closest available CC0 stand-in for the lightning element's cast cue,
+same handling as 3.10's original sci-fi zap stand-ins. Flagged for a future re-source pass if a
+better-fitting CC0 lightning spell sound surfaces later.

@@ -1,0 +1,12 @@
+Freeze Spell
+
+Author: artisticdude
+Source: https://opengameart.org/content/freeze-spell-0
+File: freeze.wav
+Downloaded from: https://opengameart.org/sites/default/files/freeze.wav
+
+License: CC0 (Creative Commons Zero / public domain)
+https://creativecommons.org/publicdomain/zero/1.0/
+
+No attribution required. Originally created for the FOSS RPG "Summoning Wars," per the
+OpenGameArt page.

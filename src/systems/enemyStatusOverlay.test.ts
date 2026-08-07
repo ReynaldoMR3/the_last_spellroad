@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import { archetypeDisplayName, computeHpFraction, computeHpBarColor, HP_BAR_COLOR } from "./enemyStatusOverlay";
 
 describe("archetypeDisplayName", () => {
-  it("capitalizes melee/ranged for display since no lore-name exists yet for those two", () => {
-    expect(archetypeDisplayName("melee")).toBe("Melee");
-    expect(archetypeDisplayName("ranged")).toBe("Ranged");
+  it("returns the Nearblade's established lore name for melee (issue #109)", () => {
+    expect(archetypeDisplayName("melee")).toBe("The Nearblade");
+  });
+
+  it("returns the Farlance's established lore name for ranged (issue #109)", () => {
+    expect(archetypeDisplayName("ranged")).toBe("The Farlance");
   });
 
   it("returns the Tarrywright's established lore name for debuffer (backlog 4.2 / issue #57)", () => {

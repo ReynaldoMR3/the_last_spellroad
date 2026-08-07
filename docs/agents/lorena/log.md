@@ -190,3 +190,17 @@ Per Ana's dispatch (backlog item 4.9, unblocked same day as `docs/adr/0002-unblo
 **Status:** brief only — not separately Heckler-gated per Lorena's own AGENT.md ("a music brief itself isn't separately Heckler-gated... the resulting track is"). Handed to Composer for backlog 4.9's generation stage.
 
 **Not touched, per my own contract:** `docs/agents/ana/backlog.md`, `docs/agents/loomwright/log.md`, `lore-premise.md` (no new fact — the Tarrywright entry already exists and needed no edit). Nothing committed; left for review per Ana's dispatch instructions.
+
+## 2026-08-07 — Issue #109: naming the two remaining archetypes, "The Nearblade" and "The Farlance"
+
+Developer playtest (2026-08-06): "i dont like the name ranged and melee, lets use something else." This closes the gap my own 2026-08-02 entry above flagged ("melee/ranged untouched, still the generic capitalized fallback — no lore name exists for those yet") — the Tarrywright is no longer the only named archetype.
+
+**The Nearblade** (melee): a duelist-mage whose instinct to close the last stride between themself and an opponent never faded — the Road folded that instinct into a permanent lunge, so it now closes distance on anything that enters the corridor and never stops arriving. Distinct from the Tarrywright's "stopped resisting" arc: the Nearblade never stopped fighting, it just stopped being able to fight anything but the Road's own idea of an opponent.
+
+**The Farlance** (ranged): a mage who once measured every fight in the distance between a first shot and a killing one — patient, deliberate. The Road kept the aim and erased the patience, so it now looses on anything it can see, from wherever it happens to be standing, with none of the original judgment about when to actually take the shot.
+
+Both are archetype-level identities, same category as the Tarrywright — a mass label shown above every enemy of that archetype, not a unique individual with their own scene or dialogue (no rescuable-adventurer-style NPC treatment; nothing here implies otherwise). Kept to two sentences each, in line with `lore-premise.md`'s output-length rule for a UI-surfaced name, not a paragraph. Checked against the originality requirement: neither name matches a named faction/character/creature I could recall from a published fantasy property; both are plain-English compounds in the same register as the existing five (Tarrywright, Invigilator, Latchkeeper, Hushmantle, Rootbound, Longwaiter).
+
+**Written to `lore-premise.md`'s Established Named Facts** (the only file I edit for this). Wiring (`archetypeDisplayName`) done by Loomwright this same session — see `loomwright/log.md`, 2026-08-07 entry — since it was a mechanical one-line lookup-table change with no new display surface to design.
+
+**Status:** content `shipped-and-validated` in the sense that it's written and internally consistent with the established naming convention; not yet Heckler-gated (tone/consistency — same "flagged for the next critique pass" handling backlog 4.3 used for the all-Novice flash message) and not yet developer-confirmed as landing well on-screen. Both are real, human-facing judgment calls (does the name read right, does it fit the melancholic tone) that I can't self-certify per my own contract.

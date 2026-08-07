@@ -1,0 +1,15 @@
+Earth Element Magic Spell
+
+Author: qubodup
+Source: https://opengameart.org/content/earth-element-magic-spell
+File used: earth-element-magic-spell.ogg, renamed from the page's original "Earth Element Magic
+Spell.ogg" (the .ogg variant; the page also offers a larger .flac, not used here to keep the
+shipped asset small like the game's existing SFX; renamed to drop spaces, matching this repo's
+existing asset-filename convention)
+Downloaded from: https://opengameart.org/sites/default/files/Earth%20Element%20Magic%20Spell_3.ogg
+
+License: CC0 (Creative Commons Zero / public domain)
+https://creativecommons.org/publicdomain/zero/1.0/
+
+No attribution required. Described by the author as "Reversed, tempo-ed-up (800%) boiling
+water" -- sounds like roots or ground crumbling.
