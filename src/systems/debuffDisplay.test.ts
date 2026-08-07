@@ -22,9 +22,10 @@ describe("computeDebuffMagnitude", () => {
   });
 
   it("mirrors DebuffSystem.effectiveManaRegen's own arithmetic for mana-regen stacks", () => {
-    // base 5/sec, drain 1.5/stack (hp-template.md) -> 3.5 at 1 stack, 2 (the floor) at 2 stacks.
-    expect(computeDebuffMagnitude(0, 1, 5).effectiveManaRegenPerSec).toBeCloseTo(3.5, 5);
-    expect(computeDebuffMagnitude(0, 2, 5).effectiveManaRegenPerSec).toBe(2);
+    // base 8/sec (backlog 2.34), drain 2.4/stack (backlog 2.39/hp-template.md) -> 5.6 at 1
+    // stack (70% of base, matching the pre-retune ratio), 3.2 (the floor) at 2 stacks.
+    expect(computeDebuffMagnitude(0, 1, 8).effectiveManaRegenPerSec).toBeCloseTo(5.6, 5);
+    expect(computeDebuffMagnitude(0, 2, 8).effectiveManaRegenPerSec).toBe(3.2);
   });
 
   it("never reports mana regen below MANA_REGEN_FLOOR even against a low base regen", () => {
@@ -33,10 +34,10 @@ describe("computeDebuffMagnitude", () => {
   });
 
   it("reports both variants independently when both are active at once", () => {
-    const m = computeDebuffMagnitude(1, 1, 5);
+    const m = computeDebuffMagnitude(1, 1, 8);
     expect(m.active).toBe(true);
     expect(m.speedDrainPercent).toBe(12);
-    expect(m.effectiveManaRegenPerSec).toBeCloseTo(3.5, 5);
+    expect(m.effectiveManaRegenPerSec).toBeCloseTo(5.6, 5);
   });
 });
 
@@ -54,15 +55,15 @@ describe("formatDebuffHudLines", () => {
   });
 
   it("shows only the mana-regen line when only mana-regen stacks are active", () => {
-    const lines = formatDebuffHudLines(computeDebuffMagnitude(0, 1, 5), "Debuffer");
+    const lines = formatDebuffHudLines(computeDebuffMagnitude(0, 1, 8), "Debuffer");
     expect(lines.some((l) => l.includes("Speed"))).toBe(false);
-    expect(lines.some((l) => l.includes("Mana regen 3.5/s"))).toBe(true);
+    expect(lines.some((l) => l.includes("Mana regen 5.6/s"))).toBe(true);
   });
 
   it("shows both lines when both variants are active", () => {
-    const lines = formatDebuffHudLines(computeDebuffMagnitude(2, 2, 5), "Debuffer");
+    const lines = formatDebuffHudLines(computeDebuffMagnitude(2, 2, 8), "Debuffer");
     expect(lines.some((l) => l.includes("Speed -24%"))).toBe(true);
-    expect(lines.some((l) => l.includes("Mana regen 2.0/s"))).toBe(true);
+    expect(lines.some((l) => l.includes("Mana regen 3.2/s"))).toBe(true);
   });
 
   it("plugs in whatever source name it's given, ready for Lorena's lore-name wiring", () => {

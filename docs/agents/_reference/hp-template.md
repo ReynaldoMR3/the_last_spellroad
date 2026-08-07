@@ -37,9 +37,11 @@ Debuffer drains either speed or Mana regen per instance (Warden's choice per enc
 | Variant | Per-application magnitude | Stacking | Hard cap | Floor |
 | --- | --- | --- | --- | --- |
 | Speed drain | 12% | Additive | 2 applications (24% max) | — |
-| Mana-regen drain | 1.5 Mana/sec (off the 5/sec base in `mana-template.md`) | Additive | 2 applications (3.0/sec max drain) | Regen can never drop below **2 Mana/sec**, regardless of stack count |
+| Mana-regen drain | 2.4 Mana/sec (off the 8/sec base in `mana-template.md`) | Additive | 2 applications (4.8/sec max drain) | Regen can never drop below **3.2 Mana/sec**, regardless of stack count |
 
 Cap is set at 2, not Warden's suggested 2-3 — tighter cap chosen specifically because HP has no in-combat regen, so compounding drains (speed loss extending exposure time, or Mana-regen loss removing defensive/escape options) carry more downside here than they would against a regenerating pool. This is a numeric tightening of Warden's proposal, not a rejection of it.
+
+**Retuned 2026-08-06 (backlog 2.39 / issue #88):** the 1.5/2.0 figures above were sized against `MANA_REGEN_PER_SEC`'s old 5/sec base, where the 2-stack cap (3.0/sec drain) landed exactly on the 2/sec floor by design. Backlog 2.34 retuned the base to 8/sec; retuning the drain and floor to 2.4/3.2 restores the same relationship (1-stack lands at 5.6/sec, 70% of base, matching the old ratio; 2-stack lands exactly on the new 3.2 floor). Applied once 2.34's 8/sec base cleared its developer-playtest gate — see `docs/agents/pato/log.md`, 2026-08-03 and 2026-08-06.
 
 ## Phase-Transition Partial HP Recovery
 
