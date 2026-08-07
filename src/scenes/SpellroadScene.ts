@@ -224,8 +224,9 @@ const ONBOARDING_HINT_FALLBACK_MS = 9000;
  * the mini-boss," the developer's own framing of the gap. */
 const BOSS_BANNER_INTRO_TEXT =
   "The trial chamber closes behind you with no sound of a door — only the hex-lines in the " +
-  "floor brightening, one ring at a time, like a spell being read aloud. At the center, the " +
-  "Director's avatar assembles itself out of the same sacred geometry that built the Road: too " +
+  "floor brightening, one ring at a time, like a spell being read aloud. At the center, atop a " +
+  "raised stone dais worn smooth by however many trials came before yours, the Director's " +
+  "avatar assembles itself out of the same sacred geometry that built the Road: too " +
   "smooth, too attentive, more curious than cruel. You feel measured rather than hated, the way " +
   "a lesson feels measured, and understand, distantly, that surviving this is not escape — it " +
   "is only passing the part of the test that lets you keep walking. The Invigilator turns " +
@@ -238,7 +239,14 @@ const BOSS_BANNER_OUTRO_TEXT =
   "also, once, someone's careful work. Somewhere in the ledger a line closes; you do not know " +
   "yet whether the Director notices, or minds, or is already writing the next trial. The road " +
   "ahead stays exactly as endless as it was an hour ago, and you walk it anyway.";
-const BOSS_BANNER_DISPLAY_MS = 9000;
+/** Issue #113 — developer playtest found the outro banner (110 words) vanished on the same
+ * flat timer as the intro (85 words), regardless of reading speed. Auto-hide is a fallback for
+ * a player who never clicks/presses a key to dismiss (see `showBossBanner`'s own comment for
+ * the early-dismiss path) — it now scales with the text's own word count instead of a single
+ * constant, at a conservative ~200wpm reading pace, floored so a hypothetical future
+ * short banner still gets a sensible minimum hold. */
+const BOSS_BANNER_MIN_DISPLAY_MS = 9000;
+const BOSS_BANNER_MS_PER_WORD = 300;
 /** Issue #116 — see `bossNameText`'s own comment. Names the encounter's actual boss
  * explicitly rather than just its title, since the fight's individual enemies (ordinary
  * registry archetypes per `boss-1.json`) keep showing their own archetype label — e.g. a
@@ -409,12 +417,19 @@ export class SpellroadScene extends Phaser.Scene {
    * Tracked so both paths can `.remove()` this exact pending call rather than letting it fire
    * unconditionally. */
   private bossBannerHideTimer?: Phaser.Time.TimerEvent;
+  /** Issue #134 — a callback queued by `showBossBanner` to run once the banner has fully
+   * hidden (whichever path gets it there: auto-timeout or the player dismissing it early),
+   * so time-sensitive follow-up messages (e.g. the Phase-1 HP-carry warning) appear
+   * sequentially after the banner instead of competing with it for the player's attention
+   * on the same screen at the same time. */
+  private bossBannerOnHidden?: () => void;
   /** Issues #112/#113 — developer playtest: the boss intro/outro banner blocked vision while
    * enemies kept attacking underneath it (#112), and the outro banner vanished on its fixed
-   * `BOSS_BANNER_DISPLAY_MS` timer regardless of reading speed (#113). While this is true,
-   * `update()` skips `updateEnemies` (freezing enemy movement/attacks, not a full
-   * `scene.pause()` — that would also open the Esc pause menu, which isn't the ask here) and
-   * any keypress/click dismisses the banner early instead of waiting out the timer. */
+   * auto-hide timer regardless of reading speed (#113, now scaled by word count — see
+   * `BOSS_BANNER_MIN_DISPLAY_MS`). `update()` skips `updateEnemies` (freezing enemy
+   * movement/attacks, not a full `scene.pause()` — that would also open the Esc pause menu,
+   * which isn't the ask here) and any keypress/click dismisses the banner early instead of
+   * waiting out the timer. */
   private bossBannerActive = false;
   /** Issue #116 — persistent boss-name HUD element ("The Invigilator") shown for the whole
    * Level 5 encounter. `boss-1.json`'s three phases are composed entirely of ordinary
@@ -939,7 +954,7 @@ export class SpellroadScene extends Phaser.Scene {
     });
 
     // Issues #112/#113 — same dismiss-early contract for the keyboard: any keypress ends the
-    // boss banner's display rather than waiting out `BOSS_BANNER_DISPLAY_MS`. Phaser fires
+    // boss banner's display rather than waiting out its reading-speed-scaled auto-hide. Phaser fires
     // this generic `keydown` event alongside (not instead of) the specific `keydown-Y`/
     // `keydown-N`/hotbar-digit handlers below, so none of those need to change. Esc is
     // excluded deliberately (code review, 2026-08-06): it already has its own contextual
@@ -1259,9 +1274,15 @@ export class SpellroadScene extends Phaser.Scene {
         // treatment, but this earlier, first-told-here announcement was left on the plain
         // "default" emphasis #114 exists specifically to move away from — the one place this
         // HP-reset rule is announced ahead of any decision hinging on it.
-        this.flashMessage("Director Trial — Phase 1 (HP won't reset again until you win or die)", 2400, "warning");
+        // Issue #134 — developer playtest: this flashMessage used to fire the same tick as
+        // `showBossBanner` below, so the HP-carry warning and the boss intro narration
+        // rendered simultaneously and competed for attention. Deferred to the banner's
+        // `onHidden` callback so the player reads the narration first, then the mechanical
+        // warning, never both at once.
         this.playBossTheme();
-        this.showBossBanner(BOSS_BANNER_INTRO_TEXT);
+        this.showBossBanner(BOSS_BANNER_INTRO_TEXT, () => {
+          this.flashMessage("Director Trial — Phase 1 (HP won't reset again until you win or die)", 2400, "warning");
+        });
         this.bossNameText?.setText(BOSS_NAME_TEXT);
       } else {
         this.flashMessage(`Director Trial — Phase ${wave.wave_index + 1}`, 1800);
@@ -1587,7 +1608,17 @@ export class SpellroadScene extends Phaser.Scene {
     // audibly, matching `confirmCast`'s own comment on why the visual flash fires unconditionally).
     // issue #111 — a real per-element recording (not the old single shared "cast" cue),
     // still layered with the per-play pitch/volume variation on top.
-    this.sound.play(elementCastSfxKey(spell.element), computeSpellSfxVariation(spell.element));
+    // issue #133 — the #111 recordings run several seconds long (vs. the old sub-second
+    // stand-ins), so a second cast of the same element before the first cue finishes used to
+    // layer both playbacks and read as one "contaminated" sound. Stop (and destroy, since
+    // `this.sound.play`'s shorthand only auto-destroys on natural completion, not on a manual
+    // `.stop()`) any still-playing instance of this exact element's cue first.
+    const castSfxKey = elementCastSfxKey(spell.element);
+    this.sound.getAll(castSfxKey).forEach((instance) => {
+      instance.stop();
+      instance.destroy();
+    });
+    this.sound.play(castSfxKey, computeSpellSfxVariation(spell.element));
     const color = ELEMENT_EFFECT_COLOR[spell.element];
     const flash = this.add.graphics();
     flash.fillStyle(color, 0.55);
@@ -1798,12 +1829,17 @@ export class SpellroadScene extends Phaser.Scene {
    * here as intentionally non-blocking; now sets `bossBannerActive` so `update()` freezes
    * enemy movement/attacks for the display's duration, and any keypress/click (see
    * `createInput`) dismisses it early via `hideBossBanner` instead of waiting out
-   * `BOSS_BANNER_DISPLAY_MS`. */
-  private showBossBanner(text: string): void {
+   * `BOSS_BANNER_MIN_DISPLAY_MS`/`BOSS_BANNER_MS_PER_WORD` reading-speed-scaled auto-hide (see
+   * that constant's own comment, issue #113).
+   * @param onHidden issue #134 — optional callback fired once the banner has fully hidden
+   * (see `bossBannerOnHidden`'s own comment), so a caller can defer a message that would
+   * otherwise render on top of/alongside the banner. */
+  private showBossBanner(text: string, onHidden?: () => void): void {
     if (!this.bossBannerText) {
       return;
     }
     this.bossBannerActive = true;
+    this.bossBannerOnHidden = onHidden;
     // See `bossBannerHideTimer`'s own comment: a still-pending auto-hide from a previous
     // display (e.g. the intro banner, cut short by a death) must not fire mid-way through
     // this new display and hide it early.
@@ -1811,12 +1847,14 @@ export class SpellroadScene extends Phaser.Scene {
     this.bossBannerText.setText(text);
     this.tweens.killTweensOf(this.bossBannerText);
     this.bossBannerText.setAlpha(0);
+    const wordCount = text.trim().split(/\s+/).length;
+    const displayMs = Math.max(BOSS_BANNER_MIN_DISPLAY_MS, wordCount * BOSS_BANNER_MS_PER_WORD);
     this.tweens.add({
       targets: this.bossBannerText,
       alpha: 1,
       duration: 400,
       onComplete: () => {
-        this.bossBannerHideTimer = this.time.delayedCall(BOSS_BANNER_DISPLAY_MS, () => this.hideBossBanner());
+        this.bossBannerHideTimer = this.time.delayedCall(displayMs, () => this.hideBossBanner());
       }
     });
   }
@@ -1826,6 +1864,9 @@ export class SpellroadScene extends Phaser.Scene {
     this.bossBannerHideTimer = undefined;
     if (!this.bossBannerText) {
       this.bossBannerActive = false;
+      const onHidden = this.bossBannerOnHidden;
+      this.bossBannerOnHidden = undefined;
+      onHidden?.();
       return;
     }
     this.tweens.killTweensOf(this.bossBannerText);
@@ -1842,6 +1883,9 @@ export class SpellroadScene extends Phaser.Scene {
       duration: 400,
       onComplete: () => {
         this.bossBannerActive = false;
+        const onHidden = this.bossBannerOnHidden;
+        this.bossBannerOnHidden = undefined;
+        onHidden?.();
       }
     });
   }
