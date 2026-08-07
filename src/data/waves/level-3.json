@@ -16,8 +16,8 @@
     "enemies": [
       { "type": "spellbound_thug", "count": 2, "spawn_delay_ms": 0 },
       { "type": "hexbow_skirmisher", "count": 3, "spawn_delay_ms": 700 },
-      { "type": "creeping_bramble", "count": 2, "spawn_delay_ms": 1300 },
-      { "type": "murmur_wisp", "count": 2, "spawn_delay_ms": 1700 }
+      { "type": "creeping_bramble", "count": 1, "spawn_delay_ms": 1300 },
+      { "type": "murmur_wisp", "count": 1, "spawn_delay_ms": 1700 }
     ],
     "hp_modifier": 1.0,
     "damage_modifier": 1.0
