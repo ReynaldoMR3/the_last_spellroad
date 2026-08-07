@@ -5,11 +5,15 @@ import { TitleScene } from "./scenes/TitleScene";
 import { SpellroadScene } from "./scenes/SpellroadScene";
 import { PauseScene } from "./scenes/PauseScene";
 import { resolveBootScenes, type PrototypeRegistry } from "./dev/prototypeHarness";
+import { PrototypeRoadFeelScene } from "./scenes/PrototypeRoadFeelScene";
 
-// A prototype ticket registers its throwaway scene here for the duration of that ticket only —
-// e.g. `{ roadfeel: PrototypeRoadFeelScene }` — then removes the entry (and the scene file) once
-// resolved. See docs/eng-skills/prototype-harness.md. Empty by default: a no-op for the real game.
-const PROTOTYPE_REGISTRY: PrototypeRegistry = {};
+// A prototype ticket registers its throwaway scene here for the duration of that ticket only,
+// then removes the entry (and the scene file) once resolved. See
+// docs/eng-skills/prototype-harness.md. THROWAWAY entry: wayfinder ticket #68's roadfeel
+// prototype (`?prototype=roadfeel`) — remove this line and the scene import once #68 resolves.
+const PROTOTYPE_REGISTRY: PrototypeRegistry = {
+  roadfeel: PrototypeRoadFeelScene
+};
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
