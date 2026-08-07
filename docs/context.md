@@ -20,6 +20,28 @@ The Last Spellroad is a low-spec top-down magical roguelite designed as a browse
 
 The project prioritizes lore, tactical spell mechanics, and an AI-assisted encounter pipeline over expensive visuals.
 
+## Language
+
+**Opening Experience**:
+The player's first minute in Level 1, where the game must establish magical excitement, tactical readability, and the Spellroad's capacity to grow stranger and more melancholic later.
+_Avoid_: Tutorial mood, title-screen experience
+
+**Runes Awake**:
+The opening art-and-music direction: familiar stone and forest form a grounded world while saturated runes, spells, pickups, and music make magic feel newly alive.
+_Avoid_: Generic fantasy, spellstorm
+
+**Arcane Momentum**:
+The selected intensity for Runes Awake: the environment stays readable and grounded while magic is frequent and vivid enough to make the opening immediately exciting.
+_Avoid_: Maximum spectacle, ambient-only magic
+
+**Active Prototype**:
+The single throwaway Phaser scene currently used to answer one approved design question against the latest production baseline.
+_Avoid_: Demo, permanent prototype, prototype archive
+
+**Prototype Freshness**:
+The rule that a change affecting the Active Prototype's production baseline must update and re-check that prototype in the same change.
+_Avoid_: Prototype compatibility
+
 ## Next Actions
 
 - Define and implement the first playable Spellroad movement and spellcasting loop.

@@ -22,7 +22,7 @@ This is the entry point for the ICM-style context store behind The Last Spellroa
 | Tilesmith | Art, level layout & SFX | `tilesmith/` |
 | Heckler | Adversarial review | `heckler/` |
 
-**Reference layer:** `_reference/mana-template.md`, `mastery-template.md`, `hexcoin-template.md` (all Pato's authority), `engine-contract.md` (Loomwright's authority), `lore-premise.md` (Lorena's authority), `docker-testing-contract.md` (Loomwright's authority — the shared Docker commands for typecheck/build/dev-server, so any agent whose task needs to actually run or build the game doesn't have to read the README or GDD to find them).
+**Reference layer:** `_reference/mana-template.md`, `mastery-template.md`, `hexcoin-template.md` (all Pato's authority), `engine-contract.md` (Loomwright's authority), `lore-premise.md` (Lorena's authority), `opening-experience-brief.md` (section-scoped authority for the approved Level 1 art/music direction), `docker-testing-contract.md` (Loomwright's authority — the shared Docker commands for typecheck/build/dev-server, so any agent whose task needs to actually run or build the game doesn't have to read the README or GDD to find them).
 
 **Note on Ana's log:** `ana/log.md` is orchestration-only and is not read directly by other agents. If another agent needs prior orchestration history, it asks Ana for it rather than reading her log — see `ana/AGENT.md`.
 
