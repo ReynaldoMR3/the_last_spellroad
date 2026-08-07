@@ -31,3 +31,7 @@ Issues live in this repo's GitHub Issues; use the `gh` CLI. See `docs/eng-skills
 ### Domain docs
 
 Single-context layout, but pointed at this repo's actual ICM docs (`docs/context.md`, `docs/agents/CONTEXT.md`) rather than a root `CONTEXT.md`. See `docs/eng-skills/domain.md`.
+
+### PR sync
+
+Many parallel branches/worktrees can touch the same file without knowing about each other. Sync against `origin/main` before opening a PR and again right before merging it — don't rely on a green local test suite alone. See `docs/eng-skills/pr-sync.md`.
