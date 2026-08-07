@@ -34,7 +34,14 @@ import {
   levelMapUrl
 } from "../systems/levelArt";
 import { SPELL_ICON_ELEMENTS, iconKeyForSpell, spellIconKey, spellIconUrl } from "../systems/spellIcons";
-import { ALL_SFX_CUES, sfxKey, sfxUrl } from "../systems/sfx";
+import {
+  ALL_CAST_ELEMENTS,
+  ALL_SFX_CUES,
+  elementCastSfxKey,
+  elementCastSfxUrl,
+  sfxKey,
+  sfxUrl
+} from "../systems/sfx";
 import { computeSfxVariation, computeSpellSfxVariation } from "../systems/sfxVariation";
 import { BOSS_THEME_KEY, BOSS_THEME_URL, BOSS_THEME_VOLUME } from "../systems/bgm";
 
@@ -469,13 +476,21 @@ export class SpellroadScene extends Phaser.Scene {
       this.load.image(spellIconKey(element), spellIconUrl(element));
     }
 
-    // backlog 3.10 / issue #81 (ADR-0002) — hit/cast/impact/death one-shots, sourced from
-    // Kenney.nl (CC0); see `systems/sfx.ts` for the per-cue source/rationale and
+    // backlog 3.10 / issue #81 (ADR-0002) — hit/impact/death one-shots, sourced from Kenney.nl
+    // (CC0); see `systems/sfx.ts` for the per-cue source/rationale and
     // `docs/agents/tilesmith/log.md`'s 2026-08-04 entry for the full license record. Same
-    // eager-preload convention as the tileset image and spell icons above — 5 tiny (<1.3s)
-    // .ogg files, not worth a dynamic-loading dance.
+    // eager-preload convention as the tileset image and spell icons above — tiny (<1.3s) .ogg
+    // files, not worth a dynamic-loading dance.
     for (const cue of ALL_SFX_CUES) {
       this.load.audio(sfxKey(cue), sfxUrl(cue));
+    }
+
+    // issue #111 (2026-08-07) — one real per-element cast recording each, replacing the single
+    // shared "cast" cue the block above used to also load. See `systems/sfx.ts`'s
+    // `ELEMENT_CAST_URL` doc comment and `docs/agents/tilesmith/log.md`'s 2026-08-07 entry for
+    // sourcing/license detail per element.
+    for (const element of ALL_CAST_ELEMENTS) {
+      this.load.audio(elementCastSfxKey(element), elementCastSfxUrl(element));
     }
 
     // backlog 4.11 / issue #97 — mini-boss/Director trial theme, same eager-preload
@@ -1570,9 +1585,9 @@ export class SpellroadScene extends Phaser.Scene {
     // natural integration point per the ticket: the sound and the shape flash fire from the
     // same call, once per cast regardless of whether it lands a hit (a whiff still confirms
     // audibly, matching `confirmCast`'s own comment on why the visual flash fires unconditionally).
-    // issue #111 — per-element base detune layered on top of the per-play variation, so a fire
-    // cast and an ice cast no longer sound identical beyond their (already-distinct) visual tint.
-    this.sound.play(sfxKey("cast"), computeSpellSfxVariation(spell.element));
+    // issue #111 — a real per-element recording (not the old single shared "cast" cue),
+    // still layered with the per-play pitch/volume variation on top.
+    this.sound.play(elementCastSfxKey(spell.element), computeSpellSfxVariation(spell.element));
     const color = ELEMENT_EFFECT_COLOR[spell.element];
     const flash = this.add.graphics();
     flash.fillStyle(color, 0.55);
