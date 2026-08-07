@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import type { DebuffVariant, EnemyArchetype } from "../data/types";
 import { archetypeDisplayName, computeHpBarColor, computeHpFraction } from "../systems/enemyStatusOverlay";
 import { RANGED_STRAFE_SPEED, computeStrafeDirection } from "../systems/rangedStrafe";
+import { computeSeparationNudge, type Point } from "../systems/meleeSeparation";
 
 /** hp-template.md, "Enemy Archetype Per-Hit Damage" — fixed, never invented per-encounter. */
 export const ARCHETYPE_DAMAGE: Record<EnemyArchetype, number> = {
@@ -24,6 +25,26 @@ const ARCHETYPE_SPEED: Record<EnemyArchetype, number> = {
 
 const MELEE_RANGE = 34;
 const MELEE_COOLDOWN_MS = 1200;
+/**
+ * Issue #110 — developer playtest: "the melee units are always in the same spot so its easy
+ * to kill them." Once in `MELEE_RANGE`, a melee enemy now strafes perpendicular to the
+ * hold-range line (same `computeStrafeDirection` bounce logic `rangedStrafe.ts` already ships
+ * for the ranged archetype) instead of stopping dead, plus a separation nudge
+ * (`meleeSeparation.ts`) away from any other melee enemy that's crowded too close — the
+ * ticket's own two candidate causes: a fully deterministic resting bearing, and multiple
+ * simultaneous melees stacking at the same point. Much slower than `RANGED_STRAFE_SPEED` (45)
+ * deliberately: `MELEE_RANGE` (34px) is a far tighter band than ranged's hold range, so a fast
+ * drift would risk carrying a melee enemy in and out of attack range every couple frames
+ * instead of a small, steady shuffle. An explicit engine-feel number (not one of Pato's
+ * economy values), same as `RANGED_STRAFE_SPEED` — free to retune without a template change.
+ */
+const MELEE_STRAFE_SPEED = 18;
+/** Issue #110 — how close two melee enemies can get before one starts pushing off the other;
+ * sized a little larger than the 26x26 sprite footprint (`Enemy.ensureTexture`) so the push
+ * fires just before sprites visibly overlap, not only after. Same "explicit engine-feel
+ * number, not Pato's scope" reasoning as `MELEE_STRAFE_SPEED` above. */
+const MELEE_SEPARATION_DISTANCE = 32;
+const MELEE_SEPARATION_SPEED = 40;
 /**
  * backlog 2.10 — retuned 220->240 (Warden, 2026-07-25) so ranged/debuffer settle into
  * non-overlapping bands: each archetype holds preferredRange +/- 20, so the old 220/200
@@ -114,8 +135,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   public readonly damageModifier: number;
   private attackCooldownMs = 0;
   private readonly debuffVariant: DebuffVariant;
-  /** backlog/issue #95 — which way a ranged enemy is currently strafing while holding its
-   * preferred range; randomized per-enemy so same-wave archers don't drift in lockstep. */
+  /** backlog/issue #95 — which way this enemy is currently strafing while holding its
+   * preferred range (ranged) or attack range (melee, issue #110); randomized per-enemy so
+   * same-wave enemies of the same archetype don't drift in lockstep. */
   private strafeDirection: 1 | -1 = Phaser.Math.Between(0, 1) === 0 ? 1 : -1;
   /** backlog 2.19 / issue #26 — sibling GameObjects, not children of this Sprite (Phaser
    * Arcade Sprites don't support a display-container parent/child relationship the way
@@ -227,7 +249,17 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     super.destroy(fromScene);
   }
 
-  update(deltaMs: number, targetX: number, targetY: number, callbacks: EnemyCallbacks): void {
+  update(
+    deltaMs: number,
+    targetX: number,
+    targetY: number,
+    callbacks: EnemyCallbacks,
+    /** Issue #110 — positions of every other currently-alive melee enemy, so this one can
+     * push off any that are crowded too close (`computeSeparationNudge`). Empty by default so
+     * a solo melee enemy (or any non-melee archetype, which never reads this) needs no
+     * special-casing at call sites. */
+    nearbyMeleeAllies: Point[] = []
+  ): void {
     this.refreshStatusOverlay();
     this.attackCooldownMs = Math.max(0, this.attackCooldownMs - deltaMs);
     const body = this.body as Phaser.Physics.Arcade.Body;
@@ -239,7 +271,23 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       if (distance > MELEE_RANGE) {
         body.setVelocity(direction.x * ARCHETYPE_SPEED.melee, direction.y * ARCHETYPE_SPEED.melee);
       } else {
-        body.setVelocity(0, 0);
+        // Issue #110 — see `MELEE_STRAFE_SPEED`'s own comment: strafe perpendicular to the
+        // hold-range line (same bounce logic `rangedStrafe.ts` ships for the ranged
+        // archetype) instead of stopping dead, and push off any too-close melee ally
+        // (`meleeSeparation.ts`) instead of stacking on top of it.
+        this.strafeDirection = computeStrafeDirection(
+          this.y,
+          this.lane.top,
+          this.lane.bottom,
+          WALL_SLIDE_MARGIN,
+          this.strafeDirection
+        );
+        const perpendicular = new Phaser.Math.Vector2(direction.y, -direction.x);
+        const nudge = computeSeparationNudge({ x: this.x, y: this.y }, nearbyMeleeAllies, MELEE_SEPARATION_DISTANCE);
+        body.setVelocity(
+          perpendicular.x * MELEE_STRAFE_SPEED * this.strafeDirection + nudge.x * MELEE_SEPARATION_SPEED,
+          perpendicular.y * MELEE_STRAFE_SPEED * this.strafeDirection + nudge.y * MELEE_SEPARATION_SPEED
+        );
         if (this.attackCooldownMs <= 0) {
           this.attackCooldownMs = MELEE_COOLDOWN_MS;
           callbacks.onMeleeHit?.();

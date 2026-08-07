@@ -1252,43 +1252,56 @@ export class SpellroadScene extends Phaser.Scene {
     // `this.enemies`. Without both guards, the loop's next iteration calls .update() on an
     // already-destroyed enemy whose Arcade body Phaser has nulled, throwing
     // "Cannot read properties of undefined (reading 'setVelocity')" and freezing the game.
+    // Issue #110 — computed once per frame (not once per melee enemy) since it doesn't
+    // change while this loop runs; each melee enemy below excludes itself from its own list.
+    const meleeEnemies = this.enemies.filter((e) => e.archetype === "melee");
     for (const enemy of [...this.enemies]) {
       if (!enemy.active) {
         continue;
       }
-      enemy.update(deltaMs, this.mage.x, this.mage.y, {
-        onMeleeHit: () => this.health.applyDamage(Math.round(ARCHETYPE_DAMAGE.melee * enemy.damageModifier)),
-        onRangedFire: (fromX, fromY, toX, toY) => {
-          // Developer feedback (2026-07-27): no way to tell a non-melee hit is coming.
-          // `EnemyCallbacks` already carried the shot's start/end coordinates — the scene
-          // just never drew anything with them. Visible travel time doubles as the dodge
-          // window the competent-play damage-threat model already assumes exists.
-          this.spawnRangedProjectile(fromX, fromY, toX, toY);
-          // Issue #47 fix: the delayed callback previously applied damage unconditionally,
-          // with nothing backing the visible travel tween above — dodging during the
-          // window could never actually avoid the hit. Recheck the player's live position
-          // against the point the shot was fired at (`toX`/`toY`, the mage's position at
-          // fire time) once the shot actually arrives; only apply damage if still in range.
-          // Issue #48: tagged with the firing wave's generation too. The shooter belongs to
-          // this wave/life; if the player dies (or the wave is replaced) during the 450ms
-          // travel window, the shot must not land on the respawned mage — that phantom hit is
-          // the same "timer outlives the world that scheduled it" class of bug as the wave
-          // race itself, reachable from the exact same playtest.
-          const fireGeneration = this.session.generation;
-          this.time.delayedCall(RANGED_TRAVEL_MS, () => {
-            if (!this.mage || !this.session.isCurrent(fireGeneration)) {
-              return;
-            }
-            if (isStillInRangedImpactZone(this.mage.x, this.mage.y, toX, toY)) {
-              this.health.applyDamage(Math.round(ARCHETYPE_DAMAGE.ranged * enemy.damageModifier));
-            }
-          });
+      const nearbyMeleeAllies =
+        enemy.archetype === "melee" ? meleeEnemies.filter((e) => e !== enemy).map((e) => ({ x: e.x, y: e.y })) : [];
+      enemy.update(
+        deltaMs,
+        this.mage.x,
+        this.mage.y,
+        {
+          onMeleeHit: () => this.health.applyDamage(Math.round(ARCHETYPE_DAMAGE.melee * enemy.damageModifier)),
+          onRangedFire: (fromX, fromY, toX, toY) => {
+            // Developer feedback (2026-07-27): no way to tell a non-melee hit is coming.
+            // `EnemyCallbacks` already carried the shot's start/end coordinates — the scene
+            // just never drew anything with them. Visible travel time doubles as the dodge
+            // window the competent-play damage-threat model already assumes exists.
+            this.spawnRangedProjectile(fromX, fromY, toX, toY);
+            // Issue #47 fix: the delayed callback previously applied damage unconditionally,
+            // with nothing backing the visible travel tween above — dodging during the
+            // window could never actually avoid the hit. Recheck the player's live position
+            // against the point the shot was fired at (`toX`/`toY`, the mage's position at
+            // fire time) once the shot actually arrives; only apply damage if still in range.
+            // Issue #48: tagged with the firing wave's generation too. The shooter belongs to
+            // this wave/life; if the player dies (or the wave is replaced) during the 450ms
+            // travel window, the shot must not land on the respawned mage — that phantom hit is
+            // the same "timer outlives the world that scheduled it" class of bug as the wave
+            // race itself, reachable from the exact same playtest.
+            const fireGeneration = this.session.generation;
+            this.time.delayedCall(RANGED_TRAVEL_MS, () => {
+              if (!this.mage || !this.session.isCurrent(fireGeneration)) {
+                return;
+              }
+              if (isStillInRangedImpactZone(this.mage.x, this.mage.y, toX, toY)) {
+                this.health.applyDamage(Math.round(ARCHETYPE_DAMAGE.ranged * enemy.damageModifier));
+              }
+            });
+          },
+          onDebuffPulse: (variant) => {
+            this.spawnDebuffPulse(enemy.x, enemy.y, variant);
+            this.debuff.applyStack(variant);
+          }
         },
-        onDebuffPulse: (variant) => {
-          this.spawnDebuffPulse(enemy.x, enemy.y, variant);
-          this.debuff.applyStack(variant);
-        }
-      });
+        // Issue #110 — see `Enemy.update`'s own comment: lets a melee enemy push off any
+        // other melee enemy crowded too close instead of stacking on the same point.
+        nearbyMeleeAllies
+      );
     }
 
     // Backlog 2.38 / issue #87 — a Debuffer (0 direct damage by design) left as the only thing
