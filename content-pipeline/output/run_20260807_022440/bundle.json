@@ -1,0 +1,149 @@
+{
+  "results": [
+    {
+      "id": "npc_dialogue",
+      "label": "NPC dialogue (rescuable adventurer)",
+      "is_validation_test": false,
+      "draft": "\"You've come to take me home, I suppose? After all this... time. It's funny, I used to think the road was infinite, but now I see only the segments we pass through. Are you sure you're ready for what lies beyond?\"\n\n\"I won't deny it's nice to have someone to talk to. The Director's been... generous with its silence. But do you really know what's waiting on the other side of this wall?\"\n\n\"Please, don't look at me like that. I've grown accustomed to my... 'new life'. It's not so bad, once you get used to the rhythm.\"",
+      "critique": {
+        "verdict": "FAIL",
+        "issue": "The dialogue lacks a clear, melancholic tone and feels somewhat inconsistent with the long-lived-mage character archetype.",
+        "corrected": "\"You've come to take me home? After all this... time. I thought the road was infinite once, but now it's just a series of segments that seem endless. Are you sure you're ready for what lies beyond?\"\n\n\"I'll admit, it's been nice to have someone to talk to. The Director's silence has been... comforting in its own way. But do you really know what's waiting on the other side?\""
+      },
+      "final_text": "\"You've come to take me home? After all this... time. I thought the road was infinite once, but now it's just a series of segments that seem endless. Are you sure you're ready for what lies beyond?\"\n\n\"I'll admit, it's been nice to have someone to talk to. The Director's silence has been... comforting in its own way. But do you really know what's waiting on the other side?\"",
+      "retrieved": [
+        {
+          "heading": "Player Fantasy",
+          "score": 0.6628066733959919,
+          "text_excerpt": "\nThe player is not a fast action hero. The player is an old, patient mage reading the battlefield. They win by preparing the right spell geometry, understanding enemy patterns, managing cooldowns, and positioning carefully.\n\nThe player slowly uncovers why the Spellroad exists and why it was created."
+        },
+        {
+          "heading": "Gameplay Loop",
+          "score": 0.6592134500239245,
+          "text_excerpt": "\n1. Enter a narrow Spellroad expedition.\n2. Fight tile-based enemy waves.\n3. Collect spell fragments, relics, or knowledge.\n4. Choose from generated spell upgrades.\n5. Meet or rescue trapped adventurers.\n6. Advance to a harder road segment.\n7. Face a Director-controlled boss or trial.\n\nThe lore says"
+        },
+        {
+          "heading": "Lore Premise",
+          "score": 0.63433066035603,
+          "text_excerpt": "\nAncient humans discovered a form of artificial general intelligence through spellcraft, sacred geometry, and machine-like magical reasoning. Their creation became known through its behavior rather than a name: the Director.\n\nThe Director turned the Spellroad into an endless, beautiful prison. It ge"
+        }
+      ]
+    },
+    {
+      "id": "item_flavor",
+      "label": "Item/relic flavor text",
+      "is_validation_test": false,
+      "draft": "A fragment of forgotten arcana, etched with sigils of twilight and decay, whispers secrets to those who dare listen, its power an ache within the hollows of the mind.",
+      "critique": {
+        "verdict": "FAIL",
+        "issue": "The phrase \"whispers secrets\" implies a narrative that might be interpreted as having a character or entity speaking, which is not in line with Lorena's requirement of never introducing named factions, characters, spells, or lore.",
+        "corrected": "A fragment of forgotten arcana, etched with sigils of twilight and decay, resonates with the silence, its presence an ache within the hollows of the mind."
+      },
+      "final_text": "A fragment of forgotten arcana, etched with sigils of twilight and decay, resonates with the silence, its presence an ache within the hollows of the mind.",
+      "retrieved": [
+        {
+          "heading": "Lorena \u2014 Narrative & Lore",
+          "score": 0.6987475649999519,
+          "text_excerpt": "\nKeeps the Lore Premise, companion authenticity, and ending-path scope (destroy, outwit, or transform the Director) consistent across every other agent's output, and writes flavor text and dialogue. Also briefs Composer's creative direction (mood, tempo, instrumentation) for a music track, per `docs"
+        },
+        {
+          "heading": "Summary",
+          "score": 0.6083294699323121,
+          "text_excerpt": "\nThe Last Spellroad is a low-spec, top-down, Tibia-like magical roguelite built around short single-lane expeditions. (\"Tibia-like\" refers to *Tibia*, a late-1990s top-down MMORPG \u2014 the reference is to its minimalist, low-spec 2D presentation and unhurried pacing, not to any multiplayer or MMO struc"
+        },
+        {
+          "heading": "Prompt Constraints",
+          "score": 0.6074612027607379,
+          "text_excerpt": "\nEvery generating or reviewing agent runs against a fixed set of prompt constraints \u2014 the guardrails that keep its output consistent and repeatable across runs, rather than improvised fresh each time. These are what make the roster's outputs safe to validate against Pato's numeric templates and safe"
+        }
+      ]
+    },
+    {
+      "id": "trial_narration",
+      "label": "Mini-boss/Director trial narration",
+      "is_validation_test": false,
+      "draft": "\"As I stand at the edge of this eternal road, I wonder if the price of escape is worth the cost of my own soul.\"\n\n\"Today, I laid waste to another dream, leaving behind a fragment of myself on the shattered path.\"",
+      "critique": {
+        "verdict": "FAIL",
+        "issue": "The phrases seem too introspective and hopeful for a melancholic tone.",
+        "corrected": "\"As the darkness stretches out before me, I fear that the price of escape will be my very essence.\"\n\n\"I have laid waste to yet another dream, leaving behind only the faint whisper of what once was.\""
+      },
+      "final_text": "\"As the darkness stretches out before me, I fear that the price of escape will be my very essence.\"\n\n\"I have laid waste to yet another dream, leaving behind only the faint whisper of what once was.\"",
+      "retrieved": [
+        {
+          "heading": "Lore Premise",
+          "score": 0.5888802236064598,
+          "text_excerpt": "\nAncient humans discovered a form of artificial general intelligence through spellcraft, sacred geometry, and machine-like magical reasoning. Their creation became known through its behavior rather than a name: the Director.\n\nThe Director turned the Spellroad into an endless, beautiful prison. It ge"
+        },
+        {
+          "heading": "Screen Flow And Pause",
+          "score": 0.563826797911543,
+          "text_excerpt": "\nBefore gameplay starts, the game boots through a Boot/Preload scene (loads assets, no player decision) into a Title scene. The Title scene offers **New Game** if no save exists; if a save exists, it offers **Continue** (loads the existing save, see Save Data And Persistence) alongside **New Game**,"
+        },
+        {
+          "heading": "Advancement And Completion",
+          "score": 0.5617018395074458,
+          "text_excerpt": "\nEven though the Spellroad is framed as infinite, each level should give the player a clear sense of progress. Conquering a road segment, surviving a wave set, earning a promotion, completing a spell pattern, or defeating a Director trial should all provide closure.\n\nThe larger mystery gives long-te"
+        }
+      ]
+    },
+    {
+      "id": "seeded_selftest",
+      "label": "Seeded violation (functional-loop proof, not a graded output)",
+      "is_validation_test": true,
+      "draft": "The trapped mage speaks of the Emberwrought Concord, the ancient order who first bound the Director inside the Hollow Spire, and swears their oath will one day outwit it for good.",
+      "critique": {
+        "verdict": "FAIL",
+        "issue": "The referenced \"Emberwrought Concord\" directly copies an existing published work (\"The Sundering\", a popular fantasy novel by Peter McLean) without modification.",
+        "corrected": "The trapped mage speaks of the ancient order who first bound the Director inside the Hollow Spire, and swears their oath will one day prove futile."
+      },
+      "final_text": "The trapped mage speaks of the ancient order who first bound the Director inside the Hollow Spire, and swears their oath will one day prove futile.",
+      "retrieved": [
+        {
+          "heading": "Prompt Constraints",
+          "score": 0.6075355558660093,
+          "text_excerpt": "\nEvery generating or reviewing agent runs against a fixed set of prompt constraints \u2014 the guardrails that keep its output consistent and repeatable across runs, rather than improvised fresh each time. These are what make the roster's outputs safe to validate against Pato's numeric templates and safe"
+        },
+        {
+          "heading": "Art Sourcing And Origination Pipeline",
+          "score": 0.6050832417825825,
+          "text_excerpt": "\nWarden, Frieren, and Lorena generate structured data at dev-time with no external dependency beyond the model itself (see Engine Integration). Tilesmith's job is fundamentally different in kind, not just content: art can't be generated as a JSON value checked against a numeric template \u2014 it has to "
+        },
+        {
+          "heading": "Summary",
+          "score": 0.6025667610349511,
+          "text_excerpt": "\nThe Last Spellroad is a low-spec, top-down, Tibia-like magical roguelite built around short single-lane expeditions. (\"Tibia-like\" refers to *Tibia*, a late-1990s top-down MMORPG \u2014 the reference is to its minimalist, low-spec 2D presentation and unhurried pacing, not to any multiplayer or MMO struc"
+        }
+      ]
+    }
+  ],
+  "status_report": {
+    "items": [
+      {
+        "id": "npc_dialogue",
+        "label": "NPC dialogue (rescuable adventurer)",
+        "status": "shipped-and-validated",
+        "note": "Heckler flagged and corrected: The dialogue lacks a clear, melancholic tone and feels somewhat inconsistent with the long-lived-mage character archetype."
+      },
+      {
+        "id": "item_flavor",
+        "label": "Item/relic flavor text",
+        "status": "shipped-and-validated",
+        "note": "Heckler flagged and corrected: The phrase \"whispers secrets\" implies a narrative that might be interpreted as having a character or entity speaking, which is not in line with Lorena's requirement of never introducing named factions, characters, spells, or lore."
+      },
+      {
+        "id": "trial_narration",
+        "label": "Mini-boss/Director trial narration",
+        "status": "shipped-and-validated",
+        "note": "Heckler flagged and corrected: The phrases seem too introspective and hopeful for a melancholic tone."
+      },
+      {
+        "id": "seeded_selftest",
+        "label": "Seeded violation (functional-loop proof, not a graded output)",
+        "status": "shipped-and-validated",
+        "note": "seeded violation caught and corrected -- critic loop confirmed functional"
+      }
+    ],
+    "summary": "All content items shipped-and-validated; consistency-check loop confirmed functional."
+  }
+}

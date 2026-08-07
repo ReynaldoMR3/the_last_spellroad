@@ -1,0 +1,1 @@
+A fragment of forgotten arcana, etched with sigils of twilight and decay, resonates with the silence, its presence an ache within the hollows of the mind.
