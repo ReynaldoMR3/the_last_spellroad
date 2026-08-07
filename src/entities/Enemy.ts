@@ -249,6 +249,23 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     super.destroy(fromScene);
   }
 
+  /** Code review, 2026-08-06 (issue #110's Standards pass) — the melee-in-range branch below
+   * copy-pasted the ranged branch's direction-flip-and-perpendicular-velocity shape rather
+   * than sharing it; factored out once both archetypes needed it, mirroring the seam the
+   * pure `computeStrafeDirection` (`rangedStrafe.ts`) already models for the bounce decision
+   * itself. */
+  private strafeVelocity(direction: Phaser.Math.Vector2, speed: number): Phaser.Math.Vector2 {
+    this.strafeDirection = computeStrafeDirection(
+      this.y,
+      this.lane.top,
+      this.lane.bottom,
+      WALL_SLIDE_MARGIN,
+      this.strafeDirection
+    );
+    const perpendicular = new Phaser.Math.Vector2(direction.y, -direction.x);
+    return perpendicular.scale(speed * this.strafeDirection);
+  }
+
   update(
     deltaMs: number,
     targetX: number,
@@ -273,21 +290,23 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       } else {
         // Issue #110 — see `MELEE_STRAFE_SPEED`'s own comment: strafe perpendicular to the
         // hold-range line (same bounce logic `rangedStrafe.ts` ships for the ranged
-        // archetype) instead of stopping dead, and push off any too-close melee ally
-        // (`meleeSeparation.ts`) instead of stacking on top of it.
-        this.strafeDirection = computeStrafeDirection(
-          this.y,
-          this.lane.top,
-          this.lane.bottom,
-          WALL_SLIDE_MARGIN,
-          this.strafeDirection
-        );
-        const perpendicular = new Phaser.Math.Vector2(direction.y, -direction.x);
-        const nudge = computeSeparationNudge({ x: this.x, y: this.y }, nearbyMeleeAllies, MELEE_SEPARATION_DISTANCE);
-        body.setVelocity(
-          perpendicular.x * MELEE_STRAFE_SPEED * this.strafeDirection + nudge.x * MELEE_SEPARATION_SPEED,
-          perpendicular.y * MELEE_STRAFE_SPEED * this.strafeDirection + nudge.y * MELEE_SEPARATION_SPEED
-        );
+        // archetype, via `strafeVelocity`) instead of stopping dead, and push off any
+        // too-close melee ally (`meleeSeparation.ts`) instead of stacking on top of it.
+        const strafe = this.strafeVelocity(direction, MELEE_STRAFE_SPEED);
+        const rawNudge = computeSeparationNudge({ x: this.x, y: this.y }, nearbyMeleeAllies, MELEE_SEPARATION_DISTANCE);
+        const nudge = new Phaser.Math.Vector2(rawNudge.x, rawNudge.y);
+        // Code review, 2026-08-06 (issue #110's Spec pass) — `computeSeparationNudge` sums one
+        // unnormalized push per too-close ally, so 3+ enemies stacked at once (the exact
+        // scenario this fix targets) could otherwise sum to a magnitude well past 1, scaled by
+        // `MELEE_SEPARATION_SPEED` — more than double `MELEE_STRAFE_SPEED` — enough to shove a
+        // crowded enemy clean out of `MELEE_RANGE` and back into the chase branch, delaying its
+        // next hit exactly when crowding is worst. Clamping to a unit vector first bounds the
+        // separation contribution to exactly `MELEE_SEPARATION_SPEED` regardless of how many
+        // allies are pushing, no matter how much the distances are violated.
+        if (nudge.length() > 1) {
+          nudge.normalize();
+        }
+        body.setVelocity(strafe.x + nudge.x * MELEE_SEPARATION_SPEED, strafe.y + nudge.y * MELEE_SEPARATION_SPEED);
         if (this.attackCooldownMs <= 0) {
           this.attackCooldownMs = MELEE_COOLDOWN_MS;
           callbacks.onMeleeHit?.();
@@ -334,19 +353,10 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       // purely radial line made a ranged enemy's resting position fully deterministic.
       // Strafe perpendicular to the hold-range line instead, bouncing off the lane's
       // top/bottom edges rather than stopping there — see `rangedStrafe.ts` for the tested
-      // bounce decision.
-      this.strafeDirection = computeStrafeDirection(
-        this.y,
-        this.lane.top,
-        this.lane.bottom,
-        WALL_SLIDE_MARGIN,
-        this.strafeDirection
-      );
-      const perpendicular = new Phaser.Math.Vector2(direction.y, -direction.x);
-      body.setVelocity(
-        perpendicular.x * RANGED_STRAFE_SPEED * this.strafeDirection,
-        perpendicular.y * RANGED_STRAFE_SPEED * this.strafeDirection
-      );
+      // bounce decision, and `strafeVelocity` for the shared mechanics issue #110 factored
+      // out once the melee archetype needed this same shape too.
+      const strafe = this.strafeVelocity(direction, RANGED_STRAFE_SPEED);
+      body.setVelocity(strafe.x, strafe.y);
     } else {
       body.setVelocity(0, 0);
     }
