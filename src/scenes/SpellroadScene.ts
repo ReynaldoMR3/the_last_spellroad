@@ -34,6 +34,7 @@ import {
 } from "../systems/levelArt";
 import { SPELL_ICON_ELEMENTS, iconKeyForSpell, spellIconKey, spellIconUrl } from "../systems/spellIcons";
 import { ALL_SFX_CUES, sfxKey, sfxUrl } from "../systems/sfx";
+import { computeSfxVariation } from "../systems/sfxVariation";
 import { BOSS_THEME_KEY, BOSS_THEME_URL, BOSS_THEME_VOLUME } from "../systems/bgm";
 
 const PLAYER_SPEED = 180;
@@ -468,7 +469,7 @@ export class SpellroadScene extends Phaser.Scene {
       // event, never drift out of sync.
       () => {
         this.flashMessage("Hit!", 300);
-        this.sound.play(sfxKey("hit"));
+        this.sound.play(sfxKey("hit"), computeSfxVariation());
       }
     );
     this.mana = new ManaSystem();
@@ -1329,7 +1330,7 @@ export class SpellroadScene extends Phaser.Scene {
     // `confirmCast`'s `if (killed)` branch, so this is exactly the "enemy dying" event the
     // ticket scopes, never a despawn/cleanup path (e.g. `handleDeath`'s own
     // `this.enemies.forEach((e) => e.destroy())` calls `destroy()` directly, not this method).
-    this.sound.play(sfxKey("enemyDeath"));
+    this.sound.play(sfxKey("enemyDeath"), computeSfxVariation());
     this.enemies = this.enemies.filter((e) => e !== enemy);
     enemy.destroy();
   }
@@ -1396,7 +1397,7 @@ export class SpellroadScene extends Phaser.Scene {
     // natural integration point per the ticket: the sound and the shape flash fire from the
     // same call, once per cast regardless of whether it lands a hit (a whiff still confirms
     // audibly, matching `confirmCast`'s own comment on why the visual flash fires unconditionally).
-    this.sound.play(sfxKey("cast"));
+    this.sound.play(sfxKey("cast"), computeSfxVariation());
     const color = ELEMENT_EFFECT_COLOR[spell.element];
     const flash = this.add.graphics();
     flash.fillStyle(color, 0.55);
@@ -1421,7 +1422,7 @@ export class SpellroadScene extends Phaser.Scene {
     // same integration point as the cast SFX above. Fires once per landed hit (`confirmCast`'s
     // per-enemy loop calls this per hit, not per cast), matching the existing damage-number/
     // burst cadence for an AoE that lands on multiple enemies at once.
-    this.sound.play(sfxKey("impact"));
+    this.sound.play(sfxKey("impact"), computeSfxVariation());
     const burst = this.add.circle(x, y, 4, color, 0.5);
     burst.setStrokeStyle(2, color, 1);
     this.tweens.add({
@@ -1495,7 +1496,7 @@ export class SpellroadScene extends Phaser.Scene {
     // resets below) so it fires exactly once per actual death regardless of how the rest of
     // this method's cleanup unfolds — mirrors the existing `flashMessage` call a few lines
     // down, which also fires unconditionally on every `handleDeath` invocation.
-    this.sound.play(sfxKey("playerDeath"));
+    this.sound.play(sfxKey("playerDeath"), computeSfxVariation());
     // backlog 4.11 / issue #97 — a death respawns at the current level's start (0.2's
     // resolution), which for the boss level is Phase 1 — `startWave` below will restart the
     // theme/banner on its own once the respawn delay elapses. Stopped here first so neither
