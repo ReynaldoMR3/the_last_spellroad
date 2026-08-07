@@ -2,6 +2,7 @@ import math
 import os
 
 from stage01_retrieval.rag import (
+    MAX_CHUNK_CHARS,
     chunk_gdd,
     cosine_similarity,
     retrieve_top_k,
@@ -79,6 +80,29 @@ def test_embed_chunks_with_cache_only_calls_embed_fn_once_per_unique_chunk(tmp_p
     embed_chunks_with_cache(chunks, str(cache_path), fake_embed)
 
     assert calls == ["hello", "world"]
+
+
+def test_chunk_gdd_splits_an_oversized_section_with_no_subheadings():
+    """Regression test for the live 'Token Budget And Projections' chunk
+    that grew to 10,039 chars with no `###`/`####` subheadings and started
+    failing test_chunk_gdd_max_chunk_size_stays_under_embedder_budget below.
+    A section with no subheadings of its own must now be paragraph-split
+    into "(part N/M)" sub-chunks instead of shipped as one oversized chunk."""
+    paragraph = "This sentence repeats to pad out one paragraph of the section. " * 20
+    oversized_body = "\n\n".join([paragraph] * 10)
+    gdd = f"# Title\n\n## Big Section\n\n{oversized_body}\n\n## Next Section\n\nShort.\n"
+
+    chunks = chunk_gdd(gdd)
+
+    big_section_parts = [c for c in chunks if c["heading"].startswith("Big Section")]
+    assert len(big_section_parts) > 1, "expected the oversized section to split into parts"
+    assert all(len(c["text"]) < MAX_CHUNK_CHARS + 200 for c in big_section_parts)
+    assert big_section_parts[0]["heading"] == f"Big Section (part 1/{len(big_section_parts)})"
+    assert big_section_parts[0]["text"].startswith("## Big Section (part 1/")
+    assert "This sentence repeats" in big_section_parts[0]["text"]
+
+    next_section = next(c for c in chunks if c["heading"] == "Next Section")
+    assert "Short." in next_section["text"]
 
 
 def test_chunk_gdd_max_chunk_size_stays_under_embedder_budget():

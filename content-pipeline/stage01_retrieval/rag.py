@@ -5,17 +5,14 @@ so a chunk's grounding text always matches a real section of the design
 doc -- this is what makes the retrieval log's query -> chunk -> output
 triples a faithful RAG demonstration rather than an arbitrary text window.
 
-Known assumption (not enforced in code): `chunk_gdd` relies on the GDD's
-own headings to keep every chunk under the embedder's batch-size budget
-(Ollama's nomic-embed-text hit a hard 500 error above ~2048 tokens on one
-oversized section during development -- see stage01_retrieval/CONTEXT.md
-and the design doc's Known Limitations). There is no chunk-splitting
-logic here to enforce a max size; if a future GDD edit adds a large
-section with no `##`/`###`/`####` subheadings, that section will again
-become one oversized chunk. `tests/test_rag.py`'s
-`test_chunk_gdd_max_chunk_size_stays_under_embedder_budget` guards
-against this regressing silently -- if it fails, the fix is either to
-add subheadings to the GDD or to implement real chunk-splitting here.
+`chunk_gdd` keeps every chunk under the embedder's batch-size budget in
+two layers: the GDD's own `##`/`###`/`####` headings do the first split,
+and any single section that's still too big (no subheadings of its own)
+gets paragraph-aligned into "(part N/M)" sub-chunks, each re-prefixed
+with the section's own heading line so embeddings keep their section
+context. `tests/test_rag.py`'s
+`test_chunk_gdd_max_chunk_size_stays_under_embedder_budget` guards this
+against a future GDD edit growing a chunk past the safety budget again.
 """
 
 import hashlib
@@ -25,6 +22,42 @@ import os
 import re
 
 HEADING_RE = re.compile(r"^(#{2,4})\s+(.+)$", re.MULTILINE)
+
+# Paragraph-accumulation threshold used when splitting an oversized section.
+# Kept well under tests/test_rag.py's 8000-char safety budget (itself under
+# the ~8700-char real embedder ceiling) so a split section's parts land
+# safely under budget even after the re-added heading-line overhead.
+MAX_CHUNK_CHARS = 6000
+
+
+def _split_oversized_section(heading_prefix, heading, section_text, max_chars):
+    """Split one oversized section into paragraph-aligned sub-chunks, each
+    re-prefixed with the section's own heading line -- so embeddings retain
+    section context per fragment, and downstream heading-stripping logic
+    (pipeline.py's `_excerpt_without_heading`) still finds a heading line to
+    drop."""
+    body = section_text.split("\n", 1)[1] if "\n" in section_text else ""
+    paragraphs = body.split("\n\n")
+    parts = []
+    current = ""
+    for para in paragraphs:
+        candidate = f"{current}\n\n{para}" if current else para
+        if current and len(candidate) > max_chars:
+            parts.append(current)
+            current = para
+        else:
+            current = candidate
+    if current:
+        parts.append(current)
+
+    total = len(parts)
+    return [
+        {
+            "heading": f"{heading} (part {idx}/{total})",
+            "text": f"{heading_prefix} {heading} (part {idx}/{total})\n\n{part.strip()}".strip(),
+        }
+        for idx, part in enumerate(parts, start=1)
+    ]
 
 
 def chunk_gdd(text):
@@ -39,7 +72,14 @@ def chunk_gdd(text):
     for i, match in enumerate(matches):
         start = match.start()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        chunks.append({"heading": match.group(2).strip(), "text": text[start:end].strip()})
+        heading = match.group(2).strip()
+        section_text = text[start:end].strip()
+        if len(section_text) <= MAX_CHUNK_CHARS:
+            chunks.append({"heading": heading, "text": section_text})
+        else:
+            chunks.extend(
+                _split_oversized_section(match.group(1), heading, section_text, MAX_CHUNK_CHARS)
+            )
     return chunks
 
 
