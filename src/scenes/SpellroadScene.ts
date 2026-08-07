@@ -222,6 +222,8 @@ const BOSS_BANNER_OUTRO_TEXT =
   "yet whether the Director notices, or minds, or is already writing the next trial. The road " +
   "ahead stays exactly as endless as it was an hour ago, and you walk it anyway.";
 const BOSS_BANNER_DISPLAY_MS = 9000;
+/** Issue #116 — see `bossNameText`'s own comment. */
+const BOSS_NAME_TEXT = "⚔ The Invigilator";
 /** backlog 2.10 — the lane rectangle the mage and (per this fix) enemies are both clamped
  * to, and the shape preview is visually clipped to via a geometry mask. Hit-tests don't
  * need their own separate clip: once enemies can't exist outside this rect, there's
@@ -380,6 +382,22 @@ export class SpellroadScene extends Phaser.Scene {
    * Tracked so both paths can `.remove()` this exact pending call rather than letting it fire
    * unconditionally. */
   private bossBannerHideTimer?: Phaser.Time.TimerEvent;
+  /** Issues #112/#113 — developer playtest: the boss intro/outro banner blocked vision while
+   * enemies kept attacking underneath it (#112), and the outro banner vanished on its fixed
+   * `BOSS_BANNER_DISPLAY_MS` timer regardless of reading speed (#113). While this is true,
+   * `update()` skips `updateEnemies` (freezing enemy movement/attacks, not a full
+   * `scene.pause()` — that would also open the Esc pause menu, which isn't the ask here) and
+   * any keypress/click dismisses the banner early instead of waiting out the timer. */
+  private bossBannerActive = false;
+  /** Issue #116 — persistent boss-name HUD element ("The Invigilator") shown for the whole
+   * Level 5 encounter. `boss-1.json`'s three phases are composed entirely of ordinary
+   * registry enemy types (`spellbound_thug`/`hexbow_skirmisher`/etc.), so before this the
+   * fight's actual named identity only ever appeared in the intro/outro banner text — a
+   * player who missed that (see #112/#113) had no in-combat way to learn who they were
+   * fighting. Toggled by `startWave`'s boss-Phase-1 branch (shown) and the boss-victory
+   * branch in `updateEnemies` (cleared); persists across a death/retry of the same fight,
+   * same as the boss theme/banner. */
+  private bossNameText?: Phaser.GameObjects.Text;
   /** backlog 4.11 / issue #97 — the currently-playing boss-theme instance, or `undefined` if
    * none is active. Tracked (not just fire-and-forget `this.sound.play()`) so `stopBossTheme`
    * can stop this exact instance — the track loops for the whole multi-phase encounter, so
@@ -524,6 +542,11 @@ export class SpellroadScene extends Phaser.Scene {
     this.bossThemeSound = undefined;
     this.bossBannerHideTimer?.remove();
     this.bossBannerHideTimer = undefined;
+    // Issues #112/#113 — same class of stale-state bug this comment block already documents:
+    // a scene restart reuses this Scene instance, so a `true` left over from a banner still
+    // showing when the player quit mid-fight would otherwise freeze every enemy in the fresh
+    // run (see `update()`'s `bossBannerActive` gate) with nothing left to ever flip it back.
+    this.bossBannerActive = false;
 
     this.createRoad();
     this.createMage();
@@ -548,7 +571,13 @@ export class SpellroadScene extends Phaser.Scene {
     this.handleMovement();
     this.mana.update(deltaMs, this.debuff.effectiveManaRegen(MANA_REGEN_PER_SEC));
     this.caster.tickCooldowns(deltaMs);
-    this.updateEnemies(deltaMs);
+    // Issue #112 — freeze enemy movement/attacks while a boss banner is on screen, so reading
+    // the intro/outro narration never costs free hits. Deliberately narrower than
+    // `scene.pause()` (which also opens the Esc pause menu, PauseScene) — everything else
+    // (Mana regen, cooldowns, HUD, the banner's own tween) keeps running.
+    if (!this.bossBannerActive) {
+      this.updateEnemies(deltaMs);
+    }
     this.updatePreview();
     this.updateHud();
     this.updatePlayerStatusBars();
@@ -734,6 +763,21 @@ export class SpellroadScene extends Phaser.Scene {
     this.levelWaveText.setOrigin(1, 0);
     this.levelWaveText.setDepth(UI_DEPTH);
 
+    // Issue #116 — persistent boss-name plate, top-center so it doesn't collide with the
+    // top-left stat block or the top-right Level/Wave readout. Empty (no visible element)
+    // outside the Level 5 encounter — `startWave`/`updateEnemies` are the only two call
+    // sites that ever set/clear its text.
+    this.bossNameText = this.add.text(CANVAS_WIDTH / 2, 16, "", {
+      color: "#ffb4a8",
+      fontFamily: "Georgia, serif",
+      fontStyle: "bold",
+      fontSize: "18px",
+      backgroundColor: "#1c1330",
+      padding: { x: 12, y: 6 }
+    });
+    this.bossNameText.setOrigin(0.5, 0);
+    this.bossNameText.setDepth(UI_DEPTH);
+
     // backlog 2.31 / issue #57 — debuff-magnitude/duration HUD line, directly below the
     // Level/Wave readout above (same fixed top-right column). Left empty by default;
     // `updateHud` only ever gives it text while `this.debuff` actually has an active stack,
@@ -823,11 +867,27 @@ export class SpellroadScene extends Phaser.Scene {
     });
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      // Issues #112/#113 — a click while the boss banner is showing dismisses it early
+      // instead of casting/cancelling underneath it.
+      if (this.bossBannerActive) {
+        this.hideBossBanner();
+        return;
+      }
       if (pointer.leftButtonDown()) {
         this.lastPointerActivityAt = this.time.now;
         this.confirmCast(pointer.worldX, pointer.worldY);
       } else if (pointer.rightButtonDown()) {
         this.cancelPreview();
+      }
+    });
+
+    // Issues #112/#113 — same dismiss-early contract for the keyboard: any keypress ends the
+    // boss banner's display rather than waiting out `BOSS_BANNER_DISPLAY_MS`. Phaser fires
+    // this generic `keydown` event alongside (not instead of) the specific `keydown-ESC`/
+    // `keydown-Y`/`keydown-N`/hotbar-digit handlers below, so none of those need to change.
+    this.input.keyboard?.on("keydown", () => {
+      if (this.bossBannerActive) {
+        this.hideBossBanner();
       }
     });
 
@@ -1123,9 +1183,15 @@ export class SpellroadScene extends Phaser.Scene {
         this.bossMaxRecoveries = Math.min(totalPhases - 2, MAX_RECOVERIES_HARD_CAP);
         this.hexcoin.startBossFight();
         this.health.reset();
-        this.flashMessage("Director Trial — Phase 1", 1800);
+        // Issue #115 — developer playtest: "on this wave we should let the players now that
+        // they are on a trial and their life wont be restoring like in the other levels."
+        // hp-template.md's per-wave reset is real (this is the one reset point for the
+        // fight), but nothing told the player it's also the LAST one until Phase 3 — every
+        // other level fully resets HP every wave, and this trial deliberately doesn't.
+        this.flashMessage("Director Trial — Phase 1 (HP won't reset again until you win or die)", 2400);
         this.playBossTheme();
         this.showBossBanner(BOSS_BANNER_INTRO_TEXT);
+        this.bossNameText?.setText(BOSS_NAME_TEXT);
       } else {
         this.flashMessage(`Director Trial — Phase ${wave.wave_index + 1}`, 1800);
       }
@@ -1180,11 +1246,21 @@ export class SpellroadScene extends Phaser.Scene {
     // no "any key" handler existed anywhere, so declining players (nothing to decline,
     // nothing to pay) hit an unrecoverable freeze. Developer's call: not an auto-advance,
     // a deliberate pause beat — message now promises exactly the one key that's armed.
+    //
+    // Issue #114 — developer playtest: "the text for using the hexcoins to buy more life
+    // isnt easy to read." This call used to render via `flashMessage`'s plain "default"
+    // styling branch (no background panel) despite being a comparably important, 60-second-
+    // displayed, real-stakes Y/N decision. Backlog 2.37/#80 already added the "warning"
+    // emphasis (salmon text on an opaque dark-red panel) for exactly this "hard to read"
+    // complaint on the Mana-rejection message — reused here rather than inventing a second
+    // styling scheme. Issue #115's HP-carries-over reminder is folded into this same prompt,
+    // since it's the actual decision point where that fact changes what "pay or refuse" means.
     this.flashMessage(
       canPay
-        ? `The ledger waits. [Y] Pay ${FEE_PHASE_RECOVERY} Hexcoin -> restore ${Math.round(MAX_HP * PHASE_RECOVERY_HP_FRACTION)} HP  /  [N] Refuse`
-        : "Phase clear! No recovery available — press Y to continue.",
-      60000
+        ? `The ledger waits. [Y] Pay ${FEE_PHASE_RECOVERY} Hexcoin -> restore ${Math.round(MAX_HP * PHASE_RECOVERY_HP_FRACTION)} HP (HP won't reset otherwise!)  /  [N] Refuse`
+        : "Phase clear! HP carries into the next phase (no reset) — press Y to continue.",
+      60000,
+      "warning"
     );
     const resolve = (pay: boolean) => {
       // Guards double-resolution (as the old boolean did), a keypress arriving after the
@@ -1337,6 +1413,9 @@ export class SpellroadScene extends Phaser.Scene {
         this.flashMessage("Director Trial — Victory!", 2500);
         this.stopBossTheme();
         this.showBossBanner(BOSS_BANNER_OUTRO_TEXT);
+        // Issue #116 — the fight is over; clear the persistent name plate rather than leaving
+        // "The Invigilator" on screen through the regular levels that follow.
+        this.bossNameText?.setText("");
       }
       this.time.delayedCall(1200, () => {
         // If the player died during this 1200ms gap (a ranged shot already in flight when the
@@ -1625,13 +1704,18 @@ export class SpellroadScene extends Phaser.Scene {
     this.bossThemeSound = undefined;
   }
 
-  /** Fades in, holds, then fades back out — non-blocking (combat continues underneath),
-   * matching the onboarding hint's "doesn't delay input" acceptance criterion (#78) this
-   * ticket's own banner criterion implicitly shares. */
+  /** Fades in, holds, then fades back out. Issues #112/#113 — developer playtest: the intro
+   * banner didn't pause the fight ("it blocks your vision and the enemies hit you") and the
+   * outro banner vanished on a fixed timer regardless of reading speed. Previously documented
+   * here as intentionally non-blocking; now sets `bossBannerActive` so `update()` freezes
+   * enemy movement/attacks for the display's duration, and any keypress/click (see
+   * `createInput`) dismisses it early via `hideBossBanner` instead of waiting out
+   * `BOSS_BANNER_DISPLAY_MS`. */
   private showBossBanner(text: string): void {
     if (!this.bossBannerText) {
       return;
     }
+    this.bossBannerActive = true;
     // See `bossBannerHideTimer`'s own comment: a still-pending auto-hide from a previous
     // display (e.g. the intro banner, cut short by a death) must not fire mid-way through
     // this new display and hide it early.
@@ -1650,6 +1734,7 @@ export class SpellroadScene extends Phaser.Scene {
   }
 
   private hideBossBanner(): void {
+    this.bossBannerActive = false;
     this.bossBannerHideTimer?.remove();
     this.bossBannerHideTimer = undefined;
     if (!this.bossBannerText) {
