@@ -16,6 +16,7 @@ import { selectDefaultLoadout } from "../systems/defaultLoadout";
 import { selectAutoAimTarget } from "../systems/autoAim";
 import { isStillInRangedImpactZone } from "../systems/rangedImpact";
 import { WaveSession, canResolvePhaseChoice, shouldAutoAdvance } from "../systems/waveSession";
+import { allRemainingAreYieldingDebuffers } from "../systems/lastEnemyStanding";
 import { hasRecentPointerActivity } from "../systems/pointerActivity";
 import {
   computeCooldownDisplay,
@@ -1288,6 +1289,30 @@ export class SpellroadScene extends Phaser.Scene {
           this.debuff.applyStack(variant);
         }
       });
+    }
+
+    // Backlog 2.38 / issue #87 — a Debuffer (0 direct damage by design) left as the only thing
+    // standing has nothing left to threaten and nothing left to protect; developer's call
+    // (2026-08-06) was to keep the 0-damage design but end the pointless standoff rather than
+    // let the player camp it indefinitely. Checked before `shouldAutoAdvance` below so clearing
+    // the yielding Debuffers here is exactly what lets that existing check fire the very same
+    // frame (or the next), same as if the player had landed the killing blow.
+    if (
+      this.session.phase === "running" &&
+      allRemainingAreYieldingDebuffers(this.enemies, this.enemiesRemainingToSpawn)
+    ) {
+      const yielding = [...this.enemies];
+      for (const enemy of yielding) {
+        // Not routed through `confirmCast`'s per-hit loop (no player spell did this), so no
+        // Mastery credit — `recordLandedCast` is keyed to a specific spell, and none applies
+        // here. Hexcoin is still awarded (`removeEnemy` alone doesn't grant it, per that
+        // method's own scope): every spawned enemy in a wave otherwise contributes exactly 1
+        // Hexcoin toward Pato's validated per-wave income budget, and a Debuffer that yields
+        // instead of being cast down is still a cleared enemy, not a forfeited one.
+        this.removeEnemy(enemy);
+        this.hexcoin.earn(1);
+      }
+      this.flashMessage(`${archetypeDisplayName("debuffer")} yields -- nothing left to guard`, 1400);
     }
 
     // Issue #48 — gated on the session phase, not on the counters alone. The old condition
