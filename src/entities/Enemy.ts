@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import type { DebuffVariant, EnemyArchetype } from "../data/types";
 import { archetypeDisplayName, computeHpBarColor, computeHpFraction } from "../systems/enemyStatusOverlay";
+import { RANGED_STRAFE_SPEED, computeStrafeDirection } from "../systems/rangedStrafe";
 
 /** hp-template.md, "Enemy Archetype Per-Hit Damage" — fixed, never invented per-encounter. */
 export const ARCHETYPE_DAMAGE: Record<EnemyArchetype, number> = {
@@ -113,6 +114,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   public readonly damageModifier: number;
   private attackCooldownMs = 0;
   private readonly debuffVariant: DebuffVariant;
+  /** backlog/issue #95 — which way a ranged enemy is currently strafing while holding its
+   * preferred range; randomized per-enemy so same-wave archers don't drift in lockstep. */
+  private strafeDirection: 1 | -1 = Phaser.Math.Between(0, 1) === 0 ? 1 : -1;
   /** backlog 2.19 / issue #26 — sibling GameObjects, not children of this Sprite (Phaser
    * Arcade Sprites don't support a display-container parent/child relationship the way
    * Containers do). Phaser does NOT destroy these automatically just because this sprite
@@ -275,6 +279,26 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       } else {
         body.setVelocity(retreatX, retreatY);
       }
+    } else if (this.archetype === "ranged") {
+      // backlog/issue #95 — developer: "the archers are always at the same spot, so its
+      // easier to kill them". Stopping dead in-band (the old behavior, still used by
+      // Debuffer below) combined with always approaching from the same spawn point along a
+      // purely radial line made a ranged enemy's resting position fully deterministic.
+      // Strafe perpendicular to the hold-range line instead, bouncing off the lane's
+      // top/bottom edges rather than stopping there — see `rangedStrafe.ts` for the tested
+      // bounce decision.
+      this.strafeDirection = computeStrafeDirection(
+        this.y,
+        this.lane.top,
+        this.lane.bottom,
+        WALL_SLIDE_MARGIN,
+        this.strafeDirection
+      );
+      const perpendicular = new Phaser.Math.Vector2(direction.y, -direction.x);
+      body.setVelocity(
+        perpendicular.x * RANGED_STRAFE_SPEED * this.strafeDirection,
+        perpendicular.y * RANGED_STRAFE_SPEED * this.strafeDirection
+      );
     } else {
       body.setVelocity(0, 0);
     }
