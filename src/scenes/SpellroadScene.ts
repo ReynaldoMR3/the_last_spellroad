@@ -158,6 +158,18 @@ const DAMAGE_NUMBER_COLOR = { healthy: "#4caf50", wounded: "#f4c430", critical: 
 const MESSAGE_DEFAULT_COLOR = "#f3e7c2";
 const MESSAGE_WARNING_COLOR = "#ffb4a8";
 const MESSAGE_WARNING_BG = "#4a1f1f";
+/** Issue #117 — developer playtest: "its also not clear when you advanced on the spells
+ * levels, at level 5 i felt it was easier to kill the monsters." The tier-up flashMessage
+ * has existed since the very first engine commit (2026-07-22) and `MasterySystem`'s own
+ * trigger logic is correct (see `MasterySystem.test.ts`, added alongside this fix), but a
+ * player played through 4 full levels without ever registering it firing — it rendered via
+ * the same plain "default" styling as a throwaway "Hit!"/"Level 2" beat, at the same 1500ms
+ * duration, with nothing marking it as a persistent mechanical upgrade rather than a
+ * transient combat-log line. Same "give it its own emphasis" precedent backlog 2.37/#80 set
+ * for the Mana-rejection message and #114 just reused for the recovery prompt — gold/dark-
+ * gold rather than #80's salmon/dark-red, since this is a reward beat, not a warning. */
+const MESSAGE_MILESTONE_COLOR = "#ffe08a";
+const MESSAGE_MILESTONE_BG = "#332a0f";
 /** backlog 2.33 / issue #76 — developer full playtest of #30: "add floating HP/Mana status
  * bars above the player (Tibia-style)". `Enemy.ts` already draws exactly this pattern per
  * enemy (backlog 2.19); this reuses that same fraction/color arithmetic
@@ -1007,8 +1019,13 @@ export class SpellroadScene extends Phaser.Scene {
     // only by real time, not by level content — see MasterySystem.ts's doc comment and
     // mastery-template.md for the corrected casts-per-tier derivation this required.
     if (kills > 0) {
+      // Issue #117 — was 1500ms of "default" styling, identical to a throwaway "Hit!"/wave-
+      // transition beat; a player played through 4 full levels without ever registering it.
+      // Longer duration (2600ms, matching the death message's own 2500ms for a comparably
+      // significant event) plus "milestone" emphasis (opaque gold panel, see `flashMessage`'s
+      // own comment) rather than reusing "warning" — a tier-up is a reward, not a rejection.
       this.mastery.recordLandedCast(spell.id, (spellId, tier) =>
-        this.flashMessage(`${spellId} reached ${tier.toUpperCase()} Mastery!`, 1500)
+        this.flashMessage(`${spellId} reached ${tier.toUpperCase()} Mastery!`, 2600, "milestone")
       );
     }
   }
@@ -1661,10 +1678,16 @@ export class SpellroadScene extends Phaser.Scene {
 
   /** @param emphasis "warning" gives the banner a distinct color + opaque background panel
    * (backlog 2.37 / issue #80) instead of the default plain colored text over the gameplay
-   * canvas — reserved for rejection messages the player needs to notice mid-combat, not every
-   * flashMessage (a Level-up beat or a level-transition banner has no legibility complaint on
-   * record and keeps its prior look unchanged). */
-  private flashMessage(text: string, durationMs: number, emphasis: "default" | "warning" = "default"): void {
+   * canvas — reserved for rejection messages the player needs to notice mid-combat. "milestone"
+   * (issue #117) is the same opaque-panel treatment in a gold tone, reserved for a persistent
+   * mechanical upgrade (a Mastery tier-up) rather than a transient combat-log line — neither
+   * emphasis is used for every flashMessage (a level-transition banner has no legibility
+   * complaint on record and keeps its prior plain look unchanged). */
+  private flashMessage(
+    text: string,
+    durationMs: number,
+    emphasis: "default" | "warning" | "milestone" = "default"
+  ): void {
     if (!this.messageText) {
       return;
     }
@@ -1672,6 +1695,9 @@ export class SpellroadScene extends Phaser.Scene {
     if (emphasis === "warning") {
       this.messageText.setColor(MESSAGE_WARNING_COLOR);
       this.messageText.setBackgroundColor(MESSAGE_WARNING_BG);
+    } else if (emphasis === "milestone") {
+      this.messageText.setColor(MESSAGE_MILESTONE_COLOR);
+      this.messageText.setBackgroundColor(MESSAGE_MILESTONE_BG);
     } else {
       this.messageText.setColor(MESSAGE_DEFAULT_COLOR);
       this.messageText.setBackgroundColor("");
