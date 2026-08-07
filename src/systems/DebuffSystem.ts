@@ -2,9 +2,18 @@ import type { DebuffVariant } from "../data/types";
 
 /** hp-template.md, "Debuffer Magnitudes" — additive, hard-capped at 2 applications. */
 export const SPEED_DRAIN_PER_APPLICATION = 0.12;
-export const MANA_REGEN_DRAIN_PER_APPLICATION = 1.5;
+/**
+ * Retuned 1.5 -> 2.4 (backlog 2.39 / issue #88) to restore the original 60%-max-cut/
+ * floor-coincidence relationship against 2.34's MANA_REGEN_PER_SEC retune (5 -> 8/sec) — at
+ * the old 5/sec base, the 2-stack cap (3.0/sec drain) landed exactly on the old 2/sec floor;
+ * unchanged, that same drain against the new 8/sec base would land at 5/sec, well above the
+ * floor, proportionally weakening the debuff. Pre-derived by Pato (`pato/log.md`, 2026-08-03),
+ * applied once 2.34's 8/sec base cleared its developer-playtest gate (2026-08-06).
+ */
+export const MANA_REGEN_DRAIN_PER_APPLICATION = 2.4;
 export const MAX_STACKS = 2;
-export const MANA_REGEN_FLOOR = 2;
+/** Retuned 2 -> 3.2 alongside MANA_REGEN_DRAIN_PER_APPLICATION above, same backlog item. */
+export const MANA_REGEN_FLOOR = 3.2;
 
 /**
  * Tracks the player's active Debuffer stacks. Never both variants from the same
