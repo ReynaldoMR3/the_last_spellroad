@@ -409,9 +409,3 @@ formality for the 2 Kenney packs above, and (separately) the aesthetic-fit and f
 (hit/kill/death cues actually heard in a real run) questions this entry flags as not yet
 exercised, per this agent's own standing rule that neither compliance nor fit is ever
 self-certified.
-
-## 2026-08-06 — Backlog 3.11 (issue #94): SFX fatigue direction chosen, implementation handed to Loomwright
-
-That full-playtest gate above surfaced exactly the fatigue risk it was flagged for: the developer's 2026-08-05 session reported the cast/attack cues "bothering" them over extended play, reopening this row's own disclosed sci-fi-stand-in tradeoff rather than confirming it. Asked the developer for a direction rather than guessing between re-sourcing, variation, or accepting the limitation (all three carry real cost/risk tradeoffs a one-shot cue swap can't absorb blind).
-
-**Developer's call (2026-08-06):** try pitch/volume variation on the existing cues first — cheaper than a re-source and doesn't touch the license/compliance work already signed off above — with an explicit fallback to re-searching Kenney/OpenGameArt if variation doesn't actually fix the fatigue. Since this doesn't touch asset sourcing or licensing (no new files, no new `License.txt` to verify), it's pure engine wiring — handed to Loomwright rather than kept here. See `loomwright/log.md`, 2026-08-06, for the implementation.
