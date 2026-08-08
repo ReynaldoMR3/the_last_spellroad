@@ -39,10 +39,12 @@ services:
       - ./content-pipeline/.env
     environment:
       OLLAMA_BASE_URL: http://ollama:11434
-      GDD_PATH: /app/gdd/the-last-spellroad-design.md
+      # The whole docs tree, read-only: canonical_sources.json's allowlist is
+      # what decides which files inside it are retrievable, not the mount.
+      DOCS_ROOT: /app/docs
     volumes:
       - ./content-pipeline:/app
-      - ./docs/game:/app/gdd:ro
+      - ./docs:/app/docs:ro
     depends_on:
       - ollama
 

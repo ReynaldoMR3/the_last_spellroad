@@ -51,6 +51,44 @@ def test_validation_test_not_caught_is_blocked_with_reason():
     assert report["items"][0]["status"] == "blocked-with-reason"
 
 
+def _retrieval_probe_result(retrieved_source_ids):
+    return {
+        "id": "opening_experience_retrieval_check",
+        "label": "Canonical-corpus retrieval check",
+        "is_validation_test": True,
+        "validation_mode": "retrieval_probe",
+        "expected_source_id": "opening-experience-brief",
+        "critique": {"verdict": "NOT-CRITIQUED", "issue": None, "corrected": None},
+        "retrieved": [
+            {"heading": f"Section {i}", "source_id": source_id, "score": 0.5 + i / 100}
+            for i, source_id in enumerate(retrieved_source_ids)
+        ],
+    }
+
+
+def test_retrieval_probe_that_reached_its_source_is_shipped_and_validated():
+    report = build_status_report(
+        [_retrieval_probe_result(["gdd", "opening-experience-brief", "gdd"])]
+    )
+    item = report["items"][0]
+    assert item["status"] == "shipped-and-validated"
+    assert "opening-experience-brief" in item["note"]
+    # The best-scoring hit is the one reported, not just the first one seen.
+    assert "Section 1" in item["note"]
+
+
+def test_retrieval_probe_that_missed_its_source_is_blocked_with_reason():
+    """A silently-missing source is the failure this probe exists to catch --
+    it must not be reported as validated just because nothing errored."""
+    report = build_status_report([_retrieval_probe_result(["gdd", "gdd", "gdd"])])
+    item = report["items"][0]
+    assert item["status"] == "blocked-with-reason"
+    assert "did NOT reach" in item["note"]
+    assert "blocked-with-reason" in build_status_report(
+        [_retrieval_probe_result(["gdd"])]
+    )["summary"]
+
+
 def test_summary_reflects_all_shipped_vs_blocked():
     all_pass = build_status_report([_result("a", "A", "PASS")])
     assert "confirmed functional" in all_pass["summary"]

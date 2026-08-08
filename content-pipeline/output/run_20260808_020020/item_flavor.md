@@ -1,0 +1,1 @@
+A shard of forgotten incantation, its essence still resonates with the whispers of a long-forgotten geometry, echoing through the desolate expanse of the Spellroad.

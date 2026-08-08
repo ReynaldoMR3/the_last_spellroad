@@ -4,6 +4,7 @@ content files to output/run_<timestamp>/.
 """
 
 import datetime
+import hashlib
 import json
 import os
 
@@ -13,12 +14,21 @@ load_dotenv()
 
 import ollama_client
 from stage00_kickoff.ana_kickoff import build_kickoff_brief, write_kickoff_brief
-from stage01_retrieval.rag import chunk_gdd, embed_chunks_with_cache, retrieve_top_k
-from stage02_generation.lorena_generate import generate_draft
+from stage01_retrieval import corpus
+from stage01_retrieval.rag import chunk_hash, embed_chunks_with_cache, retrieve_top_k
+from stage02_generation.lorena_generate import (
+    LORENA_SYSTEM_PROMPT,
+    build_lorena_prompt,
+    generate_draft,
+)
 from stage03_critique.heckler_critique import critique_draft
 from stage04_status.ana_status import build_status_report, format_status_report_markdown
 
-GDD_PATH = os.getenv("GDD_PATH", "../docs/game/the-last-spellroad-design.md")
+# The corpus is an allowlist, not a directory scan: `canonical_sources.json`
+# names every file retrieval may ground in, and every path in it resolves
+# under DOCS_ROOT. See stage01_retrieval/corpus.py.
+CANONICAL_SOURCES_PATH = corpus.MANIFEST_PATH
+DOCS_ROOT = corpus.DOCS_ROOT
 OUTPUT_DIR = os.getenv("PIPELINE_OUTPUT_DIR", "output")
 EMBEDDINGS_CACHE_PATH = os.getenv("PIPELINE_EMBEDDINGS_CACHE", ".embeddings_cache.json")
 RETRIEVAL_K = 3
@@ -32,18 +42,35 @@ def _excerpt_without_heading(text):
     return text.split("\n", 1)[1] if "\n" in text else text
 
 
+def _output_hash(text):
+    return hashlib.sha256((text or "").encode("utf-8")).hexdigest()
+
+
 def run_pipeline(run_dir):
     os.makedirs(run_dir, exist_ok=True)
 
     brief = build_kickoff_brief()
     write_kickoff_brief(brief, os.path.join(run_dir, "00_ana_kickoff_brief.md"))
 
-    with open(GDD_PATH) as f:
-        gdd_text = f.read()
-    chunks = chunk_gdd(gdd_text)
+    chunks, sources = corpus.load_canonical_sources(CANONICAL_SOURCES_PATH, DOCS_ROOT)
     chunk_vectors = embed_chunks_with_cache(chunks, EMBEDDINGS_CACHE_PATH, ollama_client.embed)
 
-    retrieval_log_lines = ["# Retrieval Log", ""]
+    retrieval_log_lines = [
+        "# Retrieval Log",
+        "",
+        "## Canonical corpus",
+        "",
+        f"Corpus snapshot hash: `{corpus.corpus_hash(sources)}`",
+        "",
+        "| Source id | Path (relative to DOCS_ROOT) | Content sha256 | Chunks |",
+        "| --- | --- | --- | --- |",
+    ]
+    for source in sources:
+        retrieval_log_lines.append(
+            f"| `{source['id']}` | `{source['path']}` | `{source['content_hash'][:16]}...` "
+            f"| {source['chunk_count']} |"
+        )
+    retrieval_log_lines += [""]
     lorena_lines = ["# Lorena -- Drafts", ""]
     heckler_lines = ["# Heckler -- Critique", ""]
     results = []
@@ -51,18 +78,35 @@ def run_pipeline(run_dir):
     for request in brief["requests"]:
         query_vector = ollama_client.embed(request["query"])
         retrieved = retrieve_top_k(query_vector, chunk_vectors, k=RETRIEVAL_K)
+        validation_mode = request.get("validation_mode")
 
+        generation = None
         if request["is_validation_test"]:
             draft = request["preset_draft"]
         else:
             draft = generate_draft(request, retrieved)
+            generation = {
+                "model": ollama_client.GENERATION_MODEL,
+                "temperature": ollama_client.DEFAULT_TEMPERATURE,
+                "system_prompt": LORENA_SYSTEM_PROMPT,
+                "prompt": build_lorena_prompt(request, retrieved),
+            }
 
-        critique = critique_draft(draft, request, retrieved)
+        if validation_mode == "retrieval_probe":
+            # A retrieval-only probe asserts something about stage 01, not
+            # about Heckler -- running the critic on a placeholder draft would
+            # spend a generation call and file a meaningless verdict.
+            critique = {"verdict": "NOT-CRITIQUED", "issue": None, "corrected": None}
+        else:
+            critique = critique_draft(draft, request, retrieved)
         final_text = critique["corrected"] if critique["corrected"] else draft
 
         retrieved_for_bundle = [
             {
                 "heading": chunk["heading"],
+                "source_id": chunk["source_id"],
+                "source_path": chunk["source_path"],
+                "chunk_hash": chunk_hash(chunk),
                 "score": chunk["score"],
                 "text_excerpt": _excerpt_without_heading(chunk["text"])[:300],
             }
@@ -74,9 +118,16 @@ def run_pipeline(run_dir):
                 "id": request["id"],
                 "label": request["label"],
                 "is_validation_test": request["is_validation_test"],
+                "validation_mode": validation_mode,
+                "expected_source_id": request.get("expected_source_id"),
+                "query": request["query"],
+                "instruction": request.get("instruction"),
+                "max_words": request["max_words"],
+                "generation": generation,
                 "draft": draft,
                 "critique": critique,
                 "final_text": final_text,
+                "output_hash": _output_hash(final_text),
                 "retrieved": retrieved_for_bundle,
             }
         )
@@ -91,7 +142,10 @@ def run_pipeline(run_dir):
         ]
         for chunk in retrieved:
             excerpt = _excerpt_without_heading(chunk["text"])[:300].replace("\n", " ").strip()
-            retrieval_log_lines.append(f"- `{chunk['heading']}` (score {chunk['score']:.3f})")
+            retrieval_log_lines.append(
+                f"- `{chunk['heading']}` (source `{chunk['source_id']}`, "
+                f"score {chunk['score']:.3f})"
+            )
             retrieval_log_lines.append(f"  > {excerpt}")
         retrieval_log_lines += ["", "**Output:**", "", final_text, ""]
 
@@ -120,8 +174,24 @@ def run_pipeline(run_dir):
     with open(os.path.join(run_dir, "04_ana_status_report.md"), "w") as f:
         f.write(format_status_report_markdown(status_report))
 
+    provenance = {
+        "canonical_sources_manifest": CANONICAL_SOURCES_PATH,
+        "docs_root": DOCS_ROOT,
+        "corpus_hash": corpus.corpus_hash(sources),
+        "sources": sources,
+        "embedding_model": ollama_client.EMBEDDING_MODEL,
+        "generation_model": ollama_client.GENERATION_MODEL,
+        "generation_temperature": ollama_client.DEFAULT_TEMPERATURE,
+        "retrieval_k": RETRIEVAL_K,
+        "total_chunks": len(chunks),
+    }
+
     with open(os.path.join(run_dir, "bundle.json"), "w") as f:
-        json.dump({"results": results, "status_report": status_report}, f, indent=2)
+        json.dump(
+            {"provenance": provenance, "results": results, "status_report": status_report},
+            f,
+            indent=2,
+        )
 
     return results, status_report
 
