@@ -2,6 +2,18 @@
 
 Append-only, dated, one entry per engine feature shipped and its playtest result.
 
+## 2026-08-07 (4) — Issue #127: clean resolved `roadfeel` prototype, codify Active Prototype freshness
+
+First of the opening-magic epic's (#124) ticket chain — ordered ahead of #130/#126/#128 per `docs/superpowers/specs/2026-08-07-opening-art-music-prototypes-design.md` since #128 needs an empty registry to install its own `openingmagic` entry into.
+
+**Removed:** `src/scenes/PrototypeRoadFeelScene.ts` and its import/registry line from `main.ts` — `PROTOTYPE_REGISTRY` is back to `{}`. Issue #68's verdict (side-pocket + reactive shrine baseline) isn't lost — it was already preserved in issue #64/#68 and `docs/agents/_reference/opening-experience-brief.md`, both outside the throwaway scene file.
+
+**Codified in `docs/eng-skills/prototype-harness.md`:** a new "Active Prototype lifecycle" section names the one-active-prototype-at-a-time rule and states the Prototype Freshness rule from ADR-0003 explicitly (a production change touching the Active Prototype's dependencies must update and Docker-smoke-check it in the same change) — previously this was only implied by ADR-0003's prose, not spelled out in the harness doc itself. Added a concrete Docker smoke-check command sequence (typecheck/test/build + a live `?prototype=<key>` boot check), and a "Resolved prototypes" section recording `roadfeel`'s resolution so future readers don't have to dig through git history to find where its verdict lives.
+
+**Self-verify:** `docker-compose run --rm game npm run typecheck` / `npm test` (2332/2332, no new tests — this is a deletion + doc change, `prototypeHarness.test.ts` already used fake scene classes rather than the real `PrototypeRoadFeelScene`) / `npm run build` all clean.
+
+**Status:** `shipped-and-validated` — pure cleanup with no runtime-input-dependent behavior, nothing left for a developer playtest gate to check here.
+
 ## 2026-07-21
 
 Context store established. No engine features logged yet.
