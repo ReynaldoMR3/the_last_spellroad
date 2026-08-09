@@ -15,6 +15,14 @@ DEFAULT_GDD_PATH = os.path.join(
     os.path.dirname(__file__), "..", "..", "..", "game", "the-last-spellroad-design.md"
 )
 
+# Final branch review, 2026-08-09 (finding #7) — `__file__` is always absolute (Python 3.9+),
+# so `DEFAULT_GDD_PATH` above resolves to an absolute, worktree-specific path with `..`
+# segments. Fine for actually opening the file (works regardless of cwd), but committing that
+# absolute path into `output/gdd_features.json`'s `source_path` bakes in one specific
+# worktree's checkout location. `REPO_ROOT` lets `main()` rewrite the default run's
+# `source_path` to a clean, repo-relative path instead.
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
+
 
 def slugify(heading):
     slug = re.sub(r"[^a-z0-9]+", "-", heading.lower()).strip("-")
@@ -31,7 +39,6 @@ def chunk_gdd_sections(text):
     stack = []  # (level, heading) ancestor chain, innermost last
     seen_ids = {}
     for i, match in enumerate(matches):
-        start = match.start()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
         level = len(match.group(1))
         heading = match.group(2).strip()
@@ -59,9 +66,17 @@ def scan_gdd(gdd_path):
 
 
 def main():
+    used_default = len(sys.argv) <= 1
     gdd_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_GDD_PATH
     out_path = sys.argv[2] if len(sys.argv) > 2 else None
-    output = json.dumps(scan_gdd(gdd_path), indent=2, ensure_ascii=False)
+    result = scan_gdd(gdd_path)
+    if used_default:
+        # Finding #7 — only rewrite `source_path` for the default (no-arg) invocation. An
+        # explicit CLI path (or `scan_gdd()` called directly, e.g. from the test suite) is
+        # left exactly as given — this is purely about not baking one worktree's absolute
+        # checkout path into the committed default-run evidence file.
+        result["source_path"] = os.path.relpath(os.path.abspath(gdd_path), REPO_ROOT)
+    output = json.dumps(result, indent=2, ensure_ascii=False)
     if out_path:
         with open(out_path, "w", encoding="utf-8") as f:
             f.write(output + "\n")
