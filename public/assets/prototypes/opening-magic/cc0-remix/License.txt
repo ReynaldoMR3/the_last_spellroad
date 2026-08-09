@@ -1,0 +1,65 @@
+CC0 Remix treatment (issue #126) -- sourced third-party assets, one entry per pack
+
+This directory's glyphs/ and vfx/ are derived from the 2 Kenney packs below; audio/ is a
+byte-for-byte copy of the 1 OpenGameArt asset below. Full per-file transform history, sha256
+hashes, and archive provenance are recorded in provenance.json alongside this file -- this
+License.txt is the human-readable record of the same license facts, matching the convention
+every other sourced-asset directory in this repo follows (see public/assets/third-party/*/License.txt).
+
+###############################################################################
+
+1. Kenney Rune Pack
+
+	by Kenney (www.kenney.nl)
+
+	Source:   https://kenney.nl/assets/rune-pack
+	Used for: glyphs/rune-{cyan,gold,violet,ember}.png (tinted/recolored derivatives of 4
+	          individual tiles from PNG/Grey/Tile/ -- see provenance.json's "transforms" for
+	          the exact per-file transform chain)
+
+	License (Creative Commons Zero, CC0)
+	http://creativecommons.org/publicdomain/zero/1.0/
+
+	You may use these graphics in personal and commercial projects.
+	Credit (Kenney or www.kenney.nl) would be nice but is not mandatory.
+
+###############################################################################
+
+2. Kenney Particle Pack
+
+	by Kenney (www.kenney.nl)
+
+	Source:   https://kenney.nl/assets/particle-pack
+	Used for: vfx/cast-flame_sweep.png, vfx/impact-flame_sweep.png, vfx/trail-fire.png
+	          (tinted/resized/animated derivatives of flame_06.png, circle_03.png, and
+	          trace_01.png respectively, from "PNG (Transparent)/" -- see provenance.json's
+	          "transforms" for the exact per-file transform chain)
+
+	License (Creative Commons Zero, CC0)
+	http://creativecommons.org/publicdomain/zero/1.0/
+
+	You may use these graphics in personal and commercial projects.
+	Credit (Kenney or www.kenney.nl) would be nice but is not mandatory.
+
+###############################################################################
+
+3. Forest Ambience
+
+	Author: TinyWorlds (OpenGameArt ID3 tags on the source file itself list "Rick Hoppmann" --
+	        almost certainly the name behind the "TinyWorlds" handle, consistent with the
+	        Ludum Dare 29 framing in the file's own metadata; CC0 waives attribution either way,
+	        so this doesn't change the license status, only the credit-line detail)
+	Source: https://opengameart.org/content/forest-ambience
+	File:   Forest_Ambience.mp3, downloaded from
+	        https://opengameart.org/sites/default/files/Forest_Ambience.mp3
+	Used for: audio/forest-ambience.mp3 (byte-for-byte copy, no transcode)
+
+	License: CC0 (Creative Commons Zero / public domain)
+	https://creativecommons.org/publicdomain/zero/1.0/
+
+	No attribution required. Uploader's own note: "It loops seamlessly and is ready to be
+	used in your projects!" (a basic amplitude-continuity sanity check on the shipped file's
+	first/last 100ms is recorded in provenance.json; full seamless-loop verification needs
+	real browser playback, not yet done).
+
+###############################################################################
