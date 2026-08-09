@@ -614,3 +614,109 @@ Step 4 of epic #124's opening-magic ticket chain (#127, #130, #126 already shipp
 **Status:** `blocked-with-reason` on the developer playtest gate — which is also, explicitly, the one gate this ticket's own acceptance criteria say is not mine to satisfy. Everything self-verifiable without a live input loop is clean (typecheck/tests/build, asset wiring, de-duplication, no console errors, correct initial render and initial audio-status disclosure). What remains, entirely for the developer: actually pressing `1`/`2`/`3` and `Space` at real 960x540 scale to judge whether each treatment reads as "magic feels exciting within 30 seconds" while enemies/road/pickups/shrine/spell geometry stay legible, whether Deterministic Original's and Hybrid's music loops cleanly against the ambience-only CC0 Remix silence, and — the one call that is never mine to make — which treatment (or explicit mix) wins. Flagging one honest technical concern for that session: CC0 Remix currently has zero audio the instant you switch to it (ambience only, no music bed) — by design/disclosure, not a bug, but worth listening for whether that reads as a jarring drop-out immediately after Deterministic Original's or Hybrid's music, since switching stops the old track before the new (silent) state begins.
 
 **Addendum (orchestrating session, same day) — screenshot evidence and an honestly-skipped acceptance item.** The ticket's Work list asks to "capture screenshots, audio details, performance observations" and its acceptance list separately requires "target-machine frame pacing remains acceptable" — re-reading both against this entry, screenshots were described in prose above but never actually captured as image evidence, and frame pacing/performance was not measured or even attempted, not just blocked. Correcting the record rather than letting it stand as silently satisfied: a second live check (a separate sandboxed browser pane, same `?prototype=openingmagic` URL) reproduced the identical first-paint render described above — HUD title/controls/audio-status text, the production Level 1 tilemap and lane, the mage placeholder, all 3 labeled static enemy silhouettes (Melee/red, Ranged/gold, Debuffer/violet), the two side-pocket glyph markers, and the reactive shrine glyph, with the "1 - CC0 Remix" variant-switcher label visible at the bottom — confirming this isn't a one-off render fluke. Frame pacing/performance genuinely could not be measured this pass: every profiling signal that matters (actual FPS under real input, tween/physics-step timing, GC pauses) requires the same live, unfrozen render loop that `document.visibilityState: "hidden"` blocks in every sandboxed environment used across this ticket's build and this addendum — there is no proxy measurement (asset payload size, texture count, static frame count) that would honestly stand in for it, so none is offered as one. This is now explicitly named as a second, distinct thing (beyond input-switching) the developer's real session needs to check, not folded silently into the input-switching gap already disclosed above.
+
+## 2026-08-09 — Backlog 1.6: SaveSystem cross-session wiring (Assignment #5 goal-oriented-agent pick)
+
+Dispatched via Ana's goal-oriented-agent run
+(`docs/agents/ana/goal-oriented-agent/output/run_report.md`) — the automated
+gap-detection picked backlog 1.6 (stale-labeled `blocked-with-reason`; its real blocker,
+0.2, resolved 2026-08-01) as the highest-priority real gap: `SaveSystem.ts` existed and
+typechecked, but nothing consumed or wrote through it during play.
+
+**Built**, per "Save Data And Persistence" (GDD) and the scope `run_report.md` lays out:
+- `MasterySystem.exportState()`/`importState()` — round-trips the full per-spell
+  tier/landed-cast map (`MasterySystem.test.ts`, 3 new cases).
+- `HexcoinSystem.restoreBalance(amount)` — seeds the balance and marks it as the current
+  level's floor, clearing any stale boss-fight snapshot (new `HexcoinSystem.test.ts`, 3
+  cases — this class had zero prior test coverage).
+- `SaveSystem.test.ts` — new file; this module had zero prior test coverage despite
+  already having real logic (schema-mismatch reset, `hasSave` vs. `loadSave`'s
+  always-succeeds behavior). 6 cases, using an in-memory `Storage` stand-in, no real
+  `localStorage` touched.
+- `SpellroadScene.create()` now accepts `{ continueFromSave?: boolean }`; when set (and a
+  save exists), it imports Mastery/Hexcoin state and jumps `startWave` to the checkpointed
+  level instead of always starting at wave 0. New `writeCheckpoint()` private method
+  persists Mastery/Hexcoin/checkpoint on every level-start and every Mastery tier-up (not
+  literally every state-changing event named in the GDD — `discoveredSpellIds`/
+  `hierarchyRank`/`loreFlags` have no owning system yet, disclosed rather than faked).
+- `TitleScene.continueGame()` now passes `{ continueFromSave: true }` instead of calling
+  `loadSave()` and discarding it; updated the class's own doc comment, which had
+  explicitly disclosed this exact gap since 5.8 shipped.
+
+**Self-verify:** `docker-compose run --rm game npm run typecheck` / `npm test`
+(181/181 tests passing across 23 test files) / `npm run build`, all clean.
+
+**Playtest:** All 4 checks were confirmed against real post-condition state (`localStorage`
+contents, live scene fields, and screenshots); no check was skipped or fabricated. Checks 1
+(Title shows only "New Game" pre-save) and 3 (Title shows "Continue" after a save exists)
+were fully organic — no debug hook needed. Checks 2 (reaching Level 2's first wave writes
+`checkpointId: "2"`) and 4 (`Continue` restores Mastery/Hexcoin state into the HUD) exercised
+the same real code paths a click/keypress would call, but required a disclosed, fully-reverted
+debug hook (`scene['startWave'](3)` to jump levels, plus direct state seeding via
+`hexcoin.earn(7)`/`mastery.recordLandedCast('arc_lance')`) to get past this sandbox's
+`document.visibilityState: "hidden"`, which freezes Phaser's render/input loop — a known,
+repeatedly-documented limitation in this repo's own history (`docs/agents/loomwright/log.md`,
+entries dated 2026-07-23, 2026-08-03, 2026-08-06, 2026-08-07, 2026-08-09), not a defect in
+Tasks 5-8's SaveSystem wiring.
+
+**Status:** `in-progress-with-owner` — code-level wiring shipped and self-verified;
+discovered-spells/hierarchy-rank/lore-flags persistence remains a real, disclosed gap for
+schema v2's completion, not folded into this row's status. See backlog 1.6's own updated
+row.
+
+## 2026-08-09 — Backlog 1.6 follow-up: final review found two save-scum bugs, fixed
+
+A final whole-branch review of the SaveSystem wiring above (Tasks 5-8) — looking at all four
+commits together rather than each in isolation — traced a full save/load round-trip by hand
+and found two real bugs the per-task reviews couldn't see:
+
+1. **Hexcoin level-floor ratchet exploit.** `writeCheckpoint()` wrote `hexcoinBalance` from
+   both the level-start call site (a genuine floor, correct) and the Mastery tier-up call
+   site (a mid-level balance, not a floor — wrong). `SpellroadScene.create()`'s
+   `hexcoin.restoreBalance(saved.hexcoinBalance)` on `Continue` sets whatever was saved as
+   the new floor. Concrete exploit: earn 20 on Level 2 → tier-up saves `hexcoinBalance: 20`
+   → quit → Continue → floor is now 20 → earn 20 more → tier-up saves 40 → quit → Continue →
+   floor is 40. The floor ratchets upward without bound across quit/continue cycles,
+   undermining Fee 1 (100) and Fee 2 (30)'s intended cost.
+2. **Death penalty never persisted.** `handleDeath()` applied
+   `mastery.applyRandomDeathPenalty()` and `hexcoin.rollbackToLevelStart()` but never called
+   `writeCheckpoint()`. Quitting to Title immediately after a death and hitting Continue
+   restored the pre-death (better) state — a full escape hatch from the GDD's "Death And
+   Mastery Loss" pillar, the same pillar `run_report.md` cited as criterion 3 for picking
+   this backlog item.
+
+**Fixed** (single fix wave, verified by a scoped re-review — all findings confirmed
+ADDRESSED, no new breakage):
+- The Mastery tier-up checkpoint no longer writes `hexcoinBalance` at all (only level-start
+  and death-respawn checkpoints do, since those are the only two moments
+  `this.hexcoin.balance` is a legitimate floor).
+- `handleDeath()` now calls `writeCheckpoint()` right after `hexcoin.rollbackToLevelStart()`,
+  closing the escape hatch.
+- The blob-composition and checkpoint-index-resolution logic that both bugs lived in was
+  extracted out of `SpellroadScene.ts` into a small, pure, tested module —
+  `src/systems/checkpoint.ts` (`composeCheckpointBlob`, `resolveStartWaveIndex`),
+  `src/systems/checkpoint.test.ts` (7 cases) — matching this codebase's existing convention
+  of pulling pure scene logic out for testability (`waveSession.ts`, `autoAim.ts`,
+  `hotbarLayout.ts`, etc.). This closes the plan's own Global Constraint gap (every new
+  function needs a colocated test) that Task 8 had explicitly waived.
+- `MasterySystem.exportState()` also had a minor defensive-copy bug (returned live mutable
+  references instead of copies, asymmetric with `importState()`) — fixed, with a new test.
+
+Also fixed in the same pass: backlog row 5.8 still disclosed the pre-1.6 gap as current
+(stale as of this same branch's commit `3615725`) — corrected; `scan_codebase.py`'s backlog
+parser only recognizes markdown-table rows, so Phase 0 items (e.g. dependency `0.2`, central
+to this whole run's narrative) never appeared in `codebase_inventory.json` — disclosed in the
+agent's `README.md` rather than risk destabilizing the already-approved parser; plus several
+minor doc-accuracy and hygiene items (an absolute worktree path leaked into committed JSON,
+docs that would've silently overwritten frozen evidence, a dead variable, `__pycache__` not
+gitignored, an untracked plan file).
+
+**Re-verified:** `docker-compose run --rm game npm run typecheck` / `npm test` (189/189
+tests passing across 24 test files, up from 181/181/23 — the 8 new tests are
+`checkpoint.test.ts`'s 7 cases plus 1 new `MasterySystem.test.ts` case) / `npm run build` —
+all clean. Python scanner tests (18/18) also re-verified green.
+
+**Status:** `in-progress-with-owner` (unchanged) — the wiring is now correct against the
+game's own economy/mastery-loss rules, not just against the save/load contract in isolation.
+discovered-spells/hierarchy-rank/lore-flags persistence remains the same disclosed,
+not-yet-built gap noted above.

@@ -628,3 +628,62 @@ Step 3 of epic #124's ticket chain (#127, #130 already shipped). Dispatched Tile
 **Deliberately not fixed, and asked the developer directly rather than guessing (finding 2):** whether to pull in the marginal-fit CC0 track as a labeled placeholder, or ship CC0 Remix without a temporary music reference and document the gap. **No answer received this session** (the question was asked and the session moved on under `/implement`'s continued instruction before a reply arrived) — this remains a genuinely open, undecided item, not a silent default. Recorded here so it isn't lost: CC0 Remix currently has zero audio-reference asset for its music role; the developer should either approve a specific download or explicitly accept the gap.
 
 **Overall status:** Deterministic Original and CC0 Remix's *fixed* defects are `shipped-and-validated` at the pixel-data/hash/duration level Tilesmith's and Composer's own checks can certify (per ADR-0001, re-stated in each of their log entries). The bundle as a whole is **not** fully `shipped-and-validated` — the CC0 Remix temporary-music-reference decision is open, and every agent in this chain has consistently flagged that aesthetic fit at real 960x540 canvas scale, in real playback, is a #128 prototype-scene/developer-playtest question no file-level check can answer. Proceeding to #128 with this understood: #128 audits these treatments against each other and the developer's own judgment, it doesn't require every treatment to be asset-complete first.
+
+## 2026-08-09 — Assignment #5 (Goal-Oriented Coding Agent): SaveSystem cross-session wiring
+
+Course Assignment #5 requires an agent that reads the GDD, scans the codebase, detects
+gaps, prioritizes, and generates code for at least one — automating exactly the reasoning
+this backlog already tracks by hand. Built `docs/agents/ana/goal-oriented-agent/`: two
+dependency-free Python scanners (`scan_gdd.py`, `scan_codebase.py`, no LLM — nothing in
+the mechanical parsing step can drift) plus `AGENT_CONTRACT.md`, a documented reasoning
+procedure any live Claude/Codex session can follow, the same way Loomwright/Frieren/
+Warden already operate. Ran both layers for real against this repo
+(`output/gdd_features.json`, `output/codebase_inventory.json`, `output/run_report.md`,
+all committed as evidence).
+
+**Gap found and picked:** cross-referencing the GDD's "Save Data And Persistence" section
+against `src/` and this backlog surfaced that backlog row **1.6** was labeled
+`blocked-with-reason` on **0.2** as the blocker — but 0.2 has been `shipped-and-validated`
+since 2026-08-01, over a week before this run. The label was stale, not the gap:
+`TitleScene.continueGame()` was calling `loadSave()` and discarding the result, and
+nothing in the engine wrote a save during play. Full reasoning (phase order, dependency
+readiness, floor-vs-stretch, smallest-coherent-slice) in `run_report.md`.
+
+**Scoped, not attempted whole:** wired the two fields that already have real live runtime
+state today — `MasterySystem` (new `exportState`/`importState`) and `HexcoinSystem` (new
+`restoreBalance`) — plus the level checkpoint, into `SpellroadScene`'s `continueFromSave`
+init path and a new `writeCheckpoint()` (fires on level-start and Mastery tier-up).
+`discoveredSpellIds`/`hierarchyRank`/`loreFlags` are explicitly NOT wired — no system
+anywhere in the engine populates any of the three yet, so schema v2 is only partially
+complete. Disclosed in `run_report.md`, not silently assumed away.
+
+**Verification:** see Loomwright's log entry (below) for the exact typecheck/test/build
+numbers and the playtest result — not duplicated here.
+
+**Backlog updated:** row 1.6 moved to `in-progress-with-owner`, its stale blocker-label
+corrected, and the remaining discovered-spells/hierarchy-rank/lore-flags gap named
+explicitly for a future pass.
+
+**Status:** see Loomwright's log for the code-level status; this entry is Ana's
+framing/dispatch record per this file's own convention (narrative why, not a duplicate of
+the backlog's what's-left tracking).
+
+## 2026-08-09 — Assignment #5 follow-up: final review caught two save-scum bugs before merge
+
+Before merging the branch above, a final whole-branch review (looking across all tasks
+together, not just each one in isolation) found two real bugs in the SaveSystem wiring: a
+Hexcoin level-floor ratchet exploit and an unpersisted death penalty — both let a player
+escape the exact economy/mastery-loss rules this backlog pick was justified against by
+quitting and continuing at the right moment. Full technical detail in Loomwright's log
+entry below and in `docs/agents/ana/goal-oriented-agent/output/run_report.md`'s "Post-run"
+section. Both fixed, plus a stale disclosure this same run had itself left in backlog row
+5.8, and a scanner blind spot on Phase 0 backlog rows now disclosed in the agent's README.
+
+**Why this matters beyond the fix itself:** the whole premise of this assignment is
+automated cross-referencing catching things a human might miss under time pressure. It's
+worth recording plainly that the automation caught real bugs in its own output on a second,
+independent pass — and also introduced one of the exact failure modes (a stale disclosure)
+it was built to detect. Both are disclosed here rather than quietly fixed and forgotten.
+
+**Status:** `in-progress-with-owner` (unchanged) — see backlog 1.6's own row for the
+up-to-date status text.

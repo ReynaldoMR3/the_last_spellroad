@@ -87,6 +87,25 @@ export class MasterySystem {
     return { powerBonus: 2, targetsBonus: 2 };
   }
 
+  /** backlog 1.6 — the full per-spell tier/landed-cast map, for SaveSystem to persist.
+   * Final branch review, 2026-08-09 (finding #9) — returns defensive copies of each
+   * `MasteryState`, not the live objects `this.state` holds: `Object.fromEntries(this.state)`
+   * previously handed out references a caller could mutate to silently corrupt this system's
+   * internal tracking. Matches `importState`'s existing defensive-copy pattern below. */
+  exportState(): Record<string, MasteryState> {
+    return Object.fromEntries(Array.from(this.state, ([id, s]) => [id, { ...s }]));
+  }
+
+  /** backlog 1.6 — replaces all tracking with a loaded save's state. A spell absent from
+   * `saved` simply hasn't been tracked before and starts fresh at Novice via `ensure()`,
+   * same as any other never-before-seen spell id. */
+  importState(saved: Record<string, MasteryState>): void {
+    this.state.clear();
+    for (const [spellId, entry] of Object.entries(saved)) {
+      this.state.set(spellId, { tier: entry.tier, landedCasts: entry.landedCasts });
+    }
+  }
+
   /**
    * Death penalty: drop one tier on a random equipped spell above Novice. Novice-tier
    * spells are excluded from the roll pool (mastery-template.md, resolved 2026-07-22) —

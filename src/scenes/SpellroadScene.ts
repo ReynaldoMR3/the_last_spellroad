@@ -4,6 +4,8 @@ import { HealthSystem, MAX_HP } from "../systems/HealthSystem";
 import { ManaSystem, MANA_REGEN_PER_SEC, MAX_MANA } from "../systems/ManaSystem";
 import { MasterySystem } from "../systems/MasterySystem";
 import { HexcoinSystem, FEE_PHASE_RECOVERY, PHASE_RECOVERY_HP_FRACTION, MAX_RECOVERIES_HARD_CAP } from "../systems/HexcoinSystem";
+import { hasSave, loadSave, writeSave } from "../systems/SaveSystem";
+import { composeCheckpointBlob, resolveStartWaveIndex } from "../systems/checkpoint";
 import { DebuffSystem } from "../systems/DebuffSystem";
 import { computeDebuffMagnitude, formatDebuffHudLines } from "../systems/debuffDisplay";
 import { archetypeDisplayName, computeHpBarColor, computeHpFraction } from "../systems/enemyStatusOverlay";
@@ -347,6 +349,9 @@ export class SpellroadScene extends Phaser.Scene {
    * `hexcoin.markLevelStart()` the first time a level number is crossed, never on a
    * same-level death-retry, so a death can't be used to re-bank an already-recorded floor. */
   private highestLevelReached = 0;
+  /** backlog 1.6 — the level number a `continueFromSave` load should resume at, set once
+   * in `create()` from the loaded blob's `checkpointId`, `null` for a fresh game. */
+  private continueCheckpointLevel: number | null = null;
 
   private lastFacing = new Phaser.Math.Vector2(1, 0);
   /** Issue #49 fix — was a one-way `pointerHasMoved` boolean (set true on the first
@@ -513,7 +518,7 @@ export class SpellroadScene extends Phaser.Scene {
     this.load.audio(BOSS_THEME_KEY, BOSS_THEME_URL);
   }
 
-  create(): void {
+  create(data?: { continueFromSave?: boolean }): void {
     this.spells = this.cache.json.get("spells") as SpellDefinition[];
     // Fixed default loadout (see HOTBAR_KEYS comment) — data-driven via each spell's own
     // `default_loadout_slot` (issue #71), a curated 2-per-weight-class set authored in
@@ -544,6 +549,13 @@ export class SpellroadScene extends Phaser.Scene {
     this.mana = new ManaSystem();
     this.mastery = new MasterySystem();
     this.hexcoin = new HexcoinSystem();
+    this.continueCheckpointLevel = null;
+    if (data?.continueFromSave && hasSave()) {
+      const save = loadSave();
+      this.mastery.importState(save.masteryBySpell);
+      this.hexcoin.restoreBalance(save.hexcoinBalance);
+      this.continueCheckpointLevel = save.checkpointId !== null ? Number(save.checkpointId) : null;
+    }
     this.debuff = new DebuffSystem();
     this.caster = new SpellCaster(this.mana, this.mastery);
     // Issue #48 — constructed with the rest of the run's systems so a scene restart gets a
@@ -611,7 +623,8 @@ export class SpellroadScene extends Phaser.Scene {
     // forever over a screen it no longer belongs to.
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stopBossTheme());
 
-    this.startWave(0);
+    const startIndex = resolveStartWaveIndex(this.waves, this.continueCheckpointLevel);
+    this.startWave(startIndex);
   }
 
   update(_time: number, deltaMs: number): void {
@@ -1148,9 +1161,12 @@ export class SpellroadScene extends Phaser.Scene {
       // one; a player played through 4 full levels without ever registering it. `flashTierUp`
       // is a dedicated element (see its own comment) so a "Hit!" moments later can't erase it;
       // 2600ms matches the death message's own weight for a comparably significant event.
-      this.mastery.recordLandedCast(spell.id, (spellId, tier) =>
-        this.flashTierUp(`${spellId} reached ${tier.toUpperCase()} Mastery!`, 2600)
-      );
+      this.mastery.recordLandedCast(spell.id, (spellId, tier) => {
+        this.flashTierUp(`${spellId} reached ${tier.toUpperCase()} Mastery!`, 2600);
+        // Final branch review, 2026-08-09 (finding #1) — `false`: this can fire mid-level, at
+        // a Hexcoin balance above the level floor. See `writeCheckpoint`'s own doc comment.
+        this.writeCheckpoint(false);
+      });
     }
   }
 
@@ -1229,6 +1245,30 @@ export class SpellroadScene extends Phaser.Scene {
 
   // ----- enemies / waves -----
 
+  /** backlog 1.6 — persists the fields that have real live runtime state today (Mastery,
+   * Hexcoin, current level) so `TitleScene`'s `Continue` has something real to restore.
+   * Deliberately does not touch `discoveredSpellIds`/`hierarchyRank`/`loreFlags` — no
+   * system populates those yet, so `loadSave()` is used as the write base to pass them
+   * through untouched rather than overwriting them with fresh defaults every checkpoint.
+   *
+   * Final branch review, 2026-08-09 (finding #1) — `includeHexcoinBalance` defaults to `true`
+   * (the level-start and post-death-rollback call sites, where `this.hexcoin.balance` is
+   * genuinely this level's floor) but the Mastery tier-up call site passes `false`: a tier-up
+   * can fire mid-level at a balance ABOVE the floor, and persisting that would let a later
+   * `Continue` install it as the new floor via `HexcoinSystem.restoreBalance()` — a ratchet
+   * exploit across quit/continue cycles. See `checkpoint.ts`'s `composeCheckpointBlob` doc
+   * comment for the full mechanism. */
+  private writeCheckpoint(includeHexcoinBalance = true): void {
+    const currentLevel = this.waves[this.waveIndex]?.level;
+    const blob = composeCheckpointBlob(
+      loadSave(),
+      this.mastery.exportState(),
+      currentLevel !== undefined ? String(currentLevel) : null,
+      includeHexcoinBalance ? this.hexcoin.balance : undefined
+    );
+    writeSave(blob);
+  }
+
   private startWave(index: number): void {
     const wave = this.waves[index];
     if (!wave) {
@@ -1252,6 +1292,7 @@ export class SpellroadScene extends Phaser.Scene {
     if (wave.level > this.highestLevelReached) {
       this.highestLevelReached = wave.level;
       this.hexcoin.markLevelStart();
+      this.writeCheckpoint();
     }
 
     if (wave.is_boss) {
@@ -1779,6 +1820,12 @@ export class SpellroadScene extends Phaser.Scene {
     this.debuff.clear();
     this.mage?.setPosition(MAGE_START.x, MAGE_START.y);
     this.hexcoin.rollbackToLevelStart();
+    // Final branch review, 2026-08-09 (finding #2) — the death penalty above
+    // (`applyRandomDeathPenalty`) and the Hexcoin rollback just above were never persisted,
+    // so a player could die, Quit to Title before the next level-start/tier-up write, then
+    // Continue and completely escape both penalties. `this.hexcoin.balance` correctly equals
+    // the level floor here (post-rollback), so this write legitimately includes it.
+    this.writeCheckpoint();
     const currentLevel = this.waves[this.waveIndex]?.level;
     const levelStartIndex = this.waves.findIndex((w) => w.level === currentLevel);
     this.time.delayedCall(1500, () => {
