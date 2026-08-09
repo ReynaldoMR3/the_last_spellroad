@@ -87,9 +87,13 @@ export class MasterySystem {
     return { powerBonus: 2, targetsBonus: 2 };
   }
 
-  /** backlog 1.6 — the full per-spell tier/landed-cast map, for SaveSystem to persist. */
+  /** backlog 1.6 — the full per-spell tier/landed-cast map, for SaveSystem to persist.
+   * Final branch review, 2026-08-09 (finding #9) — returns defensive copies of each
+   * `MasteryState`, not the live objects `this.state` holds: `Object.fromEntries(this.state)`
+   * previously handed out references a caller could mutate to silently corrupt this system's
+   * internal tracking. Matches `importState`'s existing defensive-copy pattern below. */
   exportState(): Record<string, MasteryState> {
-    return Object.fromEntries(this.state);
+    return Object.fromEntries(Array.from(this.state, ([id, s]) => [id, { ...s }]));
   }
 
   /** backlog 1.6 — replaces all tracking with a loaded save's state. A spell absent from

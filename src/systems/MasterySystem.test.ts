@@ -159,5 +159,20 @@ describe("MasterySystem", () => {
       mastery.importState({ frost_bolt: { tier: "master", landedCasts: 0 } });
       expect(mastery.getTier("ember_lance")).toBe("novice");
     });
+
+    it("exportState returns defensive copies — mutating the returned object doesn't affect internal state", () => {
+      // Final branch review, 2026-08-09 (finding #9) — `exportState` used to hand out the live
+      // `MasteryState` objects by reference (`Object.fromEntries(this.state)`), so a caller
+      // mutating its return value would silently corrupt this system's own tracking.
+      const mastery = new MasterySystem();
+      mastery.recordLandedCast("ember_lance");
+
+      const exported = mastery.exportState();
+      exported.ember_lance.tier = "master";
+      exported.ember_lance.landedCasts = 999;
+
+      expect(mastery.getTier("ember_lance")).toBe("novice");
+      expect(mastery.exportState()).toEqual({ ember_lance: { tier: "novice", landedCasts: 1 } });
+    });
   });
 });
