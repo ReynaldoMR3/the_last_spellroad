@@ -82,7 +82,34 @@ through `SaveSystem`; `TitleScene`'s `Continue` actually restores them into a fr
   `MasterySystem.test.ts`.
 
 **Verification:** `docker-compose run --rm game npm run typecheck` / `npm test`
-(181/181 tests passing across 23 test files) / `npm run build` — all clean.
+(189/189 tests passing across 24 test files, after a final-review fix wave — see below —
+added `checkpoint.test.ts` and one more `MasterySystem.test.ts` case; 181/181 across 23
+files at this run's first pass) / `npm run build` — all clean.
+
+## Post-run: final whole-branch review found two real bugs, fixed before merge
+
+A final review of the whole branch (all tasks above) found two genuine save-scum bugs in
+the scoped slice, beyond what any single task's own review could see:
+
+1. **Hexcoin level-floor ratchet:** `writeCheckpoint()` wrote `hexcoinBalance` from both the
+   level-start site (a genuine floor) and the Mastery tier-up site (a mid-level balance,
+   not a floor). Continuing from a tier-up-triggered save let that mid-level balance become
+   the new floor, letting a player ratchet the floor upward indefinitely across quit/continue
+   cycles — undermining the Hexcoin fee economy this same backlog phase built.
+2. **Death penalty unpersisted:** `handleDeath()` applied Mastery-tier loss and Hexcoin
+   rollback but never wrote a checkpoint, so quitting right after death and continuing
+   restored the pre-death state — a full escape hatch from the very "Death And Mastery Loss"
+   pillar this backlog pick was justified against.
+
+Both are fixed: the tier-up checkpoint no longer overwrites the saved Hexcoin balance, and
+`handleDeath()` now writes a checkpoint after its rollback. The composition logic itself was
+extracted into a small, tested pure module (`src/systems/checkpoint.ts`,
+`composeCheckpointBlob`/`resolveStartWaveIndex`) so this class of bug has regression coverage
+going forward. Also fixed in the same pass: a stale disclosure in backlog row 5.8 (this same
+"catches stale labels" run had itself left one behind), a scanner blind spot (Phase 0 backlog
+rows like `0.2` aren't visible to `scan_codebase.py`'s table-row parser — now disclosed in
+`README.md`), and several minor accuracy/hygiene items. Full detail: see Loomwright's log,
+below.
 
 **Playtest:** All 4 checks were confirmed against real post-condition state (`localStorage`
 contents, live scene fields, and screenshots); no check was skipped or fabricated. Checks 1

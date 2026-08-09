@@ -667,3 +667,23 @@ explicitly for a future pass.
 **Status:** see Loomwright's log for the code-level status; this entry is Ana's
 framing/dispatch record per this file's own convention (narrative why, not a duplicate of
 the backlog's what's-left tracking).
+
+## 2026-08-09 — Assignment #5 follow-up: final review caught two save-scum bugs before merge
+
+Before merging the branch above, a final whole-branch review (looking across all tasks
+together, not just each one in isolation) found two real bugs in the SaveSystem wiring: a
+Hexcoin level-floor ratchet exploit and an unpersisted death penalty — both let a player
+escape the exact economy/mastery-loss rules this backlog pick was justified against by
+quitting and continuing at the right moment. Full technical detail in Loomwright's log
+entry below and in `docs/agents/ana/goal-oriented-agent/output/run_report.md`'s "Post-run"
+section. Both fixed, plus a stale disclosure this same run had itself left in backlog row
+5.8, and a scanner blind spot on Phase 0 backlog rows now disclosed in the agent's README.
+
+**Why this matters beyond the fix itself:** the whole premise of this assignment is
+automated cross-referencing catching things a human might miss under time pressure. It's
+worth recording plainly that the automation caught real bugs in its own output on a second,
+independent pass — and also introduced one of the exact failure modes (a stale disclosure)
+it was built to detect. Both are disclosed here rather than quietly fixed and forgotten.
+
+**Status:** `in-progress-with-owner` (unchanged) — see backlog 1.6's own row for the
+up-to-date status text.
