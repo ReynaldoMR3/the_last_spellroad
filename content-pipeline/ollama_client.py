@@ -14,6 +14,9 @@ OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 GENERATION_MODEL = os.getenv("PIPELINE_GENERATION_MODEL", "llama3.2")
 EMBEDDING_MODEL = os.getenv("PIPELINE_EMBEDDING_MODEL", "nomic-embed-text")
 REQUIRED_MODELS = [GENERATION_MODEL, EMBEDDING_MODEL]
+# Named so a run bundle can record the sampling parameter it actually used
+# without a second copy of the number drifting out of sync with this one.
+DEFAULT_TEMPERATURE = 0.7
 
 
 def wait_for_ollama(timeout=180):
@@ -69,8 +72,9 @@ def embed(text, model=None):
     return resp.json()["embedding"]
 
 
-def generate(prompt, system=None, model=None, temperature=0.7):
+def generate(prompt, system=None, model=None, temperature=None):
     model = model or GENERATION_MODEL
+    temperature = DEFAULT_TEMPERATURE if temperature is None else temperature
     payload = {
         "model": model,
         "prompt": prompt,

@@ -1,0 +1,1 @@
+"Rescue me, if you can" she whispers, her voice barely audible over the hum of machinery; the machinery's gentle thrumming has become comforting. She gazes wistfully at a nearby spell fragment, lost in thought.

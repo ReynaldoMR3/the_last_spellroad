@@ -69,6 +69,24 @@ CONTENT_REQUESTS = [
         ),
         "max_words": 60,
         "is_validation_test": True,
+        "validation_mode": "seeded_violation",
+    },
+    {
+        "id": "opening_experience_retrieval_check",
+        "label": "Canonical-corpus retrieval check (opening-experience brief)",
+        "query": "Level 1 opening art and music direction for the Runes Awake treatment",
+        "instruction": None,
+        "preset_draft": (
+            "Retrieval-only probe -- not content. This entry exists solely to "
+            "demonstrate that the canonical-source allowlist reaches the approved "
+            "Level 1 opening-experience reference, so a live run's retrieval log "
+            "proves the corpus is more than the GDD. Nothing is generated or "
+            "graded from it."
+        ),
+        "max_words": 60,
+        "is_validation_test": True,
+        "validation_mode": "retrieval_probe",
+        "expected_source_id": "opening-experience-brief",
     },
 ]
 
@@ -99,7 +117,15 @@ def format_kickoff_brief_markdown(brief):
     for req in brief["requests"]:
         lines.append(f"### {req['label']} (`{req['id']}`)")
         lines.append("")
-        if req["is_validation_test"]:
+        if req.get("validation_mode") == "retrieval_probe":
+            lines.append(
+                "**Retrieval check, not a graded output** -- asserts the canonical-source "
+                f"allowlist actually reaches `{req['expected_source_id']}`, so a live run's "
+                "retrieval log proves the corpus is broader than the GDD."
+            )
+            lines.append("")
+            lines.append(f"Retrieval query: *{req['query']}*")
+        elif req["is_validation_test"]:
             lines.append(
                 "**Validation test, not a graded output** -- a deliberately seeded "
                 "draft, used to prove Heckler's critic loop actually catches and "

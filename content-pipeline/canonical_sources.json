@@ -1,0 +1,19 @@
+{
+  "corpus": "the-last-spellroad-canonical-design-sources",
+  "paths_are_relative_to": "DOCS_ROOT (the repo's docs/ tree: /app/docs under docker-compose, ../docs on the host)",
+  "promotion_rule": "Only human-approved, canonical design sources belong here. Raw research, agent logs (docs/agents/*/log.md), backlogs, this pipeline's own output/run_* bundles, and throwaway prototypes are never auto-promoted -- adding one is a deliberate, reviewable edit to this file. See content-pipeline/CONTEXT.md.",
+  "sources": [
+    {
+      "id": "gdd",
+      "path": "game/the-last-spellroad-design.md",
+      "kind": "spec",
+      "note": "The game design document -- the original grounding source for every generated content item."
+    },
+    {
+      "id": "opening-experience-brief",
+      "path": "agents/_reference/opening-experience-brief.md",
+      "kind": "reference",
+      "note": "Approved Level 1 art-and-music direction (Runes Awake / Arcane Momentum). Role-scoped cross-agent reference; approved per issue #130's epic #124."
+    }
+  ]
+}

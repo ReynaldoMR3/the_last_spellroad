@@ -4,15 +4,18 @@ import { BootScene } from "./scenes/BootScene";
 import { TitleScene } from "./scenes/TitleScene";
 import { SpellroadScene } from "./scenes/SpellroadScene";
 import { PauseScene } from "./scenes/PauseScene";
+import { PrototypeOpeningMagicScene } from "./scenes/PrototypeOpeningMagicScene";
 import { resolveBootScenes, type PrototypeRegistry } from "./dev/prototypeHarness";
-import { PrototypeRoadFeelScene } from "./scenes/PrototypeRoadFeelScene";
 
 // A prototype ticket registers its throwaway scene here for the duration of that ticket only,
 // then removes the entry (and the scene file) once resolved. See
-// docs/eng-skills/prototype-harness.md. THROWAWAY entry: wayfinder ticket #68's roadfeel
-// prototype (`?prototype=roadfeel`) — remove this line and the scene import once #68 resolves.
+// docs/eng-skills/prototype-harness.md. Issue #128 (epic #124) — Active Prototype: the
+// "Opening Magic Audition Lab" that auditions the 3 Runes Awake presentation treatments
+// (`dev/openingMagicTreatments.ts`) against the fixed issue #68 B+C baseline. Remove this entry
+// and `PrototypeOpeningMagicScene.ts` once the developer records a verdict and #125 applies it
+// to real Level 1.
 const PROTOTYPE_REGISTRY: PrototypeRegistry = {
-  roadfeel: PrototypeRoadFeelScene
+  openingmagic: PrototypeOpeningMagicScene
 };
 
 const config: Phaser.Types.Core.GameConfig = {

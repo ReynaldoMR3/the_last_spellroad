@@ -1,18 +1,32 @@
-"""GDD chunking, embedding (via Ollama), and cosine-similarity retrieval.
+"""Markdown chunking, embedding (via Ollama), and cosine-similarity retrieval.
 
-Chunk boundaries follow the GDD's own `##`/`###`/`####` heading structure,
-so a chunk's grounding text always matches a real section of the design
-doc -- this is what makes the retrieval log's query -> chunk -> output
-triples a faithful RAG demonstration rather than an arbitrary text window.
+Chunk boundaries follow each canonical source's own `##`/`###`/`####`
+heading structure, so a chunk's grounding text always matches a real
+section of a real design document -- this is what makes the retrieval
+log's query -> chunk -> output triples a faithful RAG demonstration
+rather than an arbitrary text window.
 
-`chunk_gdd` keeps every chunk under the embedder's batch-size budget in
-two layers: the GDD's own `##`/`###`/`####` headings do the first split,
-and any single section that's still too big (no subheadings of its own)
-gets paragraph-aligned into "(part N/M)" sub-chunks, each re-prefixed
-with the section's own heading line so embeddings keep their section
-context. `tests/test_rag.py`'s
-`test_chunk_gdd_max_chunk_size_stays_under_embedder_budget` guards this
-against a future GDD edit growing a chunk past the safety budget again.
+`chunk_markdown_sections` is deliberately source-agnostic: which files it
+gets called on is decided by the checked-in allowlist manifest that
+`stage01_retrieval/corpus.py` reads, not by this module. It keeps every
+chunk under the embedder's batch-size budget in two layers: the source's
+own `##`/`###`/`####` headings do the first split, and any single section
+that's still too big (no subheadings of its own) gets paragraph-aligned
+into "(part N/M)" sub-chunks, each re-prefixed with the section's own
+heading line so embeddings keep their section context.
+`tests/test_rag.py`'s
+`test_chunk_markdown_sections_max_chunk_size_stays_under_embedder_budget`
+guards this against a future edit to any allowlisted source growing a
+chunk past the safety budget again.
+
+Embedding cache keys are content-addressed per chunk
+(`chunk_hash` == sha256 of the chunk's text), which is what makes cache
+invalidation per-source without any source bookkeeping: editing one
+canonical source changes only that source's affected chunk texts, so
+every other source's chunks keep their existing keys and still hit the
+cache. `tests/test_corpus.py`'s
+`test_editing_one_source_only_re_embeds_that_sources_changed_chunks`
+guards that property.
 """
 
 import hashlib
@@ -60,7 +74,13 @@ def _split_oversized_section(heading_prefix, heading, section_text, max_chars):
     ]
 
 
-def chunk_gdd(text):
+def chunk_markdown_sections(text):
+    """Split one canonical markdown source into heading-aligned chunks.
+
+    Source-agnostic on purpose: the GDD, a role-scoped reference brief, an
+    ADR, or a spec all chunk the same way, because every allowlisted source
+    in `canonical_sources.json` is heading-structured markdown.
+    """
     matches = list(HEADING_RE.finditer(text))
     chunks = []
     preamble = text[: matches[0].start()].strip() if matches else text.strip()
@@ -101,7 +121,13 @@ def retrieve_top_k(query_vector, chunk_vectors, k=3):
     return [{"score": score, **chunk} for score, chunk in scored[:k]]
 
 
-def _chunk_key(chunk):
+def chunk_hash(chunk):
+    """The chunk's content address: sha256 of its full text.
+
+    Doubles as the embedding-cache key and as the per-chunk provenance hash
+    recorded in a run bundle, so a bundle's `chunk_hash` can be recomputed
+    from the corpus snapshot it names.
+    """
     return hashlib.sha256(chunk["text"].encode("utf-8")).hexdigest()
 
 
@@ -114,7 +140,7 @@ def embed_chunks_with_cache(chunks, cache_path, embed_fn):
     chunk_vectors = []
     changed = False
     for chunk in chunks:
-        key = _chunk_key(chunk)
+        key = chunk_hash(chunk)
         if key not in cache:
             cache[key] = embed_fn(chunk["text"])
             changed = True

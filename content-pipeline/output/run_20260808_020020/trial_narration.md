@@ -1,0 +1,1 @@
+"You've trudged on this road for what feels like an eternity, blind to its true purpose. Now, you'll discover the cruel beauty that's been waiting for you."
