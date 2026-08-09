@@ -49,6 +49,17 @@ export class HexcoinSystem {
     this.levelStartBalance = this.expeditionTotal;
   }
 
+  /** backlog 1.6 — seeds the balance from a loaded save. Same internal shape as
+   * `resetExpedition`, but to the restored value instead of 0, and marking that value as
+   * this level's own floor (a checkpoint load IS the start of that level's attempt, so
+   * `markLevelStart`'s existing floor semantics apply unchanged). */
+  restoreBalance(amount: number): void {
+    this.expeditionTotal = amount;
+    this.levelStartBalance = amount;
+    this.fightSnapshot = null;
+    this.recoveriesUsedThisFight = 0;
+  }
+
   /** Call on death: undo this attempt's partial gains within the current level, but never
    * below the floor `markLevelStart()` recorded when the level began. */
   rollbackToLevelStart(): void {
