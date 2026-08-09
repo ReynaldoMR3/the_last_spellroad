@@ -1,0 +1,830 @@
+{
+  "src_files": [
+    {
+      "path": "scenes/BootScene.ts",
+      "exported_symbols": [
+        "BootScene"
+      ],
+      "has_colocated_test": false
+    },
+    {
+      "path": "scenes/PauseScene.ts",
+      "exported_symbols": [
+        "PauseScene"
+      ],
+      "has_colocated_test": false
+    },
+    {
+      "path": "scenes/PrototypeOpeningMagicScene.ts",
+      "exported_symbols": [
+        "PrototypeOpeningMagicScene"
+      ],
+      "has_colocated_test": false
+    },
+    {
+      "path": "scenes/SpellroadScene.ts",
+      "exported_symbols": [
+        "SpellroadScene"
+      ],
+      "has_colocated_test": false
+    },
+    {
+      "path": "scenes/TitleScene.ts",
+      "exported_symbols": [
+        "TitleScene"
+      ],
+      "has_colocated_test": false
+    },
+    {
+      "path": "systems/DebuffSystem.ts",
+      "exported_symbols": [
+        "DebuffSystem",
+        "MANA_REGEN_DRAIN_PER_APPLICATION",
+        "MANA_REGEN_FLOOR",
+        "MAX_STACKS",
+        "SPEED_DRAIN_PER_APPLICATION"
+      ],
+      "has_colocated_test": false
+    },
+    {
+      "path": "systems/HealthSystem.ts",
+      "exported_symbols": [
+        "HealthSystem",
+        "MAX_HP"
+      ],
+      "has_colocated_test": false
+    },
+    {
+      "path": "systems/HexcoinSystem.ts",
+      "exported_symbols": [
+        "FEE_MASTERY_CHOICE",
+        "FEE_PHASE_RECOVERY",
+        "HexcoinSystem",
+        "MAX_RECOVERIES_HARD_CAP",
+        "PHASE_RECOVERY_HP_FRACTION"
+      ],
+      "has_colocated_test": false
+    },
+    {
+      "path": "systems/ManaSystem.ts",
+      "exported_symbols": [
+        "MANA_REGEN_PER_SEC",
+        "MASTER_DISCOUNT",
+        "MAX_MANA",
+        "ManaSystem",
+        "WEIGHT_CLASS"
+      ],
+      "has_colocated_test": false
+    },
+    {
+      "path": "systems/MasterySystem.ts",
+      "exported_symbols": [
+        "MasteryScaling",
+        "MasteryState",
+        "MasterySystem"
+      ],
+      "has_colocated_test": true
+    },
+    {
+      "path": "systems/SaveSystem.ts",
+      "exported_symbols": [
+        "SaveBlob",
+        "defaultSave",
+        "hasSave",
+        "loadSave",
+        "writeSave"
+      ],
+      "has_colocated_test": false
+    },
+    {
+      "path": "systems/WaveLoader.ts",
+      "exported_symbols": [
+        "spawnWave"
+      ],
+      "has_colocated_test": false
+    },
+    {
+      "path": "systems/autoAim.ts",
+      "exported_symbols": [
+        "AUTO_AIM_CONE_HALF_ANGLE_DEG",
+        "AutoAimCandidate",
+        "selectAutoAimTarget"
+      ],
+      "has_colocated_test": true
+    },
+    {
+      "path": "systems/bgm.ts",
+      "exported_symbols": [
+        "BOSS_THEME_KEY",
+        "BOSS_THEME_URL",
+        "BOSS_THEME_VOLUME"
+      ],
+      "has_colocated_test": false
+    },
+    {
+      "path": "systems/debuffDisplay.ts",
+      "exported_symbols": [
+        "DebuffMagnitude",
+        "computeDebuffMagnitude",
+        "formatDebuffHudLines"
+      ],
+      "has_colocated_test": true
+    },
+    {
+      "path": "systems/defaultLoadout.ts",
+      "exported_symbols": [
+        "selectDefaultLoadout"
+      ],
+      "has_colocated_test": true
+    },
+    {
+      "path": "systems/enemyStatusOverlay.ts",
+      "exported_symbols": [
+        "HP_BAR_COLOR",
+        "archetypeDisplayName",
+        "computeHpBarColor",
+        "computeHpFraction"
+      ],
+      "has_colocated_test": true
+    },
+    {
+      "path": "systems/hotbarLayout.ts",
+      "exported_symbols": [
+        "CooldownDisplay",
+        "HotbarRowLayoutInput",
+        "HotbarSlotRect",
+        "computeCooldownDisplay",
+        "computeHotbarSlotRects",
+        "formatShapeWeightTag"
+      ],
+      "has_colocated_test": true
+    },
+    {
+      "path": "systems/lastEnemyStanding.ts",
+      "exported_symbols": [
+        "EnemyLike",
+        "allRemainingAreYieldingDebuffers"
+      ],
+      "has_colocated_test": true
+    },
+    {
+      "path": "systems/levelArt.ts",
+      "exported_symbols": [
+        "ALL_LEVELS",
+        "TILESET_IMAGE_KEY",
+        "TILESET_IMAGE_URL",
+        "TILESET_NAME_IN_MAP",
+        "TilemapAlignmentInput",
+        "TilemapOffset",
+        "computeTilemapOffset",
+        "isValidLevel",
+        "levelMapKey",
+        "levelMapUrl"
+      ],
+      "has_colocated_test": true
+    },
+    {
+      "path": "systems/meleeSeparation.ts",
+      "exported_symbols": [
+        "Point",
+        "computeSeparationNudge"
+      ],
+      "has_colocated_test": true
+    },
+    {
+      "path": "systems/pointerActivity.ts",
+      "exported_symbols": [
+        "POINTER_ACTIVE_WINDOW_MS",
+        "hasRecentPointerActivity"
+      ],
+      "has_colocated_test": true
+    },
+    {
+      "path": "systems/rangedImpact.ts",
+      "exported_symbols": [
+        "RANGED_HIT_RADIUS",
+        "isStillInRangedImpactZone"
+      ],
+      "has_colocated_test": true
+    },
+    {
+      "path": "systems/rangedStrafe.ts",
+      "exported_symbols": [
+        "RANGED_STRAFE_SPEED",
+        "computeStrafeDirection"
+      ],
+      "has_colocated_test": true
+    },
+    {
+      "path": "systems/sfx.ts",
+      "exported_symbols": [
+        "ALL_CAST_ELEMENTS",
+        "ALL_SFX_CUES",
+        "SfxCue",
+        "elementCastSfxKey",
+        "elementCastSfxUrl",
+        "sfxKey",
+        "sfxUrl"
+      ],
+      "has_colocated_test": false
+    },
+    {
+      "path": "systems/sfxVariation.ts",
+      "exported_symbols": [
+        "DETUNE_RANGE_CENTS",
+        "ELEMENT_DETUNE_OFFSET_CENTS",
+        "SfxVariation",
+        "VOLUME_MAX",
+        "VOLUME_MIN",
+        "computeSfxVariation",
+        "computeSpellSfxVariation"
+      ],
+      "has_colocated_test": true
+    },
+    {
+      "path": "systems/spellCost.ts",
+      "exported_symbols": [
+        "computeCastCooldownMs",
+        "computeCastManaCost"
+      ],
+      "has_colocated_test": true
+    },
+    {
+      "path": "systems/spellIcons.ts",
+      "exported_symbols": [
+        "SPELL_ICON_ELEMENTS",
+        "iconKeyForSpell",
+        "spellIconKey",
+        "spellIconUrl"
+      ],
+      "has_colocated_test": false
+    },
+    {
+      "path": "systems/wallSlideDirection.ts",
+      "exported_symbols": [
+        "resolveWallSlideWantsNegativeY"
+      ],
+      "has_colocated_test": true
+    },
+    {
+      "path": "systems/waveEnemyCounts.ts",
+      "exported_symbols": [
+        "countSpawnableEnemies"
+      ],
+      "has_colocated_test": true
+    },
+    {
+      "path": "systems/waveSession.ts",
+      "exported_symbols": [
+        "WavePhase",
+        "WaveSession",
+        "canResolvePhaseChoice",
+        "shouldAutoAdvance"
+      ],
+      "has_colocated_test": true
+    },
+    {
+      "path": "systems/waveThreatBudget.ts",
+      "exported_symbols": [
+        "ONBOARDING_CARELESS_CEILING",
+        "ONBOARDING_COMPETENT_CEILING",
+        "STANDARD_REGULAR_WAVE_BAND",
+        "ThreatBand",
+        "ThreatBudget",
+        "WaveComposition",
+        "computeThreatBudget",
+        "isOnboardingGrace",
+        "isWithinBand"
+      ],
+      "has_colocated_test": true
+    },
+    {
+      "path": "entities/Enemy.ts",
+      "exported_symbols": [
+        "ARCHETYPE_DAMAGE",
+        "Enemy",
+        "EnemyCallbacks"
+      ],
+      "has_colocated_test": false
+    },
+    {
+      "path": "entities/SpellCaster.ts",
+      "exported_symbols": [
+        "CastResult",
+        "SHAPE_GEOMETRY",
+        "ShapeHitTest",
+        "SpellCaster"
+      ],
+      "has_colocated_test": false
+    },
+    {
+      "path": "data/enemyRegistry.ts",
+      "exported_symbols": [
+        "ENEMY_REGISTRY",
+        "EnemyRegistryEntry"
+      ],
+      "has_colocated_test": false
+    },
+    {
+      "path": "data/types.ts",
+      "exported_symbols": [
+        "AoEShape",
+        "DebuffVariant",
+        "Element",
+        "EnemyArchetype",
+        "MasteryTier",
+        "SpellDefinition",
+        "WaveDefinition",
+        "WaveEnemyEntry",
+        "Weight"
+      ],
+      "has_colocated_test": false
+    },
+    {
+      "path": "data/validateContent.ts",
+      "exported_symbols": [
+        "validateSpells",
+        "validateWaves"
+      ],
+      "has_colocated_test": true
+    },
+    {
+      "path": "dev/openingMagicTreatments.ts",
+      "exported_symbols": [
+        "AudioAsset",
+        "FrameAtlasAsset",
+        "ImageAsset",
+        "OPENING_MAGIC_TREATMENTS",
+        "OpeningMagicTreatment",
+        "RuneColor",
+        "TreatmentAssets",
+        "allReferencedAssetUrls",
+        "resolveOpeningMagicTreatmentAssets"
+      ],
+      "has_colocated_test": true
+    },
+    {
+      "path": "dev/prototypeHarness.ts",
+      "exported_symbols": [
+        "PrototypeRegistry",
+        "PrototypeSceneCtor",
+        "PrototypeVariantSwitcher",
+        "VariantSwitcherOptions",
+        "resolveBootScenes"
+      ],
+      "has_colocated_test": true
+    }
+  ],
+  "backlog_tasks": {
+    "1.1": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — built (`src/entities/Enemy.ts`, `src/systems/WaveLoader.ts`), enemy AI/damage confirmed live; enemy-HP values flagged as placeholders (no template exists yet)",
+      "depends_on": "0.1 resolved"
+    },
+    "1.2": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — built (`src/systems/HealthSystem.ts`), death trigger + Novice-floor exclusion confirmed live",
+      "depends_on": "1.1"
+    },
+    "1.3": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — built (`src/systems/ManaSystem.ts`), not yet exercised by an interactive cast (playtest gap, see Loomwright's log)",
+      "depends_on": "1.1"
+    },
+    "1.4": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — built (`src/systems/MasterySystem.ts`), death-roll exclusion confirmed live; tier-up flash message built but not yet triggered by a real landed cast (playtest gap)",
+      "depends_on": "1.2, 1.3"
+    },
+    "1.5": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — built (`src/systems/HexcoinSystem.ts`) including the fight-start balance snapshot hp-template.md assigns to Loomwright; not yet exercised against a real boss fight (none wired in yet, that's Phase 3)",
+      "depends_on": "1.2"
+    },
+    "1.6": {
+      "status": "blocked-with-reason",
+      "status_note": "`blocked-with-reason` — `src/systems/SaveSystem.ts` module built and typechecked, but deliberately not wired into the scene; checkpoint-placement policy (0.2) still needs the developer before wiring means anything real",
+      "depends_on": "1.2, 1.5, **0.2**"
+    },
+    "2.1": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — `arc_lance`/`flame_sweep`/`frost_nova`, see `docs/agents/frieren/log.md`",
+      "depends_on": "Phase 1"
+    },
+    "2.2": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — PASS, one casing normalization applied, see `docs/agents/pato/log.md` (2026-07-23 (2))",
+      "depends_on": "2.1"
+    },
+    "2.3": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — built (`src/entities/SpellCaster.ts`); Heckler found and Loomwright fixed a Master-tier cost/cooldown double-discount bug in this exact code (see `docs/agents/heckler/log.md` and `docs/agents/loomwright/log.md`, both 2026-07-23 (2)); one clean mouse-driven cast confirmed live, a confirmed kill/Hexcoin-earn/tier-up still needs a real developer session",
+      "depends_on": "2.2"
+    },
+    "2.4": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — 3 waves, see `docs/agents/warden/log.md` (2026-07-23)",
+      "depends_on": "Phase 1"
+    },
+    "2.5": {
+      "status": "blocked-with-reason",
+      "status_note": "`blocked-with-reason` (partial) — wave validation `shipped-and-validated` (PASS on all 3, Wave 1's tight 14.8% margin explicitly ruled on); growth-rate half NOT closed — one level's data is too small a sample, see item 0.4",
+      "depends_on": "2.4"
+    },
+    "2.6": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — re-attempted 2026-07-25: developer confirmed the 2.8 crash fix held after a refresh, and death/respawn (restart from wave 1) fired correctly. This closes the engine-correctness half of Phase 2's gate.",
+      "depends_on": "2.3, 2.5"
+    },
+    "2.7": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — ran 2026-07-23, found 2 real BLOCKING bugs (HP not reset per wave, Master-discount double-dip) by reading the code, both fixed same-session and confirmed via clean typecheck/build; see `docs/agents/heckler/log.md` (2026-07-23 (2))",
+      "depends_on": "2.6"
+    },
+    "2.8": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — root cause reproduced and confirmed 2026-07-24 (console-driven repro against the live Docker dev server, not just static reading): a melee hit's `onMeleeHit` callback can synchronously drop the player to 0 HP mid-iteration of `updateEnemies`'s `for` loop; `handleDeath()` then destroys **every** enemy (including ones the loop hasn't reached yet) and reassigns `this.enemies`, so the loop's next iteration calls `.update()` on an already-destroyed enemy whose Arcade `body` Phaser has nulled — throws `TypeError: Cannot read properties of undefined (reading 'setVelocity')`, an uncaught exception inside Phaser's step that freezes the game. Fixed in `src/scenes/SpellroadScene.ts`'s `updateEnemies`: snapshot the array before iterating (`[...this.enemies]`, matching the pattern `confirmCast` already uses for the same reason) and skip any enemy whose `.active` is now `false`. Verified: re-ran the identical repro post-fix (no throw, HP/enemies reset correctly) and a normal no-death multi-enemy tick (both enemies stay `active`, unaffected). `npm run typecheck` / `npm run build` clean post-fix.",
+      "depends_on": "2.6"
+    },
+    "2.9": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — developer chose the design directly (2026-07-25): floating combat-text numbers over an HP bar, since overlapping enemies would clash bars; color bands off remaining HP% after the hit (>80% green, 30-80% yellow, <30% red). Built: `Enemy.ts` gained a `maxHp` field; `SpellroadScene.spawnDamageNumber` spawns a `-N` text at the hit enemy, tweened up-and-fade, colored per band. Heckler's full-bundle critique (2026-07-25) raised no findings against this piece specifically. **Developer visually confirmed 2026-07-27, live playtest session: \"the floating damage numbers... they seem okay, I like it.\"** Gate cleared.",
+      "depends_on": "2.6"
+    },
+    "2.10": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` for the engine mechanism, pending a developer feel-check — implemented 2026-07-25 per the Loomwright/Heckler/Warden/Pato consultation: enemies clamp to the lane (mirrors the mage's `body.setBoundsRectangle`), kiting ranges retuned (ranged 220→240, debuffer 200→150, Pato-validated), wall-slide behavior when retreat is blocked, shape preview clipped to the lane via one geometry mask (hit-tests need no separate clip since enemies can't exist off-lane), aiming falls back to last-move-direction until the pointer moves past a jitter threshold. **Heckler's critique pass found and Loomwright fixed 2 real bugs in this first implementation**: the wall-slide's perpendicular-sign math could point away from center for top/bottom wall blocks (fixed: picks whichever orientation actually points toward center), and the aiming fallback used a permanent one-way \"pointer touched\" flag that incidental trackpad jitter would trip forever (fixed: requires clearing a small pixel-distance threshold). Both re-verified via typecheck/build. See `docs/agents/loomwright/log.md` and `docs/agents/heckler/log.md` (2026-07-25) for full detail.",
+      "depends_on": "2.6"
+    },
+    "2.11": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — widened to the GDD's spec'd 1-6 keys; default loadout curated (2 spells per weight class, `DEFAULT_LOADOUT_IDS`) after Heckler caught that a naive `slice(0,6)` orphaned all 3 Heavy spells and 2 of 3 Standard ones. `handleDeath`'s Mastery-penalty roll corrected to scope to equipped spells only (previously silently used the full spellbook, back when equipped==all). Full loadout-selection UI (player picks which known spells fill the hotbar, swappable between expeditions) remains explicitly future work per the GDD — this is only a correct fixed default, not that feature.",
+      "depends_on": "3.1"
+    },
+    "2.12": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — `handleDeath()` (`SpellroadScene.ts`) reset HP and cleared debuffs on respawn but never touched Mana, which then only came back via its normal 5/sec passive regen. The GDD (\"HP Pool And The Death Trigger\") only specifies \"respawns... with a full HP pool\" — Mana-on-death was never actually decided either way, so this was a real gap, not a violation of a stated rule. Developer's call (2026-07-27): mirror HP, full refill on death. Added `ManaSystem.reset()` and call it alongside `health.reset()` in `handleDeath()`. `docker-compose run --rm game npm run typecheck` and `npm run build` both clean. Developer confirmed live: \"the mana reset worked well.\"",
+      "depends_on": "2.6"
+    },
+    "2.13": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — confirmed in code before treating as a fix: `EnemyCallbacks.onRangedFire` already carried `(fromX, fromY, toX, toY)` but `SpellroadScene` discarded all four and only scheduled delayed damage; `onDebuffPulse` had no visual at all. This likely explains the Wave 1 difficulty complaint too — the competent-play damage-threat model (`hp-template.md`) assumes an alert player can react to threats, which is impossible with zero warning. Added `spawnRangedProjectile` (a dot tweening shooter->target over the existing `RANGED_TRAVEL_MS` window — the visible travel time doubles as the dodge window) and `spawnDebuffPulse` (a brief colored ring at the Debuffer, tinted by variant). `docker-compose run --rm game npm run typecheck`/`npm run build` both clean. Not yet developer-confirmed live, and whether this alone fixes Wave 1's difficulty (vs. Wave 1 itself needing retuning) still needs a retry.",
+      "depends_on": "2.6"
+    },
+    "2.14": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — cheapest available fix, not a full solution: hotbar HUD line now shows each spell's `[shape/weight]` tag alongside its id (previously only bare `spell.id`, which doesn't self-describe e.g. \"arc_lance\" as a single-target line spell). A fuller answer (icons, a tooltip, an in-fiction tutorial) is a bigger design question not resolved by this entry — flagged, not silently treated as closed.",
+      "depends_on": "none"
+    },
+    "2.15": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — confirmed by arithmetic before fixing (top HUD block's height grew from ~5 lines to ~11, extending well past `ROAD_TOP`). Gave the hotbar its own text object positioned below the road (`ROAD_TOP + ROAD_HEIGHT + 14`) instead of stacking it under the top stats block.",
+      "depends_on": "2.14"
+    },
+    "2.16": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` for the mechanism — likely cause: radius-4 dot in the same amber as the Ranged archetype's own sprite, need to eyeball-confirm live. Made it bigger (radius 7), a color no enemy body uses (bright red with a white outline), forced to `setDepth(1000)` (rules out a depth-ordering cause rather than assuming equal-depth insertion order was fine), and widened `RANGED_TRAVEL_MS` 280->450ms for a longer, more visible travel + more reaction time (a Loomwright visual-pacing constant, not one of Pato's validated numbers, so free to retune). Not yet re-confirmed live.",
+      "depends_on": "2.13"
+    },
+    "2.17": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — widened `ROAD_HEIGHT` 160->220 (kept centered on the same y=270 midline). This touches the geometry `RANGED_PREFERRED_RANGE`/`DEBUFFER_PREFERRED_RANGE`/`WALL_SLIDE_MARGIN` (`Enemy.ts`) were tuned against at the old 160px height (backlog 2.10) — a taller lane only reduces wall-pinning frequency, it can't break the non-overlapping bands those ranges were tuned for, but flagging for Warden/Pato to re-feel wave pacing against the new dimensions rather than assuming nothing changed. **Live reconfirmation (2026-07-30):** developer reports the road still feels stretched/cramped after the 160->220 widening — see 2.21, tracked separately rather than reopening this row, since it's now a \"still not enough\" signal rather than the original unconfirmed state.",
+      "depends_on": "none"
+    },
+    "2.18": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` (investigation, not a fix — none was needed) — traced `SpellCaster.buildHitTest` and `SpellroadScene.confirmCast`'s hit loop by hand against a concrete scenario (3 clustered enemies, a caster, and an aim direction) rather than assuming a bug or assuming it's fine: line and cone both correctly returned `true` for all 3 clustered enemies simultaneously — the loop applies damage to every enemy the shape's `hitTest` accepts, up to `maxTargets`, with no cap-at-one logic anywhere. Circle behaves differently by design (it's a placement spell — the hit area is centered on the aimed *point*, not the caster — see Warden/Heckler's 2026-07-25 framing, \"zone-denial via placement, not a target lock\"); aiming loosely toward a cluster instead of directly onto it will legitimately whiff some or all of it. Most likely explanation for what the developer saw: (a) two of the default loadout's line spells (`stone_spike`, `magma_lance`) are deliberately single-target (`base_targets: 1`) by design, not a bug; (b) real enemies move independently and rarely stay clustered within the line shape's narrow ±13px width or a cone's exact facing at the same instant the way a hand-picked test scenario does; (c) circle specifically needs the placement reticle aimed directly onto the cluster. Asked the developer to re-test watching the shape preview before confirming a cast, aimed squarely over 2+ visibly clustered enemies, and report back if it still only ever hits one — that would be a real, reproducible signal worth a deeper live-repro dive, which hand-tracing the algorithm can't substitute for.",
+      "depends_on": "none"
+    },
+    "2.19": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — dispatched 2026-08-01 as GitHub issue #26. Every enemy now renders a name label (capitalized archetype string — no richer lore-name exists yet, that's Lorena's job) + a live HP bar above it, in `Enemy.ts`; the fill-fraction/color arithmetic lives in a new pure module `src/systems/enemyStatusOverlay.ts` (Vitest-tested, same seam convention as `waveThreatBudget.ts`), reusing `spawnDamageNumber`'s existing healthy/wounded/critical color thresholds so the two visual signals agree. `Enemy.destroy()` overridden to clean up both GameObjects on despawn — Phaser doesn't cascade-destroy manually-attached siblings. `docker-compose run --rm game npm run typecheck`/`npm test` (15/15)/`npm run build` all clean, independently re-verified. Merged to `main` via PR #33. Doubles as the instrument to empirically confirm or refute 2.18 the next time it's raised.",
+      "depends_on": "none"
+    },
+    "2.20": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` for the mechanism — traced in code before assuming a bug: Wave 1 (`level-1.json`, `wave_index: 0`) spawns both `hexbow_skirmisher` at the same `spawn_delay_ms`, and `Enemy`'s cooldown always started at a fixed 0 on construction, so with no jitter same-wave same-archetype attackers close to `RANGED_PREFERRED_RANGE` together and stay permanently in phase — every `RANGED_COOLDOWN_MS` (1.8s) the player was taking two near-simultaneous 4-dmg hits sharing one `RANGED_TRAVEL_MS` dodge window instead of two separate, individually-reactable ones, even though each enemy's own cooldown already matched Pato's validated numbers. Added `INITIAL_COOLDOWN_JITTER_FRACTION` (`Enemy.ts`): a random 0-50%-of-own-cooldown head start applied on spawn, so instances desync from their first shot onward. Timing only — no change to per-hit damage or average sustained DPS, so this doesn't touch Pato's template. `docker-compose run --rm game npm run typecheck`/`npm run build` both clean. Not yet developer-confirmed live.",
+      "depends_on": "2.13, 2.16"
+    },
+    "2.21": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — developer's steer arrived as GitHub issue #20 (`ready-for-agent`): **\"both.\"** (a) Level 1 Wave 0 revised (M=3,R=2) -> **(M=2,R=1)**, an explicit onboarding exception below the standard 10-15% competent floor (6.8% competent/18% careless), checked against a new separate onboarding threshold rather than a loosened standard band — Pato-validated, every other wave (Level 1 waves 1/2, Levels 2-4, the mini-boss) unchanged. See `warden/log.md`/`pato/log.md` (2026-08-01). (b) `ROAD_HEIGHT` widened again, 220->280 (`ROAD_TOP` 160->130, same centered-midline convention as 2.17), single commented constant edit, no change to `RANGED_PREFERRED_RANGE`/`DEBUFFER_PREFERRED_RANGE`/`WALL_SLIDE_MARGIN`. See `loomwright/log.md` (2026-08-01). Also shipped, per the issue's own spec: `src/systems/waveThreatBudget.ts`, a pure reusable calculator reproducing the `4xR+1.4xM`/`4xR+7xM` arithmetic Warden/Pato had been hand-deriving in every log entry, regression-tested against this backlog's own already-validated pairs; and Vitest, the repo's first test runner, scoped to that one module only. Merged to `main` via PR #22. **Developer playtest confirmed 2026-08-01: Wave 1 now clears, and the lane feels right.** Gate cleared — see `ana/log.md` (2026-08-01 (2)). A post-merge code-review pass on PR #22 found `isOnboardingGrace()` only bounded the competent-play figure, not careless — fixed and regression-tested in a follow-up PR (#23, open, not yet merged, gameplay-inert — pure calculator only, doesn't change what the developer just confirmed). One small follow-on flagged, not fixed: `messageText`'s fixed y=400 now sits closer to the lane's new bottom edge (410) than before — not raised by the developer's playtest, left as a minor watch item.",
+      "depends_on": "2.17, 2.20"
+    },
+    "2.22": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — GitHub issue #44 (`ready-for-agent`), merged via PR #46 (2026-08-02): `src/systems/autoAim.ts` (pure, Vitest-tested — nearest enemy within an 82.5° half-angle/165° full-angle cone around `lastFacing`, falling back to globally nearest if none qualify) wired into `SpellroadScene` — target chosen once when a preview starts (`handleHotbarPress`) and soft-locked (tracked live, never re-evaluated) via `previewLockedEnemy`/`livePreviewLockedEnemy()` until confirm/cancel, applied uniformly to all 3 shapes through the shared `currentAimPoint()`, plus a gold ring highlight on the locked enemy. `docker-compose run --rm game npm run typecheck`/`npm test`/`npm run build` all clean. **Developer playtest (2026-08-02) confirmed the core mechanic works**, but surfaced a real follow-on defect in the same `pointerHasMoved` flag this feature reuses — tracked separately as **2.25**, not reopening this row, since the cone-targeting logic itself (`autoAim.ts`) is confirmed correct; the bug is in the activation-state flag around it.",
+      "depends_on": "none"
+    },
+    "2.23": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — GitHub issue #47 (`bug`, `ready-for-agent`), commit `e8eb527` on `loomwright/fix-playtest-bugs-47-48-49`. New pure `src/systems/rangedImpact.ts` (`isStillInRangedImpactZone`, Vitest-tested, TDD) rechecks the mage's live position against the fired-at point in `onRangedFire`'s delayed callback before applying damage. **Developer playtest confirmed 2026-08-02 (follow-up session): \"working now as expected.\"** Gate cleared per ADR-0001.",
+      "depends_on": "none"
+    },
+    "2.24": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — GitHub issue #48 (`bug`, `ready-for-agent`), commit `223f5fd` on `loomwright/fix-playtest-bugs-47-48-49`. New pure `src/systems/waveSession.ts` (`WaveSession` generation counter + explicit phase, `shouldAutoAdvance`, Vitest-tested) replaces the old numeric-only auto-advance guard; every wave/death/phase-break/spawn `delayedCall` now checks it's still current before acting. A code-review pass afterward found and flagged (not fixed) a narrower interaction with 2.23: a boss phase's fast decline path (200ms) is shorter than the ranged-impact window (450ms), so a same-life phase advance can also void an in-flight shot, not just a death — fails safe, sub-250ms reaction to trigger, documented inline in `SpellroadScene.ts` and in `docs/agents/loomwright/log.md` (2026-08-02 (5)) rather than redesigned mid-review. Self-verified (typecheck/test/build all clean); **not explicitly re-confirmed in the 2026-08-02 follow-up playtest** (the developer reached the end of the run this session without reporting a death-mid-wave repro, but that scenario wasn't specifically retested) — per ADR-0001, still needs that specific repro before `shipped-and-validated`. Blocks 3.9/#30.",
+      "depends_on": "none"
+    },
+    "2.25": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — GitHub issue #49 (`bug`, `ready-for-agent`), commit `9d769b3` on `loomwright/fix-playtest-bugs-47-48-49`. New pure `src/systems/pointerActivity.ts` (`hasRecentPointerActivity`, `POINTER_ACTIVE_WINDOW_MS = 2000`, Vitest-tested, TDD) replaces the one-way `pointerHasMoved` boolean with a last-moved timestamp gated on a 2s recency window. **Developer playtest confirmed 2026-08-02 (follow-up session): \"working as expected, the auto aim resumes correctly.\"** Gate cleared per ADR-0001.",
+      "depends_on": "2.22"
+    },
+    "2.26": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — dispatched 2026-08-02, branch `loomwright/fix-freeze-lane-mana-52-53-54`. Message reframed to \"press Y to continue\"; `keydown-N` now armed only when `canPay` is true. **Heckler's critique caught a real BLOCKING regression in the first pass** — `resolve()`'s phase-only guard let a stale listener from an earlier, death-interrupted phase-break silently co-fire with a fresh one and reproduce the identical freeze via a different path (see `heckler/log.md`/`loomwright/log.md`, both 2026-08-02 (6)). Fixed with defense-in-depth: a new pure `canResolvePhaseChoice` token guard (`waveSession.ts`, Vitest-tested) plus `handleDeath()` actively deregistering any still-armed listener. Self-verified (typecheck/test/build clean, 63/63) and Heckler-recleared. Gate: real developer playtest, ideally including a die-mid-prompt-then-retry-into-another-phase-break pass specifically probing Heckler's catch.",
+      "depends_on": "none"
+    },
+    "2.27": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — dispatched 2026-08-02, branch `loomwright/fix-freeze-lane-mana-52-53-54`. `ROAD_WIDTH`/`ROAD_LEFT` widened 780/90 → 960/0, matching the art exactly. `RANGED_PREFERRED_RANGE`/`DEBUFFER_PREFERRED_RANGE`/`WALL_SLIDE_MARGIN` left unchanged (player-relative bands, independent of lane width, same argument already on record for the `ROAD_HEIGHT` widenings); enemy spawn-x retuned 820→910 to preserve its exact pre-existing wall-margin invariant. Heckler independently re-derived the arithmetic and confirmed no other geometry references the old width. Self-verified (typecheck/test/build clean) and Heckler-cleared. Gate: developer feel-check at both lane edges.",
+      "depends_on": "none"
+    },
+    "2.28": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — dispatched 2026-08-02, branch `loomwright/fix-freeze-lane-mana-52-53-54`. New `SpellCaster.canAffordCast`, backed by extracted pure `computeCastManaCost` (`spellCost.ts`, Vitest-tested) shared with `tryCast` so the two can't drift; `handleHotbarPress` now flashes \"Not enough Mana\" and returns before entering preview. Heckler confirmed no race is possible (mana can only increase between pre-check and confirm). Self-verified (typecheck/test/build clean) and Heckler-cleared. Gate: developer confirms the block fires before aiming, not just at confirm.",
+      "depends_on": "none"
+    },
+    "2.29": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — dispatched 2026-08-02, branch `loomwright-tilesmith/hotbar-icons-55-56` (stacked on `loomwright/fix-freeze-lane-mana-52-53-54`). Vertical 7-line block replaced with a 6-slot single-row action bar (new pure `hotbarLayout.ts`: `computeHotbarSlotRects`, `computeCooldownDisplay`, `formatShapeWeightTag`). **Heckler's critique caught a real BLOCKING interaction with 2.30's icon work** — the icon shrank each slot's text budget without re-checking the longest `[shape/weight]` tag, reproducing the exact overflow this ticket was meant to fix. Fixed with abbreviated, fixed-length tags (9 chars for all 9 combinations, was 12-17) plus a smaller label font, re-verified with real margin (~39px of ~89px unused) via a live screenshot. Self-verified (typecheck/test/build clean, 81/81) and Heckler-recleared. Gate: developer confirms legibility/readability and cooldown/armed/ready state distinction at native resolution in real play.",
+      "depends_on": "none"
+    },
+    "2.30": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — dispatched 2026-08-02, same branch, merged to `main` via PR #61. Tilesmith checked Kenney.nl and OpenGameArt (CC0 filter) for real per-spell icon packs, found nothing suitable (one exact elemental-icon match on OpenGameArt was disqualified — verified CC-BY 4.0 by reading the license page directly, not CC0), and hand-authored 4 icons instead of 12: one per element (fire/ice/lightning/earth), not one per spell as the ticket's own decision text originally specified. Heckler confirmed this is functionally sufficient (no two of the 12 shipped spells share element+shape+weight, so no two are actually indistinguishable) but flagged the coarser granularity as a MAJOR, undisclosed-scope-narrowing finding, routed to the developer rather than decided by any agent. **Developer decision (2026-08-03):** accept the per-element granularity as shipped (no request for the full 12 unique icons) and sign off on the 4 hand-authored PNGs (asset quality/fit approved), closing both items this row was waiting on. Two distinct gates now both cleared: the code-correctness gate (typecheck/test/build clean plus a live screenshot, recorded in `tilesmith/log.md` 2026-08-02, confirming `arc_lance` and `stone_spike` render with visibly different icons — rules out the texture/mapping/load-order defect class this ticket reports) cleared on 2026-08-02; the human sign-off gate Tilesmith's own contract requires (asset quality/fit is never self-certified) and the developer's explicit scope call (per-element vs. per-spell) — the two items actually keeping this row open — cleared today via direct developer review of the 4 PNG files. GitHub issue #56 closed accordingly.",
+      "depends_on": "2.29 (feeds the new hotbar)"
+    },
+    "2.31": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — dispatched 2026-08-02, branch `loomwright-lorena/hud-clarity-57-58` (stacked on `loomwright/fix-freeze-lane-mana-52-53-54`). New pure `debuffDisplay.ts` shows the debuff's real magnitude (speed-drain %, effective mana-regen/sec, mirroring `DebuffSystem`'s own formula exactly) when a pulse is active; deliberately shows no countdown since `DebuffSystem` has no duration/expiry field at all (verified, not assumed) — a stack persists until wave-clear or death. Lorena wired \"The Tarrywright\" into `archetypeDisplayName(\"debuffer\")`, feeding both the enemy overlay label and this HUD line from one source. **Heckler's critique found the HUD line's \"(until wave clears)\" wording was misleading** (killing the visible source doesn't clear the debuff either) — reworded to name that explicitly. Self-verified (typecheck/test/build clean, 76/76) and Heckler-cleared. Gate: developer playtest — this session's tooling couldn't trigger a live Debuffer pulse to confirm the HUD line renders correctly in real play, only via code review/unit tests. Closes the display gap flagged in 4.2.",
+      "depends_on": "none"
+    },
+    "2.32": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — dispatched 2026-08-02, same branch. New persistent, high-contrast `levelWaveText` element, top-right, replacing the buried stat-block line. **Heckler's critique found a real MAJOR issue**: no HUD element (old or new) set an explicit render depth, so an enemy's own name label/HP bar could paint over the new box whenever an enemy was near that screen region — undercutting the entire point of a \"never miss it\" indicator. Fixed with a new `UI_DEPTH` constant applied to every persistent HUD element, checked against this codebase's existing depth values rather than guessed. Self-verified (typecheck/test/build clean) and Heckler-cleared (confirmed by Phaser depth-sort semantics and a live screenshot of the base state; the specific enemy-over-HUD overlap case couldn't be triggered live this session — same browser-pane input limitation noted elsewhere in this cycle). Gate: developer confirms the indicator stays legible and on top in real combat near the screen edges.",
+      "depends_on": "none"
+    },
+    "2.33": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — GitHub issue #76 (`enhancement`, `ready-for-agent`). Built 2026-08-03: reuses `enemyStatusOverlay.ts`'s fraction/color helpers, banded HP + fixed-tone Mana bar, `UI_DEPTH`'d against enemy-overlay occlusion. Self-verified (typecheck/test/build) and live-exercised via the browser pane's frame-pump technique (see `loomwright/log.md`, 2026-08-03). **Gate cleared 2026-08-06:** developer played the dev-server build directly and confirmed the bars \"feel right.\" Issue #76 closed.",
+      "depends_on": "none"
+    },
+    "2.34": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — GitHub issue #77 (`enhancement`, `ready-for-agent`). Tuning pass only — the 100-pool/weight-class-cost design is not up for redesign, only the early-game regen figure. Retuned 2026-08-03: `MANA_REGEN_PER_SEC` 5 -> 8/sec (`ManaSystem.ts`, `mana-template.md`, GDD \"Mana And Spell Costs\" all updated) — every weight class now regens its own cost with a real surplus inside its own cooldown instead of merely breaking even. **Process note:** first shipped by Loomwright ahead of Pato, inverting this row's own ownership split — corrected same day with an actual independent Pato validation pass (`pato/log.md`, 2026-08-03): PASS on 8/sec (a real surplus for all three weight classes, though not the uniquely forced number — 6/sec is the flagged fallback if a playtest reports 8 overshoots). **Residual found, not silently fixed:** this weakens the Debuffer's regen-drain cap relative to the new baseline (2-stack drain no longer reaches the stated floor) — Pato ruled this deferred as a disclosed tradeoff (same handling as 0.6), with restoring numbers pre-derived; tracked as item **2.39** below. **Gate cleared 2026-08-06:** developer confirmed 8/sec \"is okay\" on the dev-server build — the 6/sec fallback is not needed. Issue #77 closed. 2.39's deferred Debuffer drain-cap retune remains open against this now-confirmed 8/sec base.",
+      "depends_on": "none"
+    },
+    "2.35": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — GitHub issue #78 (`enhancement`, `ready-for-agent`). Built 2026-08-03: kept standalone in `SpellroadScene` rather than folded into 5.8 (Title has no natural slot for combat-specific instructions) — Loomwright's call, per this row's own note. One-time overlay, dismissed on first hotbar press or a 9s fallback. Self-verified and live-exercised (see `loomwright/log.md`). **Gate cleared 2026-08-06:** developer confirmed the overlay \"okay\" on the dev-server build. Issue #78 closed.",
+      "depends_on": "none"
+    },
+    "2.36": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — GitHub issue #79 (`enhancement`, `ready-for-agent`). One effect per AoE shape (line/cone/circle), scoped as a lightweight particle/flash/tween, not a VFX subsystem. Built 2026-08-03: `spawnCastEffect` (shape flash on every confirmed cast) + `spawnImpactBurst` (per-hit burst alongside the existing damage number), both tinted by the spell's element — no new Tilesmith asset work needed, reuses `spellIcons.ts`'s element axis. Self-verified and live-exercised. **Gate cleared 2026-08-06:** developer confirmed the cast/impact effects \"ok\" on the dev-server build. Issue #79 closed.",
+      "depends_on": "none"
+    },
+    "2.37": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — GitHub issue #80 (`bug`, `ready-for-agent`). Built 2026-08-03: `flashMessage` gained an `emphasis` param; the two Mana-rejection call sites now render with a distinct color + opaque background panel instead of the shared plain-text banner every other message still uses unchanged. Self-verified and live-exercised (confirmed via direct property inspection, see `loomwright/log.md` for why a live screenshot of the transient banner specifically was awkward in this session's frame-pumped environment). **Gate cleared 2026-08-06:** developer confirmed the emphasized message \"ok\" on the dev-server build. Issue #80 closed.",
+      "depends_on": "2.28"
+    },
+    "2.38": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — GitHub issue #87, merged via PR #105. **Reinforced independently, 2026-08-05:** a fresh playtest session reported the same encounter as \"he doesn't do anything else.\" Developer's ruling (2026-08-06): keep the 0-direct-damage design locked (not reopening that number), but a Debuffer left as the only thing standing, with nothing left to protect, shouldn't force an indefinite pointless standoff — it yields instead. New pure `src/systems/lastEnemyStanding.ts` (`allRemainingAreYieldingDebuffers`, Vitest-tested, mirrors `waveSession.ts`'s `shouldAutoAdvance` shape) checked in `updateEnemies` right before that same auto-advance check: when every active enemy is Debuffer-archetype and nothing more will spawn this wave, each yields via the existing `removeEnemy` path (SFX, cleanup) plus `hexcoin.earn(1)` per enemy — preserving Pato's per-wave Hexcoin-income assumption that every spawned enemy nets 1 Hexcoin — but **no Mastery credit**, since `recordLandedCast` is keyed to a spell and no spell caused this. A flash message names what happened so it doesn't read as a bug. `docker-compose run --rm game npm test` (120/120)/`npm run typecheck`/`npm run build` all clean. Gate: developer confirms live that reaching this state (kill everything else, leave one Debuffer alive) actually triggers the yield and reads as intentional, not a glitch.",
+      "depends_on": "none"
+    },
+    "2.39": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — GitHub issue #88. Unblocked 2026-08-06 the moment 2.34's 8/sec base cleared its own developer-playtest gate (the sole condition the 2026-08-03 deferral was waiting on) — Pato re-checked the live base in `ManaSystem.ts` and confirmed no re-derivation was needed, then handed off the already-computed restoring numbers. `DebuffSystem.ts`: `MANA_REGEN_DRAIN_PER_APPLICATION` 1.5 -> 2.4/sec, `MANA_REGEN_FLOOR` 2 -> 3.2/sec, restoring the original 60%-max-cut/floor-coincidence relationship (1-stack 5.6/sec = 70% of base; 2-stack lands exactly on the new 3.2 floor). `hp-template.md`'s Debuffer Magnitudes table updated to match. TDD: `debuffDisplay.test.ts`'s fixture base moved from the old synthetic 5 to the real current 8, confirmed red against the old constants, then green after the retune. `docker-compose run --rm game npm test` (115/115)/`npm run typecheck`/`npm run build` all clean. See `pato/log.md` and `loomwright/log.md` (both 2026-08-06).",
+      "depends_on": "2.34"
+    },
+    "2.40": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — root cause: `SpellroadScene.create()` never reset `renderedLevel` (and several other mutable fields) across a restart, since before 5.8 the scene only ever ran `create()` once per page load; Phaser reuses the same Scene instance across `scene.start()` calls. A stale `renderedLevel` left at `1` from the previous life (the common case — quitting/dying on Level 1) made `renderLevelArt`'s re-render guard skip building a fresh tile layer entirely. Fixed 2026-08-04: explicit resets added in `create()` for `renderedLevel`, `currentLevelTilemap`/`currentLevelLayer`, `enemies`, `enemiesRemainingToSpawn`, `waveIndex`, `highestLevelReached`, `bossMaxRecoveries`, `previewSpellId`, `previewLockedEnemy`, `phaseChoiceListeners`, `lastFacing`, `lastPointerActivityAt`, `messageClearAt` — not just the one field with a visible symptom. `highestLevelReached`'s identical staleness (silently skipping `hexcoin.markLevelStart()` re-arming on a restart) was a second confirmed instance of the same bug class, no separate symptom reported yet. Self-verified (typecheck/test/build clean, 230/230) and live-reproduced pre-fix / confirmed-fixed post-fix via the same browser-pane frame-pump technique 5.8 itself used — see `loomwright/log.md`, 2026-08-04. Branch `loomwright/fix-restart-stale-state`, off `ana/playtest-08-03-feedback`. Gate: developer re-confirms the exact reported repro in a real session.",
+      "depends_on": "5.8"
+    },
+    "3.1": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — 9 new spells authored 2026-07-25 (earth's first coverage; full element/shape/weight spread), bringing the total to 12 (the floor). First log write omitted the numeric fields; Ana appended the correction with the actual payload Frieren's dispatch had returned, then Pato re-validated. See `docs/agents/frieren/log.md` (2026-07-25).",
+      "depends_on": "Phase 2"
+    },
+    "3.2": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — all 9 PASS (first pass correctly blocked on the missing-numeric-fields gap above; re-run cleared once the data existed). Now in `src/data/spells/spells.json`. See `docs/agents/pato/log.md` (2026-07-25, two entries).",
+      "depends_on": "3.1 (per batch)"
+    },
+    "3.3": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — Levels 2 and 3 composed 2026-07-25 (3 waves each, 6 total). **Level 4 added 2026-07-30** (3 more waves, 9 total across Levels 2-4): sustains both debuff caps (speed 24%, mana-regen floor 2.0/sec) across 2 of its 3 waves — the first level to do so, deliberately un-relieved as the send-off directly before the boss. One new enemy name, `voidfang_stalker`→melee, added to `enemyRegistry.ts` alongside the prior `dread_reaver`/`storm_lancer` mappings. Wired into the playable sequence ahead of the boss encounter (`SpellroadScene` now concatenates Levels 1-4 before `boss-1.json`); `boss-1.json`'s `level` field bumped 4→5 since a real Level 4 now exists and two files silently sharing the same level number would have been a latent labeling bug. **4 regular levels + 1 boss = 5 total — clears the vertical slice's 5-level floor.** See `docs/agents/warden/log.md` (2026-07-30 entry).",
+      "depends_on": "Phase 2, 3.2 (spells referenced by wave difficulty tuning)"
+    },
+    "3.4": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — **this row was stale, not actually not-started**: Warden composed and Pato validated a full boss composition back on 2026-07-21 (3 phases/2 phase-breaks, Melee x5/Ranged x11/Debuffer x3, competent 51 HP/careless 79 HP), re-confirmed against the 2026-07-23 template revision (`warden/log.md`, 2026-07-23 entry: still 1 purchasable recovery, now 10 HP not 15 HP) — it just never got written into an actual `wave.json`-equivalent file or wired into the engine, and the 2026-07-22/23 backlog creation missed it when scoping this row. Reconstructed 2026-07-27 into `src/data/waves/boss-1.json` (3 `is_boss` phase entries, level 4) preserving the exact validated aggregate (M=5/R=11/Debuffer=3, speed/mana_regen/speed) — only the specific per-phase spawn split was newly authored, not the budget math, since the original per-phase JSON was never persisted anywhere retrievable (see `ana/log.md`, 2026-07-27 entry, for the full reconciliation).",
+      "depends_on": "3.2"
+    },
+    "3.5": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — 3.3's Level 2/3 half PASS 2026-07-25 (all 6 waves, including the double-debuff-cap tightest case); **Level 4's 3 waves PASS 2026-07-30**, independent recomputation confirmed all careless/competent percentages in-band and both debuff caps held at, not past, their limits despite two waves hitting both simultaneously — see `pato/log.md` (2026-07-30). 3.4's half: original PASS 2026-07-21 (cap formula, money ceiling, careless/competent arithmetic, Debuffer concurrency — see `pato/log.md` (5)) re-confirmed against the 2026-07-23 template revision same day; 2026-07-27 reconstruction into `boss-1.json` re-verified field-by-field against that same original validated aggregate — no numbers changed, only committed to an actual file for the first time.",
+      "depends_on": "3.3, 3.4"
+    },
+    "3.6": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — closes as GitHub issue #25 (2026-08-01). The visual identification pass flagged as still-open below is done: `docs/agents/tilesmith/tile-legend.md` maps specific numbered tiles in Tiny Dungeon (terrain: lane floor/edge/wall) and Tiny Creatures (archetypes: Melee→Golem idx127, Ranged→Harpy idx32, Debuffer→Witch idx66, plus runner-up alternates) to their in-game use, cross-checked against each pack's `Tiles/tile_NNNN.png` files, not just `Preview.png` by eye. No rendering code changed, per the ticket's own scope. Merged to `main` via PR #34. Unblocks 3.7 (now also shipped).",
+      "depends_on": "none (parallel with 3.1-3.5)"
+    },
+    "3.7": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — closes as GitHub issue #28 (2026-08-01). 5 Tiled JSON layouts (`public/assets/levels/level-1..5.json`, level 5 = boss) built from 3.6's tile legend, referencing the shared `kenney-tiny-dungeon` tileset (GIDs cross-checked against the legend: floor=1, edge=13, wall=37). Data-only, no engine code touched, per the ticket's own scope. All 5 files validated well-formed. Merged to `main` via PR #38 (originally stacked as PR #35; landed on the parent branch, not `main`, until #38 carried it over). Unblocks 3.8 (now also shipped).",
+      "depends_on": "3.6"
+    },
+    "3.8": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — the wave/boss half (see prior entry) plus, as of 2026-08-01, the Tiled-layout half closes as GitHub issue #29: `SpellroadScene.createRoad()`'s placeholder colored rectangles are gone, replaced by a new `renderLevelArt(level)` that builds/swaps a real `Phaser.Tilemaps.Tilemap` at every level transition (idempotent per level via a `renderedLevel` guard, so boss phase-breaks — same level, different phase — don't needlessly rebuild). `LANE_RECT`/`ROAD_WIDTH`/`ROAD_HEIGHT`/`ROAD_TOP`/`ROAD_LEFT` are read-only inputs to this, never written — movement clamping, enemy spawn positioning, and spell-preview clipping are unchanged, independently confirmed via diff review. Asset-key/URL mapping and the canvas-centering offset math live in a new pure module `src/systems/levelArt.ts` (7 Vitest cases). **Flagged, not silently resolved:** Tilesmith's maps are sized in whole 16px tile units (960x288/960x320) rather than pixel-matched to `ROAD_WIDTH`/`ROAD_HEIGHT` (780x280) — `computeTilemapOffset` centers the art on the lane midline, visually close but not pixel-exact; purely cosmetic, gameplay bounds untouched. `docker-compose run --rm game npm run typecheck`/`npm test` (16/16)/`npm run build` all clean, independently re-verified. Merged to `main` via PR #38 (originally stacked as PR #37).",
+      "depends_on": "3.5, 3.7"
+    },
+    "3.9": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — GitHub issue #30, closed 2026-08-04. First attempt (2026-08-02) died on Level 1 Wave 2 and surfaced 3 blocking bugs before the sequence could proceed: undodgeable archer attacks (**2.23**/#47), a wave/timer race corrupting monster counts on death-restart (**2.24**/#48), and auto-aim getting permanently stuck once the mouse is touched (**2.25**/#49). **Follow-up attempt (2026-08-02, same day): 2.23/2.25 confirmed fixed live**, and the developer reached the actual end of the vertical slice this time — bought +10 HP via the Phase-Transition Recovery fee, hit the final \"Phase clear!\" prompt, and then hit a **new** freeze there (**2.26**/#52, the \"press any key\" listener gap) one step from a full clean clear. Along the way, 5 more non-blocking findings were filed via `/grill-with-docs`: the road's walkable lane not matching its art (**2.27**/#53), no mana pre-check before aiming (**2.28**/#54), hotbar overflow hiding spell 6 (**2.29**/#55), no spell-icon differentiation (**2.30**/#56), no Debuffer feedback (**2.31**/#57), and a hard-to-read level/wave indicator (**2.32**/#58). **Full clean-clear run (2026-08-03), on real tile art:** developer completed Level 1 through the mini-boss including a full death-and-respawn cycle mid-run, confirmed working correctly — closes both remaining acceptance criteria. Surfaced 6 more non-blocking findings, filed as **2.33**-**2.38**/#76-#80 (plus the Debuffer-alone balance question, 2.38, routed to Pato rather than ticketed) and the road-decoration note folded into #68.",
+      "depends_on": "3.8"
+    },
+    "3.10": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — unblocked 2026-08-04, GitHub issue #81, per `docs/adr/0002-unblock-audio-scope-add-composer-agent.md`. Stretch scope (GDD's Minimal-Build Floor Vs. Stretch table, new Audio row). All 5 cues sourced from Kenney.nl (step 1, CC0 — \"Impact Sounds\" + \"Digital Audio\" packs; search order never needed to reach OpenGameArt) and wired into the real hit/cast/impact/enemy-death/player-death call sites in `SpellroadScene.ts` (`docs/agents/tilesmith/log.md`, 2026-08-04 entry). Typecheck/test/build all clean. **Gate cleared 2026-08-05:** the developer played all 5 cues locally and merged PR #91 — clears both remaining checks (Tilesmith's own license/source-compliance sign-off, which is human-only by contract, and the aesthetic-fit listen this row's own note flagged). **Disclosed, not silently dropped:** cast and enemy-death use generic sci-fi zap/phaser tones as stand-ins, since no dedicated \"magic spell\" pack exists on Kenney — accepted as shipped rather than held for a better-fitting source, same handling as other disclosed tradeoffs in this backlog (e.g. 0.6, 2.39).",
+      "depends_on": "none — explicitly parallel, never blocks or waits on other Phase 3+ work"
+    },
+    "3.11": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — GitHub issue #94, merged via PR #104. Developer's call (2026-08-06): add pitch/volume variation to the existing cues first, falling back to re-sourcing only if that doesn't land. New pure `src/systems/sfxVariation.ts` (`computeSfxVariation`, Vitest-tested, injectable random source) generates a +/-100 cent detune and 0.85-1.0 volume per play; wired into all 5 `this.sound.play(sfxKey(...))` call sites in `SpellroadScene.ts` via Phaser's per-play `SoundConfig`. `docker-compose run --rm game npm test` (120/120)/`npm run typecheck`/`npm run build` all clean. Gate: developer confirms over real extended play whether this actually reduces the fatigue, per ADR-0001 — this is exactly the \"does it feel right\" class of check code/tests can't substitute for; re-source per the developer's stated fallback if it doesn't.",
+      "depends_on": "3.10"
+    },
+    "3.12": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — GitHub issue #95, merged via PR #106. Developer's follow-up (2026-08-06) sharpened the original cut-vs-variety framing into two concrete, specific complaints rather than picking either option outright: (1) \"a lot of the debuffers... but they dont stack the debuffs, so doesnt makes a lot of sense\" and (2) \"the archers are always at the same spot, so its easier to kill them.\" Investigated both before touching anything (see `loomwright/log.md`, 2026-08-06): confirmed `DebuffSystem`'s 2-stack cap saturates from a single Debuffer alone within ~3s of spawning with no decay until wave-clear/death, so 5 of the 11 authored waves (Level 2 waves 1/2, Level 3 wave 1, Level 4 waves 0/1/2) had a genuinely redundant 2nd same-variant Debuffer contributing nothing for most of the encounter — trimmed each to 1 per variant, confirmed budget-neutral (`waveThreatBudget.ts`'s `HIT_PCT.debuffer = 0`, Debuffer count was never part of Pato's validated HP-budget math). Separately, confirmed the archer complaint traced to `Enemy.ts`'s kiting math having zero angular degrees of freedom (stops dead in-band, always approaches from the same fixed spawn point) — added a perpendicular strafe while holding range (`rangedStrafe.ts`, Vitest-tested bounce logic) so a ranged enemy's position relative to the player keeps varying instead of settling once. Mastery growth-rate derivation (`mastery-template.md`) re-checked and updated for the new per-level counts (Level 4: 25 -> 20) — margin vs. Level 4 alone actually widens (1.92x -> 2.4x), no invariant broken. `docker-compose run --rm game npm test` (120/120)/`npm run typecheck`/`npm run build` all clean. Gate: developer plays a full level and confirms both fixes actually read as less repetitive, not just mechanically correct.",
+      "depends_on": "none"
+    },
+    "3.13": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — GitHub issue #112, closed. Same mechanism as 3.14: `bossBannerActive` now gates `updateEnemies`. See `loomwright/log.md`, 2026-08-06 (5)/2026-08-07 entries.",
+      "depends_on": "none"
+    },
+    "3.14": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — GitHub issue #113, still open. First pass (any keypress/click dismisses early, enemies frozen for the duration, 3.13) didn't actually fix the fixed-timer complaint itself — a follow-up playtest (2026-08-07) found the outro banner (110 words) still vanished on the same flat `BOSS_BANNER_DISPLAY_MS = 9000` as the shorter intro. Re-fixed: the auto-hide now scales with the banner text's own word count (`BOSS_BANNER_MIN_DISPLAY_MS` floor + `BOSS_BANNER_MS_PER_WORD`), landed via PR #135. Self-verified (typecheck/test 163/163/build clean). **Gate still open, same reason as before:** developer playtest of Level 5 specifically — this session's own attempt hit the identical sandboxed-browser-pane freeze documented in `loomwright/log.md`'s 2026-07-23 entry (this time total: the whole render/tween/timer loop stopped, not just input), so the new timing couldn't be exercised interactively. See `loomwright/log.md`, 2026-08-06 (5)/2026-08-07/2026-08-07 (2).",
+      "depends_on": "none"
+    },
+    "3.15": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — GitHub issue #114, closed 2026-08-07. Reused the `\"warning\"` emphasis 2.37/#80 already built rather than inventing a new style; confirmed still live on `main` (`startPhaseBreak`'s recovery prompt) when re-triaged 2026-08-07 against a fresh playtest report, closed directly with a pointer to the exact line. See `loomwright/log.md`, 2026-08-06 (5).",
+      "depends_on": "2.37"
+    },
+    "3.16": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — GitHub issue #115, closed 2026-08-07. Confirmed by design first (only phase 1 calls `health.reset()`), then added a `\"warning\"`-styled reminder at both the Phase 1 start message and the phase-break prompt; confirmed still live on `main` when re-triaged 2026-08-07, closed directly. See `loomwright/log.md`, 2026-08-06 (5).",
+      "depends_on": "none"
+    },
+    "3.17": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — GitHub issue #116, closed 2026-08-07 via the alternative the issue itself allowed. `boss-1.json`'s phases reuse ordinary registry types with no dedicated boss entity, so took the ticket's lighter-weight \"and/or\" option: a persistent \"wears many faces this fight\" name plate for the whole encounter, rather than a full boss-entity/sprite treatment. Per-enemy archetype labels untouched (explicitly out of scope for this pass, confirmed still true when re-triaged 2026-08-07). See `loomwright/log.md`, 2026-08-06 (5).",
+      "depends_on": "none"
+    },
+    "3.18": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — GitHub issue #109, closed 2026-08-07. Named \"The Nearblade\" (melee) and \"The Farlance\" (ranged), joining \"The Tarrywright\" (debuffer, backlog 4.2/#57) as the third and final archetype identity — `archetypeDisplayName` now an exhaustive `Record<EnemyArchetype, string>`, no bare-capitalized fallback left. Confirmed still live on `main` when re-triaged 2026-08-07, closed directly. See `lorena/log.md` and `loomwright/log.md`, both 2026-08-07.",
+      "depends_on": "none"
+    },
+    "3.19": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — GitHub issue #111, still open. Split into two halves. Half 1 (no new assets): `computeSpellSfxVariation` adds a fixed per-element detune offset under the existing per-play variation. Half 2 (re-source, downloaded with explicit developer go-ahead): 3 genuine CC0 recordings (Fireball/fire, Freeze Spell/ice, Earth Element Magic Spell/earth, all individually confirmed CC0) plus 1 disclosed imperfect stand-in (a generic sci-fi electric one-shot for lightning — no clean CC0 fantasy-lightning match found; the obvious candidate was disqualified for a mixed OGA-BY/CC0 page license) replace the old single shared \"cast\" cue entirely. See `tilesmith/log.md` and `loomwright/log.md`, both 2026-08-07, for full sourcing/wiring detail. Self-verified (typecheck/test 163/163/build clean, `dist/` asset-copy re-checked directly). Bundled into the same PR as 3.13-3.18 (`worktree-loomwright+level5-boss-ux-112-116`, PR #132). **Surfaced a real regression, see 3.20:** the longer real recordings this half introduced overlap on rapid same-element casts. Gate: developer plays a session across multiple elements and confirms whether this actually resolves the fatigue complaint — the lightning stand-in is the piece most likely to still draw a complaint.",
+      "depends_on": "3.11"
+    },
+    "3.20": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — GitHub issue #133, found via developer playtest 2026-08-07, same day 3.19 landed. Root cause: `spawnCastEffect` called `this.sound.play(elementCastSfxKey(...))` with no guard against an already-playing instance of the same cue, and 3.19's real recordings run several real seconds (vs. the old sub-second stand-ins) — spamming one element layered two long recordings. Fixed by stopping+destroying any live instance of that exact element's cue before playing the new one (`this.sound.getAll(key)`, scoped per-element so two *different* elements cast back-to-back — normal play — aren't affected). Self-verified (typecheck/build/test 163/163 clean). Landed via PR #135, bundled with 3.14/3.21 (same `SpellroadScene.ts` area, same playtest session). **Gate open, same sandboxed-browser limitation as 3.14:** rapid-cast timing couldn't be exercised interactively this session. See `loomwright/log.md`, 2026-08-07 (2).",
+      "depends_on": "3.19"
+    },
+    "3.21": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — GitHub issue #134, found via developer playtest 2026-08-07. Two findings, both real: (1) the tan \"boss dais\" tile (Tilesmith's deliberate `level-5.json` art, `tilesmith/log.md`) was never named in any text, so it read as an unexplained shape — added one clause to the intro banner naming it. (2) the Phase-1 HP-carry warning (`flashMessage`) used to fire the same tick as the boss intro banner (`showBossBanner`), competing for attention — `showBossBanner` now takes an `onHidden` callback, fired from the banner's own fade-out completion, so the warning appears only once the banner is gone. Self-verified (typecheck/build/test 163/163 clean). Landed via PR #135, bundled with 3.14/3.20. **Gate open, same sandboxed-browser limitation as 3.14** — confirmed via one live rendered frame that the dais is now named and the warning doesn't render simultaneously with the banner, but the full sequencing (warning firing *after* a real dismiss) couldn't be exercised past that first frame. See `loomwright/log.md`, 2026-08-07 (2).",
+      "depends_on": "3.13, 3.14"
+    },
+    "4.1": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — **2026-07-30, dispatched ahead of the rest of Phase 3** (same \"references only already-finalized mechanics\" reasoning already applied to 3.1/3.6): Fee 2's phase-recovery prompt rewritten and wired live into `SpellroadScene.ts`'s `startPhaseBreak` (replaces the bare `\"Phase clear! [Y] Pay...\"` string with a Director-ledger-framed line, still template-interpolating the live `FEE_PHASE_RECOVERY`/`PHASE_RECOVERY_HP_FRACTION` constants so it can't go stale on a re-tune); Fee 1's flavor piece authored for its future UI moment (no such UI exists yet — Fee 1's actual pay-to-choose interaction isn't built, only `HexcoinSystem.canUseMasteryChoice()`'s eligibility check — flagging that gap rather than inventing the UI unscoped). Heckler's first pass found a real BLOCKING issue (the initial two-line draft would have overflowed `flashMessage`'s unwrapped Text object) and a MAJOR one (hardcoded prose numbers instead of live constants); Lorena's revision fixed both, re-confirmed via `docker-compose run --rm game npm run typecheck`/`build`. See `docs/agents/lorena/log.md` and `docs/agents/heckler/log.md` (both 2026-07-30).",
+      "depends_on": "Phase 3"
+    },
+    "4.2": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` for the content — named \"the Tarrywright\" (a former mage folded into the Director's prison, per `lore-premise.md`'s new Established Named Facts section), Heckler-cleared with no BLOCKING/MAJOR findings. **Not yet displayed anywhere in-game** — the Debuffer archetype currently has no name/tooltip UI surface at all (only a colored pulse effect), so this closes the content half of the backlog item but not a display integration, which is unscoped new UI work, not silently folded in here.",
+      "depends_on": "Phase 3"
+    },
+    "4.3": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — resolved 2026-08-01, narrative path chosen. Lorena's flash-message reframe wired into `SpellroadScene.ts`; see 0.3's own entry above and `docs/agents/lorena/log.md` (2026-08-01 (2)). Not yet Heckler-gated — flagged for the next critique pass rather than treated as fully closed.",
+      "depends_on": "Developer decision on 0.3"
+    },
+    "4.4": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` for the content — closes as GitHub issue #27 (2026-08-01). Four rescuable-adventurer NPCs authored, one per regular level, each given a road-epithet per the Tarrywright/Invigilator naming convention (the Latchkeeper, the Hushmantle, the Rootbound, the Longwaiter), plus 2 item-flavor entries per level — grounded fresh against Warden's real per-level enemy rosters, not the generic `content-pipeline/output/` drafts (used only as a tonal baseline). The Rootbound is the narrative instance of the design doc's \"some adventurers prefer captivity\" thread, left unresolved mechanically on purpose. Logged in full in `docs/agents/lorena/log.md`. **Not wired into any UI/`src/data/` file** — same unscoped-display precedent as 4.2/4.5. Merged to `main` via PR #32. Heckler's gate (4.6) ran clean, see that row.",
+      "depends_on": "Phase 3"
+    },
+    "4.5": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` for the content — the trial avatar named \"the Invigilator\" (`lore-premise.md`), intro/outro written, Heckler-cleared with no BLOCKING findings (one non-blocking Narrative Critic note that the outro's imagery reads slightly closer to \"unraveled\" than \"destroyed\" — no rule violation given the explicit destroy-only scope hedge, Lorena's call not to revise it further, logged not silently dropped). **Not yet displayed in-game** — no intro/outro banner UI exists yet; same unscoped-display caveat as 4.2.",
+      "depends_on": "3.4, 3.5"
+    },
+    "4.6": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — now covers 4.1/4.2/4.4/4.5 (4.3 remains `blocked-with-reason`, waiting on the developer's 0.3 call, not a content gap Heckler can close). The 4.4 half closed 2026-08-01 as GitHub issue #31: six-persona critique of Lorena's 4 Levels 1-4 NPCs/items, **0 BLOCKING** (unlike the 2026-07-30 batch, this content discloses upfront that nothing is wired anywhere, so there was no falsifiable UI-overflow-style claim to catch), 2 MAJOR logged as follow-ups (a forward-only-rule ambiguity in the Latchkeeper's dialogue; an outlier-length Rootbound line), 2 MINOR (disclosure-only: item-description template repetition risk, a trope-awareness note). See `docs/agents/heckler/log.md` (2026-08-01).",
+      "depends_on": "4.1-4.5"
+    },
+    "4.7": {
+      "status": "blocked-with-reason",
+      "status_note": "`blocked-with-reason` — waiting on the developer to flag specific drafts for integration; Ana does not proactively review runs",
+      "depends_on": "4.4, 4.5, a `content-pipeline` run"
+    },
+    "4.8": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — this PR (2026-08-04), closing issue #81's roster-fit question. Scaffold only — no music composed yet.",
+      "depends_on": "none"
+    },
+    "4.9": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — target chosen: the mini-boss/Director trial's (\"the Invigilator\") combat loop (`src/data/waves/boss-1.json`). Lorena's brief and Composer's generated track (`public/assets/audio/music/boss-1-invigilator-trial-theme.mid`, D minor, 96 BPM, cello/harp/pad/bells, 60s loop) both logged 2026-08-04; Heckler's independent validation (`docs/agents/heckler/log.md`, 2026-08-04 (9)) cleared the gate, no BLOCKING/MAJOR findings. **Developer gate cleared 2026-08-05:** opened the `.mid` locally, listened, and merged PR #90 — the \"developer confirms it fits\" check this row was held on. Not wired into audio playback — that's separate, unscoped engine work for Loomwright, out of this ticket's scope.",
+      "depends_on": "4.8"
+    },
+    "4.10": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — GitHub issue #96, closed 2026-08-06 on the developer merging PR #99 (the banner-wiring commit) directly, same sign-off-by-merge precedent as backlog 2.30/3.10/4.9. Why the gate this cleared actually catches the defect class this ticket could plausibly contain: the risk here was purely visual/legibility (does the banner actually appear, is it readable, does it avoid blocking combat) — exactly what a developer opening and reviewing the PR's diff/description and choosing to merge it addresses, unlike a timing-race or state-corruption bug typecheck/build can't see. Standards-axis code review (pre-merge) also caught and fixed a real bug in the banner's own auto-hide timer, which typecheck/test/build alone would not have caught either.",
+      "depends_on": "4.5"
+    },
+    "4.11": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — GitHub issue #97, closed 2026-08-06 on the developer merging PR #99. **Real gap found before this could be \"just wiring\":** the only shipped asset was a raw `.mid` — Phaser's sound manager can't play raw MIDI in a browser (no bundled synth), so the ticket as filed was one step short of buildable. Developer's call (2026-08-05 check-in): render it to real audio in an isolated scratch venv rather than install system audio tooling (fluidsynth/ffmpeg) on the host. Rendered via `pretty_midi.synthesize()` (naive additive sine-wave synthesis, no soundfont/system dependency) and written straight to Ogg Vorbis via `soundfile` (its pip wheel bundles libsndfile with Vorbis support, so no `ffmpeg` call needed either) — `public/assets/audio/music/boss-1-invigilator-trial-theme.ogg` (130KB, 60s, all 4 instruments present). **Standing disclosed limitation, carried forward past this closure, not resolved by it:** the synthesized quality is a plain sine-wave approximation, not the real cello/harp/pad/bells timbre Composer's `.mid` specifies — same handling as other disclosed tradeoffs in this backlog (0.6/3.10). The merge covers \"does it play, loop, and stop correctly\" (the wiring this ticket actually scoped); it is not a developer sign-off that the audio quality itself is final — re-open or file a fresh ticket if a real soundfont/DAW render is wanted later.",
+      "depends_on": "4.9"
+    },
+    "5.1": {
+      "status": "not-started",
+      "status_note": "`not-started`",
+      "depends_on": "Phase 3, Phase 4"
+    },
+    "5.2": {
+      "status": "not-started",
+      "status_note": "`not-started`",
+      "depends_on": "5.1"
+    },
+    "5.3": {
+      "status": "not-started",
+      "status_note": "`not-started`",
+      "depends_on": "1.4, Phase 3"
+    },
+    "5.4": {
+      "status": "not-started",
+      "status_note": "`not-started`",
+      "depends_on": "1.6"
+    },
+    "5.5": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — 0.3 resolved via 4.3, 2026-08-01. Pending only Heckler's tone/consistency gate on Lorena's flash-message text (4.6), not a re-open of this row.",
+      "depends_on": "0.3 resolution"
+    },
+    "5.6": {
+      "status": "shipped-and-validated",
+      "status_note": "`shipped-and-validated` — resolved and implemented 2026-08-01, see 0.5's own Phase 0 entry. Combining this fix with 0.2's same-day resolution opened a new, related residual (retry-based re-grinding past a single level's kill count) — tracked separately as new item **0.6**, not folded into this row's status.",
+      "depends_on": "0.5 resolution"
+    },
+    "5.7": {
+      "status": "blocked-with-reason",
+      "status_note": "`blocked-with-reason`",
+      "depends_on": "0.6 resolution"
+    },
+    "5.8": {
+      "status": "in-progress-with-owner",
+      "status_note": "`in-progress-with-owner` — built 2026-08-03: `BootScene`/`TitleScene`/`PauseScene` added, `main.ts` registers the full chain, `SpellroadScene`'s Esc handler is now contextual (cancel-preview first, else pause). `SaveSystem.hasSave()` added for Title's Continue/New-Game branch. **Known, disclosed gap:** `Continue` doesn't yet restore any real state — `SpellroadScene` consumes nothing from the save blob and nothing writes one during play, both still 1.6's separate, larger, not-yet-built scope; Continue and New Game behave identically until 1.6 lands. Self-verified (typecheck/test/build) and live-exercised end-to-end (Title → New Game → gameplay, Esc → Pause → Resume, Quit-to-Title confirm, Continue/New-Game-overwrite confirm with a seeded save) via the browser pane's manual frame-pump technique — see `loomwright/log.md`, 2026-08-03, for the full account and why that technique was needed (the same `document.visibilityState: \"hidden\"` limitation Phase 1's log already disclosed). Gate: a real developer playtest with an actually-focused, visible tab. **First real playtest happened 2026-08-04** (PR #83, merged): confirmed working overall, but found one real bug (road art going black after a Quit-to-Title/New-Game restart) the sandboxed pane's own frame-pump verification couldn't have caught — tracked and fixed as **2.40**.",
+      "depends_on": "0.7"
+    },
+    "6.1": {
+      "status": "not-started",
+      "status_note": "`not-started`",
+      "depends_on": "Phase 5"
+    },
+    "6.2": {
+      "status": "not-started",
+      "status_note": "`not-started`",
+      "depends_on": "6.1"
+    },
+    "6.3": {
+      "status": "not-started",
+      "status_note": "`not-started`",
+      "depends_on": "6.1, 6.2"
+    },
+    "6.4": {
+      "status": "not-started",
+      "status_note": "`not-started`",
+      "depends_on": "6.3"
+    }
+  }
+}
