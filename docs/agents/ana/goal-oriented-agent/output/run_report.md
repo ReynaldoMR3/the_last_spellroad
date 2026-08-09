@@ -9,8 +9,9 @@ Cross-referencing `output/gdd_features.json` against `output/codebase_inventory.
 
 1. **"Save Data And Persistence"** (GDD, `## Save Data And Persistence`) —
    `src/systems/SaveSystem.ts` exists and exports `defaultSave`/`hasSave`/`loadSave`/
-   `writeSave`, but no other `src_files` entry besides `TitleScene.ts` references it, and
-   `TitleScene.continueGame()` called `loadSave()` and discarded the result. Backlog row
+   `writeSave`, but no other `src_files` entry's name or exported symbols suggest it either,
+   and manual inspection confirms `TitleScene.ts` was the only consumer, whose
+   `continueGame()` called `loadSave()` and discarded the result. Backlog row
    **1.6** tracks this as `blocked-with-reason`, citing backlog **0.2** as the blocker —
    but row **0.2** itself is `shipped-and-validated` since 2026-08-01. The blocker cleared
    over a week before this run; 1.6's label was stale. Backlog **5.4** ("Save/load QA") is
@@ -61,9 +62,11 @@ through `SaveSystem`; `TitleScene`'s `Continue` actually restores them into a fr
 - These three fields are written through as untouched pass-through defaults (via
   `loadSave()` as the write base in `writeCheckpoint()`) so a future pass can populate
   them without a second schema migration.
-- Write frequency is checkpoint + tier-up, not literally "every state-changing event"
-  (e.g. not on every single Hexcoin-earning kill) — chosen to avoid a `localStorage` write
-  per kill, while still covering both fields' only two ways of changing today.
+- Write frequency is checkpoint + tier-up + death, not literally "every state-changing
+  event" (e.g. not on every single Hexcoin-earning kill) — chosen to avoid a `localStorage`
+  write on every single kill, while still covering the moments state changes in ways worth
+  persisting immediately: level advance, a Mastery tier-up, and death (which resets both
+  fields).
 
 ## Step 4 — Built
 

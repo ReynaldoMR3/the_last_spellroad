@@ -21,4 +21,7 @@ following a written procedure, the same way Loomwright/Frieren/Warden already wo
 **Evidence of one real run:** `output/gdd_features.json`, `output/codebase_inventory.json`,
 `output/run_report.md` — committed, not regenerated fresh for grading. Re-running the
 scanners is safe and idempotent, but the committed run is what `README.md`'s claims are
-based on.
+based on. Note: `output/codebase_inventory.json` intentionally predates the SaveSystem-
+wiring fix (it captures the pre-fix "gap" state `run_report.md` reasons over) — a fresh run
+produces a different, also-valid, but different snapshot, so save a re-run elsewhere rather
+than overwriting this committed evidence file.

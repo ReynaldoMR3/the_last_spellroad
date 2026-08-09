@@ -81,6 +81,13 @@ python3 scan_gdd.py > output/gdd_features.json
 python3 scan_codebase.py > output/codebase_inventory.json
 ```
 
+Note: the committed `output/codebase_inventory.json` intentionally predates the SaveSystem-
+wiring fix this run made (it captures the pre-fix "gap" state `run_report.md` reasons over,
+including `SaveSystem.ts`/`HexcoinSystem.ts`'s `has_colocated_test: false` and backlog 1.6's
+old status). Re-running the command above will produce a different, also-valid, but
+different snapshot — save it elsewhere for comparison rather than overwriting the committed
+evidence file.
+
 Then open a Claude Code or Codex session in this repo, point it at `AGENT_CONTRACT.md`
 with the two JSON files above plus `docs/agents/ana/backlog.md`, and let it run Steps
 1-5. No API key required.
@@ -96,3 +103,9 @@ with the two JSON files above plus `docs/agents/ana/backlog.md`, and let it run 
   real TypeScript AST parse — sufficient for this repo's actual file conventions
   (confirmed by inspection against every `src/systems/*.ts` file), but a file using an
   unusual export style could be missed.
+- `scan_codebase.py`'s `parse_backlog_status()` only recognizes markdown-table rows
+  (Phase 1 onward) — Phase 0 items (written as prose sections, e.g. `### 0.2 — ...` plus a
+  `**Status:**` line) do not appear in `codebase_inventory.json`'s `backlog_tasks` at all.
+  The reasoning layer must read `backlog.md`'s raw text for those (which `AGENT_CONTRACT.md`
+  already instructs), since the JSON evidence alone can't demonstrate a Phase 0 dependency's
+  actual status.
