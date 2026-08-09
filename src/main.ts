@@ -4,13 +4,19 @@ import { BootScene } from "./scenes/BootScene";
 import { TitleScene } from "./scenes/TitleScene";
 import { SpellroadScene } from "./scenes/SpellroadScene";
 import { PauseScene } from "./scenes/PauseScene";
+import { PrototypeOpeningMagicScene } from "./scenes/PrototypeOpeningMagicScene";
 import { resolveBootScenes, type PrototypeRegistry } from "./dev/prototypeHarness";
 
 // A prototype ticket registers its throwaway scene here for the duration of that ticket only,
 // then removes the entry (and the scene file) once resolved. See
-// docs/eng-skills/prototype-harness.md. Empty by default — no Active Prototype is registered
-// right now; issue #68's roadfeel prototype resolved and was removed per #127.
-const PROTOTYPE_REGISTRY: PrototypeRegistry = {};
+// docs/eng-skills/prototype-harness.md. Issue #128 (epic #124) — Active Prototype: the
+// "Opening Magic Audition Lab" that auditions the 3 Runes Awake presentation treatments
+// (`openingmagic-treatments.ts`) against the fixed issue #68 B+C baseline. Remove this entry
+// and `PrototypeOpeningMagicScene.ts` once the developer records a verdict and #125 applies it
+// to real Level 1.
+const PROTOTYPE_REGISTRY: PrototypeRegistry = {
+  openingmagic: PrototypeOpeningMagicScene
+};
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
