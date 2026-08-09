@@ -11,7 +11,7 @@ import { resolveBootScenes, type PrototypeRegistry } from "./dev/prototypeHarnes
 // then removes the entry (and the scene file) once resolved. See
 // docs/eng-skills/prototype-harness.md. Issue #128 (epic #124) — Active Prototype: the
 // "Opening Magic Audition Lab" that auditions the 3 Runes Awake presentation treatments
-// (`openingmagic-treatments.ts`) against the fixed issue #68 B+C baseline. Remove this entry
+// (`dev/openingMagicTreatments.ts`) against the fixed issue #68 B+C baseline. Remove this entry
 // and `PrototypeOpeningMagicScene.ts` once the developer records a verdict and #125 applies it
 // to real Level 1.
 const PROTOTYPE_REGISTRY: PrototypeRegistry = {

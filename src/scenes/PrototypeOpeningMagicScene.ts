@@ -240,11 +240,15 @@ export class PrototypeOpeningMagicScene extends Phaser.Scene {
    * `PrototypeRoadFeelScene.buildVariantB`/`buildVariantC`. Fixed for the whole session
    * (never switched, unlike the 3 treatments) — this IS the common baseline every treatment
    * sits on top of. Uses the initial treatment's glyph textures as the marker art;
-   * `setTreatment` re-textures these same sprites in place on every switch. */
+   * `setTreatment` re-textures these same sprites in place on every switch.
+   *
+   * Array order here is load-bearing: `setTreatment` re-textures `sidePockets[0]` with the
+   * gold glyph and `sidePockets[1]` with violet by index, not by name — reordering this array
+   * silently swaps which pocket gets which color. */
   private createSidePocketsAndShrine(): void {
     const pocketDefs = [
-      { x: 90, y: ROAD_TOP + 24, lore: "A cracked rune, half-buried. It still hums faintly.", reward: 5 },
-      { x: 860, y: ROAD_TOP + ROAD_HEIGHT - 24, lore: "Someone left a stash here, long ago.", reward: 8 }
+      { x: 90, y: ROAD_TOP + 24, lore: "A cracked rune, half-buried. It still hums faintly.", reward: 5 }, // index 0 -> gold glyph, see setTreatment
+      { x: 860, y: ROAD_TOP + ROAD_HEIGHT - 24, lore: "Someone left a stash here, long ago.", reward: 8 } // index 1 -> violet glyph, see setTreatment
     ];
     this.sidePockets = pocketDefs.map((def) => {
       const sprite = this.add.image(def.x, def.y, "").setDisplaySize(24, 24).setDepth(3);

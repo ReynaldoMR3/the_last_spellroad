@@ -420,6 +420,15 @@ def _assemble_atlas(frames: list[Image.Image]) -> Image.Image:
     return atlas
 
 
+# NOTE for whoever next touches alpha/paste/atlas logic in this file: `tools/pixel-gen/
+# generate_opening_magic.py` has its own independent copy of this exact function (and of
+# `_sha256_file`/`_sha256_bytes`) -- there is no shared module between the two one-off Docker
+# tools. This is exactly how the Image.paste(im, box, im) alpha-squaring bug shipped in one
+# script's committed output before being caught in the other's (see docs/agents/tilesmith/
+# log.md's 2026-08-07 (3) entry). If you fix a real bug in this function, check the sibling
+# file's copy too -- a fix here does not propagate there.
+
+
 def _process_vfx(zip_path: Path, out_dir: Path, generated: list, transforms_log: list) -> None:
     pal = PALETTE[SHOWCASE_PALETTE_KEY]
 
