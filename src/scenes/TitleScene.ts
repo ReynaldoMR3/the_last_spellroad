@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { hasSave, loadSave } from "../systems/SaveSystem";
+import { hasSave } from "../systems/SaveSystem";
 
 const CANVAS_WIDTH = 960;
 const CANVAS_HEIGHT = 540;
@@ -25,12 +25,12 @@ interface TitleOption {
  * different decision, rather than inventing a second one. No Options/Settings menu, per the
  * design doc's explicit scope cut.
  *
- * **Known, disclosed gap:** `Continue` calls `loadSave()` but `SpellroadScene` does not yet
- * consume that blob's contents (Mastery tiers, Hexcoin balance, etc.) — nothing in the engine
- * writes a save during play either. That's backlog item 1.6 ("full SaveSystem cross-session
- * wiring"), explicitly separate, larger, not-yet-built work; this scene is wired correctly
- * against the `SaveSystem` contract as it exists today, but until 1.6 lands, `Continue` and
- * `New Game` behave identically in actual play. Flagged here rather than silently assumed away.
+ * **Backlog 1.6, partially resolved (goal-oriented-agent run, 2026-08-09):** `Continue` now
+ * passes `{ continueFromSave: true }` and `SpellroadScene` restores Mastery tiers, Hexcoin
+ * balance, and the last-reached level checkpoint from the loaded blob. `discoveredSpellIds`/
+ * `hierarchyRank`/`loreFlags` still have no owning system anywhere in the engine, so those
+ * three fields remain pass-through defaults — a real, disclosed gap, not a silent one; see
+ * `docs/agents/ana/goal-oriented-agent/output/run_report.md` for the full scoping reasoning.
  */
 export class TitleScene extends Phaser.Scene {
   private options: TitleOption[] = [];
@@ -156,9 +156,8 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private continueGame(): void {
-    // See this class's own doc comment — `SpellroadScene` doesn't consume this blob yet
-    // (backlog 1.6, separate work), so this call is currently a no-op beyond the read itself.
-    loadSave();
-    this.scene.start("SpellroadScene");
+    // backlog 1.6 — `SpellroadScene` now consumes the loaded blob itself (Mastery, Hexcoin,
+    // checkpoint level); this scene only needs to say "yes, resume from a save."
+    this.scene.start("SpellroadScene", { continueFromSave: true });
   }
 }
