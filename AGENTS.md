@@ -39,3 +39,7 @@ This is a single-scene Phaser game, not a routable web app, so the `/prototype` 
 ### PR sync
 
 Many parallel branches/worktrees can touch the same file without knowing about each other. Sync against `origin/main` before opening a PR and again right before merging it — don't rely on a green local test suite alone. See `docs/eng-skills/pr-sync.md`.
+
+### Gated planning
+
+For substantial specs (~100+ lines, a new system, or anything crossing two or more agents' scopes), stage the spec through explicit Product → Architecture → Program Design checkpoints before writing the plan, and track gate approval in one status block instead of a scattered `Status:` line. Skip this for trivial changes. See `docs/eng-skills/gated-planning.md`.
