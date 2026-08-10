@@ -26,11 +26,15 @@ This file is the canonical, tool-agnostic entry point for the AI dev-agent roste
 
 ### Issue tracker
 
-Issues live in this repo's GitHub Issues; use the `gh` CLI. See `docs/eng-skills/issue-tracker.md`.
+Issues live in this repo's GitHub Issues; use the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the default canonical triage labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, and `wontfix`. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
-Single-context layout, but pointed at this repo's actual ICM docs (`docs/context.md`, `docs/agents/CONTEXT.md`) rather than a root `CONTEXT.md`. See `docs/eng-skills/domain.md`.
+Single-context layout, using this repo's established ICM docs (`docs/context.md` and `docs/agents/CONTEXT.md`). See `docs/agents/domain.md`.
 
 ### Prototyping
 
