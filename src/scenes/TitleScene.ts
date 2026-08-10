@@ -1,5 +1,6 @@
 import Phaser from "phaser";
-import { hasSave } from "../systems/SaveSystem";
+import { clearSave, hasSave, loadSave } from "../systems/SaveSystem";
+import type { SpellroadStartData } from "../systems/gameProgress";
 
 const CANVAS_WIDTH = 960;
 const CANVAS_HEIGHT = 540;
@@ -25,12 +26,6 @@ interface TitleOption {
  * different decision, rather than inventing a second one. No Options/Settings menu, per the
  * design doc's explicit scope cut.
  *
- * **Backlog 1.6, partially resolved (goal-oriented-agent run, 2026-08-09):** `Continue` now
- * passes `{ continueFromSave: true }` and `SpellroadScene` restores Mastery tiers, Hexcoin
- * balance, and the last-reached level checkpoint from the loaded blob. `discoveredSpellIds`/
- * `hierarchyRank`/`loreFlags` still have no owning system anywhere in the engine, so those
- * three fields remain pass-through defaults — a real, disclosed gap, not a silent one; see
- * `docs/agents/ana/goal-oriented-agent/output/run_report.md` for the full scoping reasoning.
  */
 export class TitleScene extends Phaser.Scene {
   private options: TitleOption[] = [];
@@ -152,12 +147,13 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private startNewGame(): void {
-    this.scene.start("SpellroadScene");
+    clearSave();
+    const startData: SpellroadStartData = { mode: "new" };
+    this.scene.start("SpellroadScene", startData);
   }
 
   private continueGame(): void {
-    // backlog 1.6 — `SpellroadScene` now consumes the loaded blob itself (Mastery, Hexcoin,
-    // checkpoint level); this scene only needs to say "yes, resume from a save."
-    this.scene.start("SpellroadScene", { continueFromSave: true });
+    const startData: SpellroadStartData = { mode: "continue", load: loadSave() };
+    this.scene.start("SpellroadScene", startData);
   }
 }

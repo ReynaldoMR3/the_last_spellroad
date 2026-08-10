@@ -50,6 +50,12 @@ export interface MasteryScaling {
 export class MasterySystem {
   private readonly state = new Map<string, MasteryState>();
 
+  constructor(initialState: Record<string, MasteryState> = {}) {
+    for (const [spellId, entry] of Object.entries(initialState)) {
+      this.state.set(spellId, { ...entry });
+    }
+  }
+
   private ensure(spellId: string): MasteryState {
     let entry = this.state.get(spellId);
     if (!entry) {
@@ -61,6 +67,12 @@ export class MasterySystem {
 
   getTier(spellId: string): MasteryTier {
     return this.ensure(spellId).tier;
+  }
+
+  snapshot(): Record<string, MasteryState> {
+    return Object.fromEntries(
+      [...this.state.entries()].map(([spellId, entry]) => [spellId, { ...entry }]),
+    );
   }
 
   recordLandedCast(spellId: string, onTierUp?: (spellId: string, tier: MasteryTier) => void): void {
