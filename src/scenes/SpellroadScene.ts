@@ -4,8 +4,6 @@ import { HealthSystem, MAX_HP } from "../systems/HealthSystem";
 import { ManaSystem, MANA_REGEN_PER_SEC, MAX_MANA } from "../systems/ManaSystem";
 import { MasterySystem } from "../systems/MasterySystem";
 import { HexcoinSystem, FEE_PHASE_RECOVERY, PHASE_RECOVERY_HP_FRACTION, MAX_RECOVERIES_HARD_CAP } from "../systems/HexcoinSystem";
-import { hasSave, loadSave, writeSave } from "../systems/SaveSystem";
-import { composeCheckpointBlob, resolveStartWaveIndex } from "../systems/checkpoint";
 import { DebuffSystem } from "../systems/DebuffSystem";
 import { computeDebuffMagnitude, formatDebuffHudLines } from "../systems/debuffDisplay";
 import { archetypeDisplayName, computeHpBarColor, computeHpFraction } from "../systems/enemyStatusOverlay";
@@ -46,6 +44,14 @@ import {
 } from "../systems/sfx";
 import { computeSfxVariation, computeSpellSfxVariation } from "../systems/sfxVariation";
 import { BOSS_THEME_KEY, BOSS_THEME_URL, BOSS_THEME_VOLUME } from "../systems/bgm";
+import {
+  buildSaveBlob,
+  prepareGameProgress,
+  type PersistentMetadata,
+  type SpellroadStartData
+} from "../systems/gameProgress";
+import { writeSave } from "../systems/SaveSystem";
+import { resolveDebugStartWave } from "../systems/debugStart";
 
 const PLAYER_SPEED = 180;
 /** Widened 160->220 (2026-07-27, developer feedback: not enough room to evade projectiles/
@@ -327,6 +333,8 @@ export class SpellroadScene extends Phaser.Scene {
   private equippedSpells: SpellDefinition[] = [];
   private waves: WaveDefinition[] = [];
   private waveIndex = 0;
+  private discoveredSpellIds: string[] = [];
+  private persistentMetadata!: PersistentMetadata;
   /** backlog 3.4 — cap on Phase-Transition Recovery purchases for the boss fight currently
    * in progress: min(that boss's phase-breaks - 1, MAX_RECOVERIES_HARD_CAP), per hp-template.md.
    * Recomputed at the start of every boss encounter; meaningless outside one. */
@@ -349,9 +357,6 @@ export class SpellroadScene extends Phaser.Scene {
    * `hexcoin.markLevelStart()` the first time a level number is crossed, never on a
    * same-level death-retry, so a death can't be used to re-bank an already-recorded floor. */
   private highestLevelReached = 0;
-  /** backlog 1.6 — the level number a `continueFromSave` load should resume at, set once
-   * in `create()` from the loaded blob's `checkpointId`, `null` for a fresh game. */
-  private continueCheckpointLevel: number | null = null;
 
   private lastFacing = new Phaser.Math.Vector2(1, 0);
   /** Issue #49 fix — was a one-way `pointerHasMoved` boolean (set true on the first
@@ -518,12 +523,8 @@ export class SpellroadScene extends Phaser.Scene {
     this.load.audio(BOSS_THEME_KEY, BOSS_THEME_URL);
   }
 
-  create(data?: { continueFromSave?: boolean }): void {
+  create(data: SpellroadStartData = { mode: "new" }): void {
     this.spells = this.cache.json.get("spells") as SpellDefinition[];
-    // Fixed default loadout (see HOTBAR_KEYS comment) — data-driven via each spell's own
-    // `default_loadout_slot` (issue #71), a curated 2-per-weight-class set authored in
-    // `spells.json`, not just the first N in file order.
-    this.equippedSpells = selectDefaultLoadout(this.spells);
     // backlog 3.3/3.8 — flatten all shipped levels into one sequential wave list; each
     // entry already carries its own `level`/`wave_index`, so no extra bookkeeping needed
     // to walk from Level 1's last wave straight into Level 2's first.
@@ -534,6 +535,15 @@ export class SpellroadScene extends Phaser.Scene {
       ...(this.cache.json.get("waves-level-4") as WaveDefinition[]),
       ...(this.cache.json.get("waves-boss-1") as WaveDefinition[])
     ];
+    const prepared = prepareGameProgress(data, this.spells.map((spell) => spell.id), this.waves);
+    this.discoveredSpellIds = prepared.discoveredSpellIds;
+    this.persistentMetadata = prepared.metadata;
+    const discoveredSpellIds = new Set(this.discoveredSpellIds);
+    // Fixed default loadout (see HOTBAR_KEYS comment) — data-driven via each spell's own
+    // `default_loadout_slot` (issue #71), a curated 2-per-weight-class set authored in
+    // `spells.json`, then limited to spells this save has actually discovered. The current
+    // build still has no discovery mutation of its own; preparation remains the authority.
+    this.equippedSpells = selectDefaultLoadout(this.spells).filter((spell) => discoveredSpellIds.has(spell.id));
 
     this.health = new HealthSystem(
       () => this.handleDeath(),
@@ -547,15 +557,8 @@ export class SpellroadScene extends Phaser.Scene {
       }
     );
     this.mana = new ManaSystem();
-    this.mastery = new MasterySystem();
-    this.hexcoin = new HexcoinSystem();
-    this.continueCheckpointLevel = null;
-    if (data?.continueFromSave && hasSave()) {
-      const save = loadSave();
-      this.mastery.importState(save.masteryBySpell);
-      this.hexcoin.restoreBalance(save.hexcoinBalance);
-      this.continueCheckpointLevel = save.checkpointId !== null ? Number(save.checkpointId) : null;
-    }
+    this.mastery = new MasterySystem(prepared.masteryBySpell);
+    this.hexcoin = new HexcoinSystem(prepared.hexcoin);
     this.debuff = new DebuffSystem();
     this.caster = new SpellCaster(this.mana, this.mastery);
     // Issue #48 — constructed with the rest of the run's systems so a scene restart gets a
@@ -587,7 +590,15 @@ export class SpellroadScene extends Phaser.Scene {
     this.enemies = [];
     this.enemiesRemainingToSpawn = 0;
     this.waveIndex = 0;
-    this.highestLevelReached = 0;
+    // A valid Continue already carries the floor marked when its checkpoint level was first
+    // entered. Seed this guard so `startWave` does not replace that restored floor with the
+    // current balance. Missing/reset/unknown checkpoints deliberately enter as fresh Level 1
+    // progress, mark its floor, and immediately rewrite a valid save.
+    const resumesKnownCheckpoint =
+      data.mode === "continue" &&
+      data.load.kind === "loaded" &&
+      data.load.save.checkpointId === `level:${prepared.checkpointLevel}`;
+    this.highestLevelReached = resumesKnownCheckpoint ? prepared.checkpointLevel : 0;
     this.bossMaxRecoveries = 0;
     this.previewSpellId = null;
     this.previewLockedEnemy = null;
@@ -623,8 +634,12 @@ export class SpellroadScene extends Phaser.Scene {
     // forever over a screen it no longer belongs to.
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stopBossTheme());
 
-    const startIndex = resolveStartWaveIndex(this.waves, this.continueCheckpointLevel);
-    this.startWave(startIndex);
+    const debugStartRequested =
+      import.meta.env.DEV && new URLSearchParams(window.location.search).has("debugLevel");
+    this.startWave(debugStartRequested ? resolveDebugStartWave(this.waves) : prepared.startWaveIndex);
+    if (prepared.resetNotice) {
+      this.flashMessage(prepared.resetNotice, 2500, "warning");
+    }
   }
 
   update(_time: number, deltaMs: number): void {
@@ -658,6 +673,7 @@ export class SpellroadScene extends Phaser.Scene {
     // for why it doesn't share `messageText`/`messageClearAt`.
     if (this.tierUpText && this.time.now > this.tierUpClearAt) {
       this.tierUpText.setText("");
+      this.tierUpText.setVisible(false);
     }
   }
 
@@ -828,6 +844,10 @@ export class SpellroadScene extends Phaser.Scene {
     });
     this.tierUpText.setOrigin(0.5, 0.5);
     this.tierUpText.setDepth(UI_DEPTH);
+    // Issue #140 — an empty Phaser Text with padding + `backgroundColor` still renders its
+    // padded background. Keep the panel absent until `flashTierUp` gives it real content;
+    // otherwise it appears as an unexplained dark rectangle in the middle of every level.
+    this.tierUpText.setVisible(false);
 
     // Developer feedback (2026-08-02, issue #58): "Level 5, wave 1 its difficult to read in
     // what level we are" — `Level X, Wave Y` was one line inside the 14px stat block above,
@@ -862,6 +882,9 @@ export class SpellroadScene extends Phaser.Scene {
     });
     this.bossNameText.setOrigin(0.5, 0);
     this.bossNameText.setDepth(UI_DEPTH);
+    // Same empty-background behavior as `tierUpText` above: outside Level 5, the blank boss
+    // plate must not leave a 24x32 dark block at the top-center of the HUD.
+    this.bossNameText.setVisible(false);
 
     // backlog 2.31 / issue #57 — debuff-magnitude/duration HUD line, directly below the
     // Level/Wave readout above (same fixed top-right column). Left empty by default;
@@ -1161,12 +1184,10 @@ export class SpellroadScene extends Phaser.Scene {
       // one; a player played through 4 full levels without ever registering it. `flashTierUp`
       // is a dedicated element (see its own comment) so a "Hit!" moments later can't erase it;
       // 2600ms matches the death message's own weight for a comparably significant event.
-      this.mastery.recordLandedCast(spell.id, (spellId, tier) => {
-        this.flashTierUp(`${spellId} reached ${tier.toUpperCase()} Mastery!`, 2600);
-        // Final branch review, 2026-08-09 (finding #1) — `false`: this can fire mid-level, at
-        // a Hexcoin balance above the level floor. See `writeCheckpoint`'s own doc comment.
-        this.writeCheckpoint(false);
-      });
+      this.mastery.recordLandedCast(spell.id, (spellId, tier) =>
+        this.flashTierUp(`${spellId} reached ${tier.toUpperCase()} Mastery!`, 2600)
+      );
+      this.persistProgress();
     }
   }
 
@@ -1245,30 +1266,6 @@ export class SpellroadScene extends Phaser.Scene {
 
   // ----- enemies / waves -----
 
-  /** backlog 1.6 — persists the fields that have real live runtime state today (Mastery,
-   * Hexcoin, current level) so `TitleScene`'s `Continue` has something real to restore.
-   * Deliberately does not touch `discoveredSpellIds`/`hierarchyRank`/`loreFlags` — no
-   * system populates those yet, so `loadSave()` is used as the write base to pass them
-   * through untouched rather than overwriting them with fresh defaults every checkpoint.
-   *
-   * Final branch review, 2026-08-09 (finding #1) — `includeHexcoinBalance` defaults to `true`
-   * (the level-start and post-death-rollback call sites, where `this.hexcoin.balance` is
-   * genuinely this level's floor) but the Mastery tier-up call site passes `false`: a tier-up
-   * can fire mid-level at a balance ABOVE the floor, and persisting that would let a later
-   * `Continue` install it as the new floor via `HexcoinSystem.restoreBalance()` — a ratchet
-   * exploit across quit/continue cycles. See `checkpoint.ts`'s `composeCheckpointBlob` doc
-   * comment for the full mechanism. */
-  private writeCheckpoint(includeHexcoinBalance = true): void {
-    const currentLevel = this.waves[this.waveIndex]?.level;
-    const blob = composeCheckpointBlob(
-      loadSave(),
-      this.mastery.exportState(),
-      currentLevel !== undefined ? String(currentLevel) : null,
-      includeHexcoinBalance ? this.hexcoin.balance : undefined
-    );
-    writeSave(blob);
-  }
-
   private startWave(index: number): void {
     const wave = this.waves[index];
     if (!wave) {
@@ -1292,7 +1289,7 @@ export class SpellroadScene extends Phaser.Scene {
     if (wave.level > this.highestLevelReached) {
       this.highestLevelReached = wave.level;
       this.hexcoin.markLevelStart();
-      this.writeCheckpoint();
+      this.persistProgress();
     }
 
     if (wave.is_boss) {
@@ -1324,7 +1321,7 @@ export class SpellroadScene extends Phaser.Scene {
         this.showBossBanner(BOSS_BANNER_INTRO_TEXT, () => {
           this.flashMessage("Director Trial — Phase 1 (HP won't reset again until you win or die)", 2400, "warning");
         });
-        this.bossNameText?.setText(BOSS_NAME_TEXT);
+        this.bossNameText?.setText(BOSS_NAME_TEXT).setVisible(true);
       } else {
         this.flashMessage(`Director Trial — Phase ${wave.wave_index + 1}`, 1800);
       }
@@ -1418,6 +1415,7 @@ export class SpellroadScene extends Phaser.Scene {
       this.phaseChoiceListeners = null;
       if (pay && this.hexcoin.usePhaseRecovery(this.bossMaxRecoveries)) {
         this.health.restore(MAX_HP * PHASE_RECOVERY_HP_FRACTION);
+        this.persistProgress();
         this.flashMessage(`Recovered ${Math.round(MAX_HP * PHASE_RECOVERY_HP_FRACTION)} HP`, 1200);
       }
       // Known flagged interaction (code review, 2026-08-02, not a reported bug): the decline
@@ -1461,15 +1459,21 @@ export class SpellroadScene extends Phaser.Scene {
     // `this.enemies`. Without both guards, the loop's next iteration calls .update() on an
     // already-destroyed enemy whose Arcade body Phaser has nulled, throwing
     // "Cannot read properties of undefined (reading 'setVelocity')" and freezing the game.
-    // Issue #110 — computed once per frame (not once per melee enemy) since it doesn't
-    // change while this loop runs; each melee enemy below excludes itself from its own list.
-    const meleeEnemies = this.enemies.filter((e) => e.archetype === "melee");
-    for (const enemy of [...this.enemies]) {
+    // Issues #110/#138 — every enemy receives its same-archetype allies so settled attackers
+    // cannot overlap or co-travel indefinitely. Different archetypes retain their deliberately
+    // non-overlapping preferred-range bands (240 ranged vs. 150 debuffer vs. 34 melee).
+    const activeEnemies = this.enemies.filter((enemy) => enemy.active);
+    const positionsByArchetype = new Map<Enemy["archetype"], Array<{ x: number; y: number; separationId: number }>>();
+    for (const enemy of activeEnemies) {
+      const positions = positionsByArchetype.get(enemy.archetype) ?? [];
+      positions.push({ x: enemy.x, y: enemy.y, separationId: enemy.separationId });
+      positionsByArchetype.set(enemy.archetype, positions);
+    }
+    for (const enemy of activeEnemies) {
       if (!enemy.active) {
         continue;
       }
-      const nearbyMeleeAllies =
-        enemy.archetype === "melee" ? meleeEnemies.filter((e) => e !== enemy).map((e) => ({ x: e.x, y: e.y })) : [];
+      const sameArchetypeEnemies = positionsByArchetype.get(enemy.archetype) ?? [];
       enemy.update(
         deltaMs,
         this.mage.x,
@@ -1509,7 +1513,7 @@ export class SpellroadScene extends Phaser.Scene {
         },
         // Issue #110 — see `Enemy.update`'s own comment: lets a melee enemy push off any
         // other melee enemy crowded too close instead of stacking on the same point.
-        nearbyMeleeAllies
+        sameArchetypeEnemies
       );
     }
 
@@ -1534,6 +1538,7 @@ export class SpellroadScene extends Phaser.Scene {
         this.removeEnemy(enemy);
         this.hexcoin.earn(1);
       }
+      this.persistProgress();
       this.flashMessage(`${archetypeDisplayName("debuffer")} yields -- nothing left to guard`, 1400);
     }
 
@@ -1561,7 +1566,7 @@ export class SpellroadScene extends Phaser.Scene {
         this.showBossBanner(BOSS_BANNER_OUTRO_TEXT);
         // Issue #116 — the fight is over; clear the persistent name plate rather than leaving
         // "The Invigilator" on screen through the regular levels that follow.
-        this.bossNameText?.setText("");
+        this.bossNameText?.setText("").setVisible(false);
       }
       this.time.delayedCall(1200, () => {
         // If the player died during this 1200ms gap (a ranged shot already in flight when the
@@ -1820,12 +1825,7 @@ export class SpellroadScene extends Phaser.Scene {
     this.debuff.clear();
     this.mage?.setPosition(MAGE_START.x, MAGE_START.y);
     this.hexcoin.rollbackToLevelStart();
-    // Final branch review, 2026-08-09 (finding #2) — the death penalty above
-    // (`applyRandomDeathPenalty`) and the Hexcoin rollback just above were never persisted,
-    // so a player could die, Quit to Title before the next level-start/tier-up write, then
-    // Continue and completely escape both penalties. `this.hexcoin.balance` correctly equals
-    // the level floor here (post-rollback), so this write legitimately includes it.
-    this.writeCheckpoint();
+    this.persistProgress();
     const currentLevel = this.waves[this.waveIndex]?.level;
     const levelStartIndex = this.waves.findIndex((w) => w.level === currentLevel);
     this.time.delayedCall(1500, () => {
@@ -1837,6 +1837,18 @@ export class SpellroadScene extends Phaser.Scene {
       }
       this.startWave(levelStartIndex >= 0 ? levelStartIndex : 0);
     });
+  }
+
+  private persistProgress(): void {
+    writeSave(
+      buildSaveBlob(
+        this.persistentMetadata,
+        this.discoveredSpellIds,
+        this.mastery.snapshot(),
+        this.hexcoin.snapshot(),
+        this.highestLevelReached
+      )
+    );
   }
 
   // ----- hud -----
@@ -1971,7 +1983,7 @@ export class SpellroadScene extends Phaser.Scene {
     if (!this.tierUpText) {
       return;
     }
-    this.tierUpText.setText(text);
+    this.tierUpText.setText(text).setVisible(true);
     this.tierUpClearAt = this.time.now + durationMs;
   }
 

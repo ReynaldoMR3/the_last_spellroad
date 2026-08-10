@@ -83,6 +83,28 @@ describe("MasterySystem", () => {
     expect(mastery.getScaling("ember_lance")).toEqual({ powerBonus: 2, targetsBonus: 2 });
   });
 
+  it("hydrates and snapshots saved Mastery progress", () => {
+    const mastery = new MasterySystem({ arc_lance: { tier: "adept", landedCasts: 7 } });
+    expect(mastery.getTier("arc_lance")).toBe("adept");
+    expect(mastery.snapshot()).toEqual({ arc_lance: { tier: "adept", landedCasts: 7 } });
+  });
+
+  it("does not share mutable state with the loaded save", () => {
+    const initial = { arc_lance: { tier: "adept" as const, landedCasts: 7 } };
+    const mastery = new MasterySystem(initial);
+    mastery.recordLandedCast("arc_lance");
+    expect(initial.arc_lance.landedCasts).toBe(7);
+  });
+
+  it("does not share mutable state with a snapshot", () => {
+    const mastery = new MasterySystem({ arc_lance: { tier: "adept", landedCasts: 7 } });
+    const snapshot = mastery.snapshot();
+    snapshot.arc_lance.tier = "novice";
+    snapshot.arc_lance.landedCasts = 0;
+
+    expect(mastery.snapshot()).toEqual({ arc_lance: { tier: "adept", landedCasts: 7 } });
+  });
+
   describe("applyRandomDeathPenalty", () => {
     it("returns null and costs nothing when every equipped spell is Novice", () => {
       const mastery = new MasterySystem();

@@ -43,3 +43,7 @@ Many parallel branches/worktrees can touch the same file without knowing about e
 ### Gated planning
 
 For substantial specs (~100+ lines, a new system, or anything crossing two or more agents' scopes), stage the spec through explicit Product → Architecture → Program Design checkpoints before writing the plan, and track gate approval in one status block instead of a scattered `Status:` line. Skip this for trivial changes. See `docs/eng-skills/gated-planning.md`.
+
+### Debug level skip
+
+On the Vite development server, `?debugLevel=<n>` boots straight into level `<n>`'s first wave instead of playing through every earlier level — for verifying a level-specific change without a full playthrough. Production builds ignore it. See `docs/eng-skills/debug-level-skip.md`.

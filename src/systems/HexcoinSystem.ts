@@ -7,6 +7,11 @@ export const PHASE_RECOVERY_HP_FRACTION = 0.1;
 /** Hard ceiling on recoveries per fight, independent of a boss's own phase-break-derived cap. */
 export const MAX_RECOVERIES_HARD_CAP = 2;
 
+export interface HexcoinState {
+  balance: number;
+  levelStartBalance: number;
+}
+
 /**
  * Hexcoin: 1 per kill, expedition-scoped (resets at every checkpoint), never lost to death.
  * Fee 2's eligible balance is frozen at boss-fight start per hp-template.md's mid-fight-kill
@@ -18,8 +23,20 @@ export class HexcoinSystem {
   private fightSnapshot: number | null = null;
   private recoveriesUsedThisFight = 0;
 
+  constructor(initialState: HexcoinState = { balance: 0, levelStartBalance: 0 }) {
+    this.expeditionTotal = initialState.balance;
+    this.levelStartBalance = initialState.levelStartBalance;
+  }
+
   get balance(): number {
     return this.expeditionTotal;
+  }
+
+  snapshot(): HexcoinState {
+    return {
+      balance: this.expeditionTotal,
+      levelStartBalance: this.levelStartBalance,
+    };
   }
 
   earn(amount = 1): void {
