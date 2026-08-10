@@ -42,6 +42,25 @@ three independent tickets, two touching `SpellroadScene.ts` and one touching `En
 three branched from the same `main` commit and merged in sequence without re-syncing the
 later ones in between).
 
+### The predictable case: Ana's own parallel dispatch batches
+
+`docs/agents/ana/backlog.md` and each agent's own `docs/agents/<name>/log.md` are append-only
+files that almost every dispatch touches, by design — so whenever Ana dispatches 2+ agents in
+parallel in one session, expect a conflict on *these specific files* even when every agent's
+actual code/asset changes are completely disjoint. This isn't a signal that the tickets were
+badly scoped; it's structural. Ana's dispatch procedure (`docs/agents/ana/AGENT.md`, step 7)
+requires a sync sweep across the whole batch the moment any one of its PRs merges — don't wait
+for each PR's own pre-merge check.
+
+The resolution is mechanical and low-risk: both sides of the conflict are almost always
+whole, independent, dated log entries appended near the same tail. Keep both entries in full,
+in the order they'd naturally appear (earlier dispatch first), and just delete the conflict
+markers — there is normally nothing to actually reconcile between them. Confirmed 2026-08-09:
+two PRs (#156, #158) conflicted purely on `backlog.md`/`heckler/log.md`/`composer/log.md`
+after two sibling PRs from the same batch merged first; both resolved by concatenating the
+dated entries, re-running typecheck/test/build, and re-pushing — no content from either PR was
+dropped or altered.
+
 ## Prefer not to conflict in the first place
 
 When scoping or triaging tickets (e.g. via `/to-tickets`, backlog grooming, or Ana's dispatch
