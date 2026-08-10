@@ -1,5 +1,11 @@
 import Phaser from "phaser";
 import type { AoEShape, DebuffVariant, Element, MasteryTier, SpellDefinition, WaveDefinition } from "../data/types";
+import spellsData from "../data/spells/spells.json";
+import wavesLevel1Data from "../data/waves/level-1.json";
+import wavesLevel2Data from "../data/waves/level-2.json";
+import wavesLevel3Data from "../data/waves/level-3.json";
+import wavesLevel4Data from "../data/waves/level-4.json";
+import wavesBoss1Data from "../data/waves/boss-1.json";
 import { HealthSystem, MAX_HP } from "../systems/HealthSystem";
 import { ManaSystem, MANA_REGEN_PER_SEC, MAX_MANA } from "../systems/ManaSystem";
 import { MasterySystem } from "../systems/MasterySystem";
@@ -477,12 +483,18 @@ export class SpellroadScene extends Phaser.Scene {
   }
 
   preload(): void {
-    this.load.json("spells", "src/data/spells/spells.json");
-    this.load.json("waves-level-1", "src/data/waves/level-1.json");
-    this.load.json("waves-level-2", "src/data/waves/level-2.json");
-    this.load.json("waves-level-3", "src/data/waves/level-3.json");
-    this.load.json("waves-level-4", "src/data/waves/level-4.json");
-    this.load.json("waves-boss-1", "src/data/waves/boss-1.json");
+    // Bundled as ES module imports rather than `this.load.json(key, url)` — a raw `src/data/...`
+    // URL is only reachable in dev (Vite's dev server transparently serves the whole project
+    // root); a production build never copies files outside `public/` into `dist/`, so those
+    // fetches 404 there and the scene silently starts with no spells/waves. Importing the JSON
+    // directly (tsconfig already has `resolveJsonModule`) inlines it into the built JS instead,
+    // identically in dev and prod.
+    this.cache.json.add("spells", spellsData);
+    this.cache.json.add("waves-level-1", wavesLevel1Data);
+    this.cache.json.add("waves-level-2", wavesLevel2Data);
+    this.cache.json.add("waves-level-3", wavesLevel3Data);
+    this.cache.json.add("waves-level-4", wavesLevel4Data);
+    this.cache.json.add("waves-boss-1", wavesBoss1Data);
 
     // backlog 3.8 (issue #29) — Tilesmith's #28 Tiled layouts + their shared tileset image.
     // Loaded eagerly here, same precedent as the wave JSON above (all 5 levels' worth of data

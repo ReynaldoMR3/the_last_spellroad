@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import type { SpellDefinition } from "../data/types";
+import spellsData from "../data/spells/spells.json";
 import { PrototypeVariantSwitcher } from "../dev/prototypeHarness";
 import {
   OPENING_MAGIC_TREATMENTS,
@@ -110,7 +111,9 @@ export class PrototypeOpeningMagicScene extends Phaser.Scene {
   preload(): void {
     this.load.image(TILESET_IMAGE_KEY, TILESET_IMAGE_URL);
     this.load.tilemapTiledJSON(levelMapKey(PROTOTYPE_LEVEL), levelMapUrl(PROTOTYPE_LEVEL));
-    this.load.json("spells", "src/data/spells/spells.json");
+    // See SpellroadScene.preload's comment: a raw `src/data/...` load URL 404s in a production
+    // build, so this is bundled as a direct import instead.
+    this.cache.json.add("spells", spellsData);
 
     // Preload all 3 treatments' assets up front (not lazily on switch) so the comparison in
     // one Docker-run session is instant/clean, matching the design spec's acceptance
