@@ -13,3 +13,11 @@ https://creativecommons.org/publicdomain/zero/1.0/
 
 No attribution required. Described by the author as "Reversed, tempo-ed-up (800%) boiling
 water" -- sounds like roots or ground crumbling.
+
+---
+
+2026-08-09 (issue #151): added earth-element-magic-spell-trimmed.ogg, a derivative of the
+file above (Art Sourcing Contract step 3 -- recombine/derive an already-sourced CC0 asset,
+not a new download). The original ran 1.886s; the trimmed copy cuts at 1.30s (past the main
+rumble, before a small late bump around 1.5s), fading the last 60ms to zero. Same CC0 license
+applies to the derivative. Original file kept alongside, untouched, as provenance.
