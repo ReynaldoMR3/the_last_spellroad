@@ -51,6 +51,20 @@ import {
 import { computeSfxVariation, computeSpellSfxVariation } from "../systems/sfxVariation";
 import { BOSS_THEME_KEY, BOSS_THEME_URL, BOSS_THEME_VOLUME } from "../systems/bgm";
 import {
+  OPENING_VFX_CAST_ANIM_KEY,
+  OPENING_VFX_CAST_FRAME,
+  OPENING_VFX_CAST_KEY,
+  OPENING_VFX_CAST_URL,
+  OPENING_VFX_IMPACT_ANIM_KEY,
+  OPENING_VFX_IMPACT_FRAME,
+  OPENING_VFX_IMPACT_KEY,
+  OPENING_VFX_IMPACT_URL,
+  OPENING_VFX_TRAIL_ANIM_KEY,
+  OPENING_VFX_TRAIL_FRAME,
+  OPENING_VFX_TRAIL_KEY,
+  OPENING_VFX_TRAIL_URL
+} from "../systems/openingVfx";
+import {
   buildSaveBlob,
   prepareGameProgress,
   type PersistentMetadata,
@@ -533,6 +547,14 @@ export class SpellroadScene extends Phaser.Scene {
     // backlog 4.11 / issue #97 — mini-boss/Director trial theme, same eager-preload
     // convention as the SFX cues above (one small .ogg, not worth a dynamic-loading dance).
     this.load.audio(BOSS_THEME_KEY, BOSS_THEME_URL);
+
+    // Issue #125 — the developer-selected CC0 Remix VFX treatment (Prototype 1, issue #128)
+    // for `flame_sweep`'s fire cast/impact/trail. Same eager-preload convention as the tileset
+    // image/spell icons above (3 small PNGs). See `systems/openingVfx.ts` for why this is
+    // fire-only, not every element.
+    this.load.spritesheet(OPENING_VFX_CAST_KEY, OPENING_VFX_CAST_URL, OPENING_VFX_CAST_FRAME);
+    this.load.spritesheet(OPENING_VFX_IMPACT_KEY, OPENING_VFX_IMPACT_URL, OPENING_VFX_IMPACT_FRAME);
+    this.load.spritesheet(OPENING_VFX_TRAIL_KEY, OPENING_VFX_TRAIL_URL, OPENING_VFX_TRAIL_FRAME);
   }
 
   create(data: SpellroadStartData = { mode: "new" }): void {
@@ -638,6 +660,7 @@ export class SpellroadScene extends Phaser.Scene {
     this.createMage();
     this.createHud();
     this.createInput();
+    this.createOpeningVfxAnimations();
 
     // backlog 4.11 / issue #97 — safety net for exit paths this ticket's own acceptance
     // criteria don't explicitly name (e.g. `PauseScene`'s "Quit to Title" mid-fight): whatever
@@ -1652,6 +1675,91 @@ export class SpellroadScene extends Phaser.Scene {
     });
   }
 
+  /** Issue #125 — registers the 3 CC0 Remix fire-VFX play-once animations exactly once per
+   * scene instance. Called from `create()`, which (per the stale-state-reset comment above
+   * this method's own call site) re-runs on every New Game/Quit-to-Title restart against the
+   * same Scene instance — `this.anims.exists` guards against Phaser's "animation key already
+   * exists" warning on the 2nd+ run rather than relying on `anims.create` to silently no-op. */
+  private createOpeningVfxAnimations(): void {
+    if (this.anims.exists(OPENING_VFX_CAST_ANIM_KEY)) {
+      return;
+    }
+    this.anims.create({
+      key: OPENING_VFX_CAST_ANIM_KEY,
+      frames: this.anims.generateFrameNumbers(OPENING_VFX_CAST_KEY, { start: 0, end: OPENING_VFX_CAST_FRAME.frameCount - 1 }),
+      frameRate: 16,
+      repeat: 0
+    });
+    this.anims.create({
+      key: OPENING_VFX_IMPACT_ANIM_KEY,
+      frames: this.anims.generateFrameNumbers(OPENING_VFX_IMPACT_KEY, { start: 0, end: OPENING_VFX_IMPACT_FRAME.frameCount - 1 }),
+      frameRate: 16,
+      repeat: 0
+    });
+    this.anims.create({
+      key: OPENING_VFX_TRAIL_ANIM_KEY,
+      frames: this.anims.generateFrameNumbers(OPENING_VFX_TRAIL_KEY, { start: 0, end: OPENING_VFX_TRAIL_FRAME.frameCount - 1 }),
+      frameRate: 16,
+      repeat: 0
+    });
+  }
+
+  /** Issue #125 — layers the developer-selected CC0 Remix cast/trail sprite VFX on top of
+   * `spawnCastEffect`'s existing element-tinted shape flash, fire element only (see
+   * `systems/openingVfx.ts`'s module comment for why this doesn't extend to ice/earth/
+   * lightning). Purely additive: the flash/SFX/traceAoEShape guide `spawnCastEffect` already
+   * fires are unchanged for every element, including fire — this only adds a second, richer
+   * visual layer on top for the one element the developer actually reviewed. Fires for all 3
+   * fire-element spells (`flame_sweep`/cone, `flare_jab`/cone, `magma_lance`/line) — the fire
+   * element itself, not one specific spell, is this codebase's existing visual-identity axis
+   * (`spellIcons.ts`/`ELEMENT_EFFECT_COLOR`), so this reuses that same axis rather than
+   * hardcoding to the one spell id the developer's playtest happened to showcase. */
+  private spawnOpeningVfxCast(spell: SpellDefinition, targetX: number, targetY: number): void {
+    if (!this.mage) {
+      return;
+    }
+    const direction = new Phaser.Math.Vector2(targetX - this.mage.x, targetY - this.mage.y);
+    if (direction.length() === 0) {
+      direction.x = 1;
+    }
+    const angle = Math.atan2(direction.y, direction.x);
+    direction.normalize();
+
+    const castSprite = this.add.sprite(this.mage.x, this.mage.y, OPENING_VFX_CAST_KEY);
+    castSprite.setRotation(angle);
+    castSprite.setDepth(10);
+    castSprite.play(OPENING_VFX_CAST_ANIM_KEY);
+    castSprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => castSprite.destroy());
+
+    // Trail travels toward the target, capped at the *actual spell shape's own reach*
+    // (line -> LINE_LENGTH, cone -> CONE_RADIUS, circle -> CIRCLE_RADIUS) rather than always
+    // the cone's radius — a fire spell using a different shape (`magma_lance`, "line", reach
+    // 220px) must not have its decorative trail undershoot a shorter cone-radius cap (180px)
+    // that has nothing to do with that spell's real hit geometry. Same per-shape reach
+    // `traceAoEShape`'s own branches already use for hit/preview geometry, just read here
+    // instead of duplicated as a new constant.
+    const reach =
+      spell.shape === "line"
+        ? SHAPE_GEOMETRY.LINE_LENGTH
+        : spell.shape === "circle"
+          ? SHAPE_GEOMETRY.CIRCLE_RADIUS
+          : SHAPE_GEOMETRY.CONE_RADIUS;
+    const travelDistance = Math.min(Phaser.Math.Distance.Between(this.mage.x, this.mage.y, targetX, targetY), reach);
+    const trailTarget = new Phaser.Math.Vector2(this.mage.x, this.mage.y).add(direction.clone().scale(travelDistance * 0.7));
+    const trailSprite = this.add.sprite(this.mage.x, this.mage.y, OPENING_VFX_TRAIL_KEY);
+    trailSprite.setRotation(angle);
+    trailSprite.setDepth(9);
+    trailSprite.play(OPENING_VFX_TRAIL_ANIM_KEY);
+    this.tweens.add({
+      targets: trailSprite,
+      x: trailTarget.x,
+      y: trailTarget.y,
+      duration: 260,
+      ease: "Linear",
+      onComplete: () => trailSprite.destroy()
+    });
+  }
+
   /** backlog 2.36 / issue #79 — a one-shot flash of the actual cast shape (line/cone/circle),
    * tinted by the spell's element, fading out fast. Reuses `updatePreview`'s own
    * mage-to-target geometry (angle/distance math), drawn once on a fresh `Graphics` instead of
@@ -1690,6 +1798,11 @@ export class SpellroadScene extends Phaser.Scene {
       ease: "Cubic.Out",
       onComplete: () => flash.destroy()
     });
+
+    // Issue #125 — see spawnOpeningVfxCast's own doc comment for why this is fire-only.
+    if (spell.element === "fire") {
+      this.spawnOpeningVfxCast(spell, targetX, targetY);
+    }
   }
 
   /** backlog 2.36 / issue #79 — a small expanding+fading burst at each individual hit,
@@ -1715,6 +1828,16 @@ export class SpellroadScene extends Phaser.Scene {
       onUpdate: () => burst.setStrokeStyle(2, color, burst.alpha),
       onComplete: () => burst.destroy()
     });
+
+    // Issue #125 — layers the developer-selected CC0 Remix impact sprite on top of the
+    // existing tinted burst above, fire element only (see `systems/openingVfx.ts`'s module
+    // comment). Purely additive, same rationale as `spawnOpeningVfxCast`.
+    if (element === "fire") {
+      const impact = this.add.sprite(x, y, OPENING_VFX_IMPACT_KEY);
+      impact.setDepth(11);
+      impact.play(OPENING_VFX_IMPACT_ANIM_KEY);
+      impact.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => impact.destroy());
+    }
   }
 
   /** backlog 2.13 — a Debuffer's pulse previously applied its stack with zero visible

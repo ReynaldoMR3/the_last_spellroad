@@ -736,3 +736,139 @@ all clean. Python scanner tests (18/18) also re-verified green.
 game's own economy/mastery-loss rules, not just against the save/load contract in isolation.
 discovered-spells/hierarchy-rank/lore-flags persistence remains the same disclosed,
 not-yet-built gap noted above.
+
+## 2026-08-09 (3) — Issue #125: apply the developer-selected CC0 Remix VFX to the real Level 1 opening
+
+Step 4 of epic #124's ticket chain (#127/#130/#126/#128 already shipped via PR #141). Read
+`gh issue view 125`'s literal acceptance criteria, `ana/log.md`'s 2026-08-09 #126 entry, and
+issue #128's own developer-playtest comment directly (`ana/log.md` doesn't yet carry a
+dedicated #128-resolution entry the way #126 does — the verdict lives on the GitHub issue
+itself, comment id 5232620411): VFX direction confirmed, CC0 Remix's softer/pastel
+particle-derived look preferred over Deterministic Original/Hybrid; **all 3 audio tracks
+rejected for combat** ("felt like it wasn't meant for a battle with monsters... more for
+exploration"), with a follow-up ticket (#142) already filed and still open for a
+combat-appropriate cue. Scoped this ticket strictly to the VFX half, per the issue's own
+non-goals and this ticket's dispatch brief: presentation-layer integration, not a redesign,
+and explicitly not wiring in any of the 3 already-rejected calm tracks as a stand-in.
+
+**Built:**
+
+- **Relocated the CC0 Remix treatment's 3 VFX spritesheets** (`cast-flame_sweep.png`,
+  `impact-flame_sweep.png`, `trail-fire.png`) from the throwaway
+  `public/assets/prototypes/opening-magic/cc0-remix/vfx/` to a permanent production home,
+  `public/assets/vfx/opening-magic-cc0-remix/` — sha256-verified byte-identical to the
+  originals (see the new location's `provenance.json`/`License.txt`, which record the
+  relocation and trim to only the sourcing facts for the files that actually moved). The same
+  sourcing pass's 4 rune glyphs and forest-ambience loop are deliberately **not** relocated:
+  nothing in production uses them (no side-pocket/shrine feature exists yet — see residual
+  below), and copying unused assets forward speculatively would be exactly the kind of
+  build-ahead-of-content this repo's engine contract already avoids for AoE shapes. Both
+  remain fully recoverable from git history if a future ticket needs them; said so explicitly
+  in the new location's `License.txt` rather than leaving that undiscoverable.
+- **`src/systems/openingVfx.ts`** (+ `openingVfx.test.ts`, 3 tests including a disk-existence
+  drift guard, same convention `levelArt.test.ts`/the now-removed `openingMagicTreatments.test.ts`
+  used): a pure, Phaser-free asset-identity module for the 3 relocated files — cache
+  keys, URLs, frame configs, animation keys. Deliberately scoped to fire only, not every
+  element — the CC0 Remix sourcing pass only ever produced/tinted VFX for `flame_sweep`'s fire
+  cone; the sprites' actual pixel color is a warm orange (~(255,107,61), confirmed by direct
+  pixel sampling), so multiplicatively re-tinting them for cyan/violet/gold would produce a
+  muddy, never-reviewed look, not an extension of anything the developer approved.
+- **`SpellroadScene.ts`**: preloads the 3 new spritesheets, registers their 3 play-once
+  animations once per Scene instance (`createOpeningVfxAnimations`, guarded with
+  `this.anims.exists` since `create()` re-runs on every New Game/Quit-to-Title restart against
+  the same Scene instance — same stale-state class this file's own `create()` comment block
+  already documents at length). `spawnCastEffect` and `spawnImpactBurst` are **purely
+  additive**: every existing flash/burst/SFX call for every element, including fire, is
+  byte-for-byte unchanged; a new `if (spell.element === "fire")` / `if (element === "fire")`
+  branch layers the CC0 Remix cast+trail sprite (on cast) and impact sprite (on each landed
+  hit) on top. Covers all 3 fire-element spells in `spells.json` (`flame_sweep`/cone,
+  `flare_jab`/cone, `magma_lance`/line) — the fire *element*, not one spell id, is this
+  codebase's existing visual-identity axis (`ELEMENT_EFFECT_COLOR`/`spellIcons.ts` already
+  key off element, not spell id), so this reuses that same axis rather than hardcoding to the
+  one spell the #128 playtest happened to showcase; disclosed as a deliberate, one-step
+  extrapolation beyond the letter of that playtest, not a re-confirmation of it.
+- **Caught and fixed in my own self-review before Heckler's pass, not left for it to find:**
+  the trail sprite's travel distance was initially capped at `SHAPE_GEOMETRY.CONE_RADIUS`
+  (180px) unconditionally, copied from the throwaway prototype's own convention — correct for
+  the 2 cone-shaped fire spells, but wrong for `magma_lance` (shape `line`, real reach 220px
+  via `LINE_LENGTH`), which would have made its decorative trail visibly undershoot the
+  spell's actual reach by ~40px. Fixed by branching on `spell.shape` the same way
+  `traceAoEShape` already does, reading `SHAPE_GEOMETRY`'s existing per-shape constants
+  instead of a single hardcoded one. Live-verified via frame-pump (see below): cast
+  `magma_lance` at a target past both radii, confirmed the trail sprite's mid-tween position
+  already exceeded the old buggy cap's endpoint before completing and cleanly destroying
+  itself.
+- **`main.ts`**: removed the `openingmagic` registry entry and its import — `PROTOTYPE_REGISTRY`
+  is empty again, per the Active Prototype lifecycle (`prototype-harness.md`) #127 already
+  codified. Deleted `src/scenes/PrototypeOpeningMagicScene.ts`,
+  `src/dev/openingMagicTreatments.ts`, and `openingMagicTreatments.test.ts` — all 3-treatment-
+  comparison-specific, superseded once one treatment shipped to production. Deleted the rest
+  of `public/assets/prototypes/opening-magic/` (Deterministic Original's and Hybrid's assets
+  in full, plus CC0 Remix's unused glyphs/ambience). Every removed file's content remains
+  reachable in `main`'s own ancestry (commits `83e0ea9`, `f52c65d`, `20eddb7`, `94e1349`,
+  confirmed via `git log --all`) — evidence preserved, live throwaway removed, per this
+  ticket's own instruction and the harness doc's convention.
+
+**Deliberately deferred, not guessed at:** the music/audio half of this ticket's acceptance
+criteria ("Music lifecycle and gameplay SFX mix are correct"). #142 (sourcing/composing a
+combat-appropriate cue) has not landed, so no music was wired in — not the boss theme, not
+any of the 3 already-developer-rejected calm tracks. Existing production audio (per-element
+cast SFX, hit/impact/death cues, boss theme) is completely untouched by this diff (confirmed
+via `git diff` showing zero hunks in `sfx.ts`/`bgm.ts`/any `this.sound.*` call site) — so the
+SFX-mix half of the criterion is satisfied by non-regression, but the music-lifecycle half
+cannot be marked done until #142 ships. Also did not build the side-pocket/shrine mechanic
+itself: `SpellroadScene.ts` never had one to begin with (issue #68's B+C verdict was
+explicitly resolved as a decision only, with its own resolution comment naming "actual
+implementation... a follow-up engineering task, not done as part of this decision ticket"),
+and that follow-up is itself blocked on issue #70's still-open lore-delivery-density decision
+per #125's own scope note ("this issue must not silently settle #70's production content
+scope"). Filed the production side-pocket/shrine implementation as a new follow-up ticket
+(see backlog update below) rather than building it here or leaving the gap untracked.
+
+**Self-verify (Docker):** `docker-compose run --rm game npm run typecheck` / `npm test`
+(230/230 across 26 files, +3 new in `openingVfx.test.ts`) / `npm run build` all clean, both
+before and after the `magma_lance` reach fix above.
+
+**Live smoke check, and the same disclosed sandbox limitation this log has repeatedly
+documented (2026-07-23, 2026-08-03, 2026-08-06, 2026-08-07, 2026-08-09):** brought the Docker
+dev server up (`docker-compose run --rm -p 5176:5173 --name openingmagic-loomwright-smoke game
+npm run dev`, port 5176 since 5173-5175 were already held by other parallel worktrees'
+containers). Organic checks needing no input: Title screen renders correctly on first paint,
+zero console errors, and clicking-equivalent-state after `New Game` correctly renders Level 1's
+real tilemap, mage, both live enemies, full HUD, and the 6-spell hotbar with `flame_sweep`
+showing its fire icon in slot 2 — confirming the title-to-Level-1 transition and normal
+production boot chain are unaffected by removing the prototype registry entry. Confirmed via
+direct `javascript_tool` inspection that `document.visibilityState` reads `"hidden"` in this
+pane even with `hasFocus() === true`, freezing Phaser's own render loop exactly as previously
+documented — not a new defect, not something in this change. Used the frame-pump technique
+(a temporary `window.__game` exposure in `main.ts`, added and fully reverted twice around
+these checks, confirmed absent from the final diff via `git diff -- src/main.ts`) to advance
+frames and drive the scene: confirmed casting `flame_sweep` renders the new CC0 Remix cast
+sprite and a trail streak layered on top of the existing cone flash with zero console errors
+and all 3 new asset URLs returning `200 OK` on the network panel; confirmed casting
+`frost_nova` (ice) produces only the pre-existing flash/ring with no fire sprite bleeding in,
+screenshot-confirmed side-by-side — the fire-only gating is not silently leaking into other
+elements. Confirmed the `magma_lance` reach fix live as described above. Did not exercise
+actual keyboard-driven hotbar aim/confirm or WASD movement interactively — same class of gap
+this log's own precedent already discloses for this exact sandbox limitation, worked around
+here by calling the scene's own cast/impact methods directly rather than simulating input,
+which exercises the identical code path a real keypress would reach.
+
+**Backlog updated:** added row 3.22 under Phase 3 for this ticket. Filed a new follow-up issue
+for the side-pocket/shrine production implementation (blocked on #70), since #68's own
+resolution named that as separate future engineering work and no ticket for it existed yet.
+
+**Heckler's independent critique is a separate log entry** (`heckler/log.md`, 2026-08-09,
+"Issue #125: CC0 Remix VFX applied to the real Level 1 opening") — not blended into this one,
+per this ticket's own instruction. Found and independently re-verified the `magma_lance` reach
+fix above, plus 3 disclosed-scope MINOR findings (fire-only extrapolation to 3 spells, a
+measured impact-sprite size increase, and the music-lifecycle criterion's honest
+non-satisfaction pending #142) and 4 CLEAR findings (byte-identical relocated assets, zero
+non-fire-element regression, correct Active Prototype cleanup, no #70 preemption). No BLOCKING
+findings.
+
+**Status:** `in-progress-with-owner` — code/asset-level correctness is self-verified and
+independently Heckler-reviewed; the one gate this cannot certify is the ticket's own actual
+acceptance line, "the developer reports the beginning feels exciting and magical," which
+needs a real developer playtest with a focused, visible tab. Left explicitly open, not marked
+`shipped-and-validated`, per this repo's own playtest-gate convention (ADR-0001).

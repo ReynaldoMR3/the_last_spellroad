@@ -1,0 +1,50 @@
+CC0 Remix opening-magic VFX -- sourced third-party assets, production copy (issue #125)
+
+This directory holds the 3 spell-VFX spritesheets from the CC0 Remix treatment (issue #126)
+that the developer's Prototype 1 playtest (issue #128, 2026-08-09) selected as the preferred
+visual direction, now wired into the real Level 1 `flame_sweep` cast/impact/trail
+(`src/systems/openingVfx.ts`, `src/scenes/SpellroadScene.ts`). Relocated here from
+`public/assets/prototypes/opening-magic/cc0-remix/vfx/` when that throwaway prototype was
+removed per issue #125's own acceptance criteria and
+`docs/eng-skills/prototype-harness.md`'s Active Prototype lifecycle -- byte-identical files
+(see provenance.json's sha256 hashes), not regenerated.
+
+Full per-file transform history and archive provenance are recorded in provenance.json
+alongside this file. This is the human-readable record of the same license facts, matching the
+convention every other sourced-asset directory in this repo follows (see
+public/assets/third-party/*/License.txt).
+
+###############################################################################
+
+Kenney Particle Pack
+
+	by Kenney (www.kenney.nl)
+
+	Source:   https://kenney.nl/assets/particle-pack
+	Used for: cast-flame_sweep.png, impact-flame_sweep.png, trail-fire.png
+	          (tinted/resized/animated derivatives of flame_06.png, circle_03.png, and
+	          trace_01.png respectively, from "PNG (Transparent)/" -- see provenance.json's
+	          "transforms" for the exact per-file transform chain)
+
+	License (Creative Commons Zero, CC0)
+	http://creativecommons.org/publicdomain/zero/1.0/
+
+	You may use these graphics in personal and commercial projects.
+	Credit (Kenney or www.kenney.nl) would be nice but is not mandatory.
+
+###############################################################################
+
+Note on the rest of the CC0 Remix treatment: the same sourcing pass (issue #126) also produced
+4 rune glyphs (Kenney Rune Pack) and a forest-ambience loop (OpenGameArt's "Forest Ambience",
+TinyWorlds) for the throwaway audition prototype's side-pocket/shrine decoration and ambience
+bed. Neither is wired into production by issue #125 -- there is no shipped side-pocket/shrine
+feature yet (issue #68's B+C verdict was never given its own production-implementation ticket,
+and is explicitly blocked on issue #70's lore-delivery-density decision), and the developer's
+playtest flagged the forest ambience as a terrain mismatch for Level 1's stone/dungeon setting
+and asked that it be reserved for future exploration/NPC-conversation content instead. Both
+remain fully recoverable from git history (see the commit that removed
+`public/assets/prototypes/opening-magic/`, and issue #126/#128's own records) for whichever
+follow-up ticket eventually implements that feature -- not copied forward here speculatively,
+per this repo's own "don't build ahead of content" precedent.
+
+###############################################################################
