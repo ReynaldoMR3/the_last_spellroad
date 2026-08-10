@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "kind": "sourced",
+  "ticket": "https://github.com/ReynaldoMR3/the_last_spellroad/issues/125",
+  "note": "Production copy. These 3 files are byte-identical (see sha256 below) to the CC0 Remix treatment's vfx/ derivatives originally produced under issue #126 and selected by the developer's issue #128 Prototype 1 playtest (2026-08-09). Relocated from public/assets/prototypes/opening-magic/cc0-remix/vfx/ to this permanent path when issue #125 wired them into the real Level 1 flame_sweep cast/impact/trail and removed the now-superseded throwaway prototype scene/registry entry, per docs/eng-skills/prototype-harness.md's Active Prototype lifecycle. The original provenance.json (issue #126) also covered 4 rune glyphs and a forest-ambience loop from this same sourcing pass; those derivatives are not relocated here since nothing in production uses them yet -- see this directory's License.txt for why, and recover them from git history if a future ticket needs them.",
+  "treatment": "cc0-remix",
+  "showcaseSpell": {
+    "id": "flame_sweep",
+    "element": "fire",
+    "paletteKey": "ember"
+  },
+  "sources": [
+    {
+      "id": "kenney-particle-pack",
+      "title": "Particle Pack",
+      "creator": "Kenney",
+      "publisher": "Kenney.nl",
+      "assetPage": "https://kenney.nl/assets/particle-pack",
+      "downloadUrlAtAcquisition": "https://kenney.nl/media/pages/assets/particle-pack/f8fe0f8cb8-1677578741/kenney_particle-pack.zip",
+      "license": {
+        "spdx": "CC0-1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "declaredOn": "assetPage",
+        "attributionRequired": false,
+        "humanVerifiedBy": "tilesmith-agent (re-fetched page text same session, issue #126)"
+      },
+      "archiveFile": {
+        "filename": "kenney_particle-pack.zip",
+        "sha256": "b631d4b07f7002549fdcf155f01141ad482f79f3440e4e301eed49ce5f1d8958",
+        "sizeBytes": 15001764
+      }
+    }
+  ],
+  "toolchain": {
+    "runtime": "docker",
+    "dockerImage": "last-spellroad/cc0-remix:opening-magic-126",
+    "dockerImageId": "sha256:6a9f8ead2ce6049666de19ffbd7eea6f8317c5b1d33dfaa3604dd26181dce988",
+    "dockerBaseImage": "python:3.11-slim@sha256:90744cff8f32887f075c47d747a173ff333e9e98801667af93c357fa9f5e28ff",
+    "pythonVersion": "3.11.15",
+    "pillowVersion": "10.4.0",
+    "command": "see issue #126's original provenance.json (public/assets/prototypes/opening-magic/cc0-remix/provenance.json in git history) for the exact generation command -- this file only re-records the 3 relocated derivatives, not a new generation run"
+  },
+  "derivatives": [
+    {
+      "projectPath": "public/assets/vfx/opening-magic-cc0-remix/cast-flame_sweep.png",
+      "sha256": "66cbb24d91c668fee2ccf07cc22016255afd631e563de9d0af1a0e5cc21912f3",
+      "widthPx": 256,
+      "heightPx": 64,
+      "kind": "vfx-spritesheet",
+      "frameWidthPx": 64,
+      "frameHeightPx": 64,
+      "frameCount": 4,
+      "sourceAssetId": "kenney-particle-pack",
+      "sourceArchiveMember": "PNG (Transparent)/flame_06.png"
+    },
+    {
+      "projectPath": "public/assets/vfx/opening-magic-cc0-remix/impact-flame_sweep.png",
+      "sha256": "9db30184ab9dfe959775dbfda18916ab02694fb74cfe62c833f60fcbee6c0aa7",
+      "widthPx": 192,
+      "heightPx": 48,
+      "kind": "vfx-spritesheet",
+      "frameWidthPx": 48,
+      "frameHeightPx": 48,
+      "frameCount": 4,
+      "sourceAssetId": "kenney-particle-pack",
+      "sourceArchiveMember": "PNG (Transparent)/circle_03.png"
+    },
+    {
+      "projectPath": "public/assets/vfx/opening-magic-cc0-remix/trail-fire.png",
+      "sha256": "5e6613065cc42a8787984c91fe105edb2bfda9a19a1642acb7090e457e0ff2d7",
+      "widthPx": 256,
+      "heightPx": 24,
+      "kind": "vfx-spritesheet",
+      "frameWidthPx": 64,
+      "frameHeightPx": 24,
+      "frameCount": 4,
+      "sourceAssetId": "kenney-particle-pack",
+      "sourceArchiveMember": "PNG (Transparent)/trace_01.png"
+    }
+  ],
+  "transforms": [
+    {
+      "output": "cast-flame_sweep.png",
+      "sourceArchiveMember": "PNG (Transparent)/flame_06.png",
+      "transforms": [
+        "extract-from-zip",
+        "downscale 512x512 -> 64x64 (LANCZOS)",
+        "tint (gamma-boosted base->core lerp)",
+        "4-frame fade (alpha fraction 1.0/0.78/0.5/0.28, same 4-step cadence as deterministic-original's cast ramp)"
+      ]
+    },
+    {
+      "output": "impact-flame_sweep.png",
+      "sourceArchiveMember": "PNG (Transparent)/circle_03.png",
+      "transforms": [
+        "extract-from-zip",
+        "crop to ring bbox",
+        "dilate alpha (MaxFilter r=6, hairline-at-512px would vanish at 48px)",
+        "downscale 512x512 -> 48x48 at 4 expanding scales (0.4/0.6/0.82/1.0, LANCZOS)",
+        "tint (gamma-boosted base->core lerp)",
+        "4-frame expand+fade (alpha fraction 1.0/0.8/0.55/0.3, same cadence as deterministic-original's impact ramp)"
+      ]
+    },
+    {
+      "output": "trail-fire.png",
+      "sourceArchiveMember": "PNG (Transparent)/trace_01.png",
+      "transforms": [
+        "extract-from-zip",
+        "rotate 90deg (vertical streak -> horizontal)",
+        "crop to bbox",
+        "dilate alpha (MaxFilter r=8, hairline-at-512px would vanish at 24px)",
+        "downscale to 24px tall (LANCZOS)",
+        "tint (gamma-boosted base->core lerp)",
+        "4-frame sliding-window crop simulating motion (alpha fraction 0.4/0.62/0.82/1.0, generalizes deterministic-original's dot-with-tail trail)"
+      ]
+    }
+  ]
+}
