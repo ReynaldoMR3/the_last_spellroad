@@ -100,13 +100,28 @@ export function sfxUrl(cue: SfxCue): string {
  * `License.txt` under `public/assets/third-party/opengameart-<pack>/` for the full source URL,
  * author, and license text, and `docs/agents/tilesmith/log.md`'s 2026-08-07 entry for the "why
  * this specific file" reasoning per element, including the lightning slot's disclosed
- * imperfect-fit tradeoff. */
+ * imperfect-fit tradeoff.
+ *
+ * **2026-08-09 (issue #151):** the fire/ice/earth source recordings ran 1.9-2.1s -- well past
+ * the "should be < 1 second... feels sluggish" complaint -- so each now points at a `-trimmed`
+ * sibling file (Art Sourcing Contract step 3: a derivative of the *same already-approved* CC0
+ * source, not a new download -- the original untrimmed file stays alongside it in the same
+ * directory as provenance). Each trim keeps the recording's actual attack/punch and fades out
+ * the long decay/reverb tail over the last 60ms rather than hard-cutting mid-sound. Lightning's
+ * `groundhit.wav` was already 0.285s -- issue #151 (length) never applied to it, only issue
+ * #137 (it reads as the old placeholder, an aesthetic/content problem no trim can fix) --
+ * so it's untouched here. See `docs/agents/tilesmith/log.md`'s 2026-08-09 entry for exact
+ * before/after durations and the #137 re-source candidates researched but NOT yet pulled in
+ * (pending the developer's explicit go-ahead this repo's download convention requires). */
 const ELEMENT_CAST_URL: Record<Element, string> = {
-  fire: "assets/third-party/opengameart-fireball/105016__julien-matthey__jm-fx-fireball-01.wav",
-  ice: "assets/third-party/opengameart-freeze-spell/freeze.wav",
-  earth: "assets/third-party/opengameart-earth-element-magic-spell/earth-element-magic-spell.ogg",
+  fire: "assets/third-party/opengameart-fireball/105016__julien-matthey__jm-fx-fireball-01-trimmed.wav",
+  ice: "assets/third-party/opengameart-freeze-spell/freeze-trimmed.wav",
+  earth:
+    "assets/third-party/opengameart-earth-element-magic-spell/earth-element-magic-spell-trimmed.ogg",
   // Disclosed stand-in, not a fantasy lightning-spell recording -- see this const's own doc
-  // comment and the pack's License.txt for why.
+  // comment and the pack's License.txt for why. Already short (0.285s) so issue #151 doesn't
+  // apply here -- issue #137 (wrong content/reads-as-placeholder) is still open, tracked in
+  // the 2026-08-09 log entry's researched-but-not-downloaded candidate list.
   lightning: "assets/third-party/opengameart-electricity-game-sound-pack/groundhit.wav"
 };
 

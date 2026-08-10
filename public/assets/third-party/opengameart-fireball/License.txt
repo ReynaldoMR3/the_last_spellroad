@@ -9,3 +9,13 @@ License: CC0 (Creative Commons Zero / public domain)
 https://creativecommons.org/publicdomain/zero/1.0/
 
 No attribution required. Sourced originally from freesound.org per the OpenGameArt page.
+
+---
+
+2026-08-09 (issue #151): added 105016__julien-matthey__jm-fx-fireball-01-trimmed.wav, a
+derivative of the file above (Art Sourcing Contract step 3 -- recombine/derive an
+already-sourced CC0 asset, not a new download). The original ran 1.962s; the trimmed copy
+cuts at 1.05s (keeps the attack/punch through its main decay hump, fades the last 60ms to
+zero to avoid a click) and drops the long reverb tail that made the cast read as sluggish.
+Same CC0 license applies to the derivative -- CC0 permits unrestricted derivative works.
+Original file kept alongside, untouched, as provenance.
