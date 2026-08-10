@@ -35,6 +35,11 @@
  * - `advancing` — a wave-advance `delayedCall` is pending (replaces the old
  *   `enemiesRemainingToSpawn = -1` sentinel).
  * - `awaiting-phase-choice` — a boss phase-break Y/N prompt is up.
+ * - `awaiting-encounter-choice` — issue #157: a Side-Pocket Lore Encounter's in-world
+ *   Explore/Continue prompt is up, after the final regular wave of a level 1-4 cleared.
+ *   Unlike a phase-break, Explore does not resolve the phase — only Continue does (Explore
+ *   reveals lore/awards Hexcoin and returns to this same prompt, per the ticket's "Explore
+ *   returns to the Continue choice" decision).
  * - `dead` — the player died; the restart `delayedCall` is pending.
  * - `complete` — the last wave in the sequence cleared; nothing further to advance to.
  */
@@ -43,6 +48,7 @@ export type WavePhase =
   | "running"
   | "advancing"
   | "awaiting-phase-choice"
+  | "awaiting-encounter-choice"
   | "dead"
   | "complete";
 
@@ -118,6 +124,15 @@ export class WaveSession {
     this.currentPhase = "awaiting-phase-choice";
   }
 
+  /** Issue #157 — a Side-Pocket Lore Encounter's Explore/Continue prompt is up for the level
+   * just cleared. Deliberately does not bump the generation, same reasoning as
+   * `beginPhaseChoice`: the prompt belongs to the wave/level that just cleared, and an
+   * Explore action must be able to resolve against this same generation without the
+   * resulting reveal/award being treated as stale. */
+  beginEncounterChoice(): void {
+    this.currentPhase = "awaiting-encounter-choice";
+  }
+
   /** The wave sequence ran out — park the session so nothing tries to advance past the end. */
   markComplete(): void {
     this.currentPhase = "complete";
@@ -159,4 +174,21 @@ export function canResolvePhaseChoice(
   token: number
 ): boolean {
   return phase === "awaiting-phase-choice" && token === currentGeneration;
+}
+
+/**
+ * Guards a Side-Pocket Lore Encounter's Explore/Continue resolution (issue #157), the exact
+ * same shape as `canResolvePhaseChoice` and for the same reason: phase alone would let a
+ * stale attempt interrupted by a death resolve again once a retry reaches another
+ * `awaiting-encounter-choice` prompt with a fresh token. Both the Explore action (reveal +
+ * award) and the Continue action (advance) must check this before doing anything, including
+ * side effects — this is what makes a duplicate/stale Explore call a no-op per the ticket's
+ * idempotency requirement, in addition to the controller's own flag check.
+ */
+export function canResolveEncounterChoice(
+  phase: WavePhase,
+  currentGeneration: number,
+  token: number
+): boolean {
+  return phase === "awaiting-encounter-choice" && token === currentGeneration;
 }
