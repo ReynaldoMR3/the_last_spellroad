@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WaveSession, canResolvePhaseChoice, shouldAutoAdvance } from "./waveSession";
+import { WaveSession, canResolveEncounterChoice, canResolvePhaseChoice, shouldAutoAdvance } from "./waveSession";
 import type { WavePhase } from "./waveSession";
 
 const ALL_PHASES: WavePhase[] = [
@@ -7,6 +7,7 @@ const ALL_PHASES: WavePhase[] = [
   "running",
   "advancing",
   "awaiting-phase-choice",
+  "awaiting-encounter-choice",
   "dead",
   "complete"
 ];
@@ -194,6 +195,72 @@ describe("canResolvePhaseChoice", () => {
     const token = session.beginWave();
     for (const phase of ALL_PHASES.filter((p) => p !== "awaiting-phase-choice")) {
       expect(canResolvePhaseChoice(phase, session.generation, token)).toBe(false);
+    }
+  });
+});
+
+describe("WaveSession.beginEncounterChoice", () => {
+  it("moves to awaiting-encounter-choice without bumping the generation", () => {
+    // Issue #157 — same shape as beginPhaseChoice: the post-level exploration prompt's
+    // pending resolution (Explore/Continue) must stay valid for this same generation, since
+    // it belongs to the wave that was just cleared, not to a new one.
+    const session = new WaveSession();
+    const token = session.beginWave();
+    session.beginEncounterChoice();
+    expect(session.phase).toBe("awaiting-encounter-choice");
+    expect(session.generation).toBe(token);
+    expect(session.isCurrent(token)).toBe(true);
+  });
+
+  it("is invalidated by a death interrupting the pending choice", () => {
+    const session = new WaveSession();
+    const token = session.beginWave();
+    session.beginEncounterChoice();
+    session.beginDeath();
+    expect(session.isCurrent(token)).toBe(false);
+    expect(session.phase).toBe("dead");
+  });
+});
+
+describe("canResolveEncounterChoice", () => {
+  it("is true while the same exploration attempt is still awaiting its choice", () => {
+    const session = new WaveSession();
+    const token = session.beginWave();
+    session.beginEncounterChoice();
+    expect(canResolveEncounterChoice(session.phase, session.generation, token)).toBe(true);
+  });
+
+  it("is false once Continue has already resolved (phase moved to advancing)", () => {
+    const session = new WaveSession();
+    const token = session.beginWave();
+    session.beginEncounterChoice();
+    session.beginAdvance();
+    expect(canResolveEncounterChoice(session.phase, session.generation, token)).toBe(false);
+  });
+
+  it("is false for a stale attempt once death has interrupted it, even if the session later reaches awaiting-encounter-choice again", () => {
+    // Same race `canResolvePhaseChoice` closes (Heckler, 2026-08-02 (6)): a death interrupts
+    // exploration choice A, the retry replays the level and reaches exploration choice B with
+    // a fresh token. A's stale closure must not resolve just because the session phase string
+    // matches again.
+    const session = new WaveSession();
+    const tokenA = session.beginWave();
+    session.beginEncounterChoice();
+    session.beginDeath();
+    session.beginWave();
+    session.beginEncounterChoice();
+
+    expect(session.phase).toBe("awaiting-encounter-choice");
+    expect(canResolveEncounterChoice(session.phase, session.generation, tokenA)).toBe(false);
+    const tokenB = session.generation;
+    expect(canResolveEncounterChoice(session.phase, session.generation, tokenB)).toBe(true);
+  });
+
+  it("is false while idle/running/dead/complete/awaiting-phase-choice regardless of token", () => {
+    const session = new WaveSession();
+    const token = session.beginWave();
+    for (const phase of ALL_PHASES.filter((p) => p !== "awaiting-encounter-choice")) {
+      expect(canResolveEncounterChoice(phase, session.generation, token)).toBe(false);
     }
   });
 });

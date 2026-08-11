@@ -43,6 +43,32 @@ export class HexcoinSystem {
     this.expeditionTotal += amount;
   }
 
+  /**
+   * Issue #157 — a permanent award (Side-Pocket Lore Encounter discovery) that must survive
+   * `rollbackToLevelStart()`, unlike a plain kill `earn()`. `earn()` alone is only safe against
+   * rollback for ordinary kills because `markLevelStart()` already ran *before* those kills
+   * happened this attempt; a Side-Pocket reward is granted mid-attempt (after the level's
+   * final wave, before the player has advanced past it), so it has to move the floor itself,
+   * atomically, in the same call — not by overloading `markLevelStart()` with a second meaning
+   * (the ticket explicitly calls that out: "Do not overload the level-start operation with a
+   * second meaning").
+   *
+   * Also nudges `fightSnapshot` if one happens to be frozen. Reasoned through, not just
+   * copied from `usePhaseRecovery`: a Side-Pocket Encounter only ever fires between regular-
+   * level waves (`evaluateSidePocketOffer` requires a non-boss wave), so `fightSnapshot`
+   * should always be `null` here in practice — this branch is defensive, not a reachable path,
+   * so a future change that ever let this run mid-fight can't silently leave the frozen
+   * Phase-Transition Recovery basis stale/understated relative to the live balance it's
+   * supposed to track.
+   */
+  awardPermanent(amount: number): void {
+    this.expeditionTotal += amount;
+    this.levelStartBalance = this.expeditionTotal;
+    if (this.fightSnapshot !== null) {
+      this.fightSnapshot += amount;
+    }
+  }
+
   /** Called at every road-segment/expedition checkpoint. */
   resetExpedition(): void {
     this.expeditionTotal = 0;

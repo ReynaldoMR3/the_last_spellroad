@@ -21,7 +21,9 @@ import { countSpawnableEnemies } from "../systems/waveEnemyCounts";
 import { selectDefaultLoadout } from "../systems/defaultLoadout";
 import { selectAutoAimTarget } from "../systems/autoAim";
 import { isStillInRangedImpactZone } from "../systems/rangedImpact";
-import { WaveSession, canResolvePhaseChoice, shouldAutoAdvance } from "../systems/waveSession";
+import { WaveSession, canResolveEncounterChoice, canResolvePhaseChoice, shouldAutoAdvance } from "../systems/waveSession";
+import { evaluateSidePocketOffer, resolveSidePocketExplore } from "../systems/sidePocketEncounter";
+import { SIDE_POCKET_ENCOUNTERS, type SidePocketEncounter } from "../data/sidePocketEncounters";
 import { allRemainingAreYieldingDebuffers } from "../systems/lastEnemyStanding";
 import { hasRecentPointerActivity } from "../systems/pointerActivity";
 import {
@@ -297,6 +299,23 @@ const LANE_RECT = new Phaser.Geom.Rectangle(ROAD_LEFT, ROAD_TOP, ROAD_WIDTH, ROA
  * default-depth (0) gameplay/HUD object. */
 const BACKGROUND_DEPTH = -100;
 const TILE_LAYER_DEPTH = -50;
+/** Issue #157 — the Side-Pocket rune markers sit on the ground, above the tile art but below
+ * every default-depth (0) mage/enemy sprite, same "explicit depth regardless of creation
+ * order" reasoning as `TILE_LAYER_DEPTH` above (markers are created once in `create()`,
+ * before any enemy of the level they belong to spawns). */
+const SIDE_POCKET_MARKER_DEPTH = -1;
+/** Radius (px) of the small ground-rune marker itself; proximity reactivity uses each
+ * encounter's own larger `proximityRadiusPx` from the catalog. */
+const SIDE_POCKET_MARKER_RADIUS_PX = 10;
+/** Issue #157 story 29 / Heckler MAJOR finding 1 — restrained static dressing around each
+ * rune marker: 3 small, muted pebbles at fixed offsets, well within the encounter's own
+ * `proximityRadiusPx` so they read as belonging to the same small feature rather than
+ * scattered clutter across the lane. */
+const SIDE_POCKET_DRESSING_OFFSETS: ReadonlyArray<{ dx: number; dy: number; radius: number }> = [
+  { dx: -16, dy: -7, radius: 3 },
+  { dx: 13, dy: -10, radius: 4 },
+  { dx: -6, dy: 13, radius: 3 }
+];
 /** Heckler critique, 2026-08-02 (8), MAJOR 1: none of the HUD text objects ever called
  * `setDepth`, so they sat at the same default depth (0) as every `Enemy` and its own
  * `nameLabel`/`statusBar` overlay (`Enemy.ts` — also never sets one). Phaser breaks
@@ -373,6 +392,27 @@ export class SpellroadScene extends Phaser.Scene {
    * phase-break actually resolves or a death interrupts it — at most one phase-break is ever
    * pending at a time, so a single field (not a stack/set) is sufficient. */
   private phaseChoiceListeners: { onY: () => void; onN: () => void } | null = null;
+  /** Issue #157 — same shape/reasoning as `phaseChoiceListeners`, for the Side-Pocket Lore
+   * Encounter's Explore ([E]) / Continue ([C]) prompt: hoisted out of
+   * `startSidePocketChoice`'s closure so `handleDeath` can deregister both listeners by
+   * reference if a death somehow interrupts an unresolved prompt (no enemies are alive while
+   * this prompt is up, so this is defensive rather than a reachable player-facing path, but
+   * the ticket's generation-token-protection requirement applies uniformly to every delayed
+   * choice, not only the boss one). */
+  private sidePocketChoiceListeners: { onExplore: () => void; onContinue: () => void } | null = null;
+  /** Issue #157 — one ground-rune marker per Side-Pocket Lore Encounter, created once in
+   * `create()` (`createSidePocketMarkers`) and kept for the scene's lifetime; visibility and
+   * tint are redrawn every frame in `updateSidePocketMarkers` rather than destroyed/recreated
+   * per level, since there are only ever 4 of them (one per level 1-4). Keyed by level number,
+   * matching the catalog's own level-keyed lookup (`findSidePocketEncounter`). */
+  private sidePocketMarkers = new Map<number, Phaser.GameObjects.Arc>();
+  /** Issue #157 story 29 / Heckler MAJOR finding 1 (adversarial review, same day) — a small,
+   * static cluster of muted pebble/rubble dots per encounter, so the rune doesn't read as
+   * "dropped into an otherwise empty space." Deliberately static (no pulse, no visibility
+   * logic beyond matching the main marker's current-level check) and built from the same
+   * `this.add.circle` primitive the marker itself already uses — no new art asset dependency,
+   * matching the ticket's "restrained... where existing approved assets suffice" bound. */
+  private sidePocketDressing = new Map<number, Phaser.GameObjects.Arc[]>();
   /** backlog 0.2 — highest wave `level` number reached so far; `startWave` only calls
    * `hexcoin.markLevelStart()` the first time a level number is crossed, never on a
    * same-level death-retry, so a death can't be used to re-bank an already-recorded floor. */
@@ -637,6 +677,12 @@ export class SpellroadScene extends Phaser.Scene {
     this.previewSpellId = null;
     this.previewLockedEnemy = null;
     this.phaseChoiceListeners = null;
+    // Issue #157 — same class of stale-state bug this reset block already documents: a
+    // scene restart reuses this Scene instance, so a non-null listener pair left over from a
+    // prompt that was up when the player quit mid-level would otherwise leak into the fresh
+    // run (and, since `create()` below rebuilds the display list from scratch, would also be
+    // holding closures over now-destroyed game objects).
+    this.sidePocketChoiceListeners = null;
     this.lastFacing = new Phaser.Math.Vector2(1, 0);
     this.lastPointerActivityAt = null;
     this.messageClearAt = 0;
@@ -661,6 +707,10 @@ export class SpellroadScene extends Phaser.Scene {
     this.createHud();
     this.createInput();
     this.createOpeningVfxAnimations();
+    // Issue #157 — created fresh every `create()` (a scene restart destroys the whole
+    // display list, so any marker from a previous life is already gone) rather than
+    // conditionally reset, same lifecycle as `createHud`'s own graphics/text objects above.
+    this.createSidePocketMarkers();
 
     // backlog 4.11 / issue #97 — safety net for exit paths this ticket's own acceptance
     // criteria don't explicitly name (e.g. `PauseScene`'s "Quit to Title" mid-fight): whatever
@@ -692,6 +742,10 @@ export class SpellroadScene extends Phaser.Scene {
     if (!this.bossBannerActive) {
       this.updateEnemies(deltaMs);
     }
+    // Issue #157 — proximity reactivity runs regardless of the boss-banner freeze above (it
+    // never touches combat), but there is no catalog entry for the boss level anyway, so it's
+    // a no-op whenever a banner would be showing.
+    this.updateSidePocketMarkers();
     this.updatePreview();
     this.updateHud();
     this.updatePlayerStatusBars();
@@ -761,6 +815,93 @@ export class SpellroadScene extends Phaser.Scene {
     this.currentLevelTilemap = map;
     this.currentLevelLayer = layer ?? undefined;
     this.renderedLevel = level;
+  }
+
+  /** Issue #157 — one small ground-rune circle per catalog encounter, positioned per the
+   * catalog's own `marker` data (chosen off the mage's straight-line path along the lane
+   * midline, still inside `LANE_RECT` so it's always reachable — see
+   * `sidePocketEncounters.ts`'s own placement comment). Hidden by default; `startWave`/
+   * `updateSidePocketMarkers` show only the one matching the currently-rendered level. */
+  private createSidePocketMarkers(): void {
+    this.sidePocketMarkers = new Map(
+      SIDE_POCKET_ENCOUNTERS.map((encounter) => {
+        const marker = this.add.circle(
+          encounter.marker.x,
+          encounter.marker.y,
+          SIDE_POCKET_MARKER_RADIUS_PX,
+          encounter.presentation.runeColor
+        );
+        marker.setDepth(SIDE_POCKET_MARKER_DEPTH);
+        marker.setVisible(false);
+        return [encounter.level, marker] as const;
+      })
+    );
+    this.sidePocketDressing = new Map(
+      SIDE_POCKET_ENCOUNTERS.map((encounter) => {
+        const pebbles = SIDE_POCKET_DRESSING_OFFSETS.map(({ dx, dy, radius }) => {
+          const pebble = this.add.circle(
+            encounter.marker.x + dx,
+            encounter.marker.y + dy,
+            radius,
+            encounter.presentation.quietColor,
+            0.35
+          );
+          pebble.setDepth(SIDE_POCKET_MARKER_DEPTH);
+          pebble.setVisible(false);
+          return pebble;
+        });
+        return [encounter.level, pebbles] as const;
+      })
+    );
+  }
+
+  /** Issue #157 — redrawn every frame (cheap: at most 4 circles, one visible at a time in
+   * practice since only the current level's marker shows). Purely presentational: reacts to
+   * proximity (undiscovered) or renders "quiet" (discovered, story 23) without ever touching
+   * movement, collision, spawning, targeting, or the wave-advance decision itself — that
+   * decision lives entirely in `updateEnemies`'s `evaluateSidePocketOffer` call. */
+  private updateSidePocketMarkers(): void {
+    if (!this.mage) {
+      return;
+    }
+    const currentLevel = this.waves[this.waveIndex]?.level;
+    for (const [level, marker] of this.sidePocketMarkers) {
+      const dressing = this.sidePocketDressing.get(level) ?? [];
+      if (level !== currentLevel) {
+        marker.setVisible(false);
+        dressing.forEach((pebble) => pebble.setVisible(false));
+        continue;
+      }
+      const encounter = SIDE_POCKET_ENCOUNTERS.find((entry) => entry.level === level);
+      if (!encounter) {
+        marker.setVisible(false);
+        dressing.forEach((pebble) => pebble.setVisible(false));
+        continue;
+      }
+      marker.setVisible(true);
+      // Dressing is static regardless of discovered/proximity state (issue #157: dressing is
+      // "supporting treatment," not part of the reactive/quiet presentation logic below).
+      dressing.forEach((pebble) => pebble.setVisible(true));
+      const discovered = this.persistentMetadata.loreFlags.includes(encounter.loreFlag);
+      if (discovered) {
+        // Quiet state (issue #157 story 23): present, but static — no reactive pulse, and it
+        // never blocks the level's normal auto-advance (that gate is
+        // `evaluateSidePocketOffer`'s flag check, entirely separate from this rendering).
+        marker.setFillStyle(encounter.presentation.quietColor, 0.5);
+        continue;
+      }
+      const distance = Phaser.Math.Distance.Between(
+        this.mage.x,
+        this.mage.y,
+        encounter.marker.x,
+        encounter.marker.y
+      );
+      const inRange = distance <= encounter.marker.proximityRadiusPx;
+      // Gentle pulse while in range so the reaction reads as alive without any reading —
+      // story 5's "atmospheric, not distracting" requirement. Dim and static otherwise.
+      const pulse = inRange ? 0.75 + 0.25 * Math.sin(this.time.now / 150) : 0.6;
+      marker.setFillStyle(encounter.presentation.runeColor, pulse);
+    }
   }
 
   private createMage(): void {
@@ -1484,6 +1625,71 @@ export class SpellroadScene extends Phaser.Scene {
     }
   }
 
+  /** Issue #157 — offered once per Side-Pocket Lore Encounter, at the final wave of its
+   * level. Same in-world-prompt shape as `startPhaseBreak` (reuses `messageText` via
+   * `flashMessage`, keyed off a captured-not-bumped generation, listener refs hoisted to a
+   * scene field for `handleDeath` to deregister) but a different resolution shape: Continue
+   * ([C]) is the only action that ever advances — Explore ([E]) reveals/awards and then
+   * re-renders this same prompt in its "already explored" form so the player reads the
+   * reveal before choosing to move on, per the ticket's "Explore returns to the Continue
+   * choice" decision. */
+  private startSidePocketChoice(encounter: SidePocketEncounter, nextIndex: number): void {
+    const encounterGeneration = this.session.generation;
+    this.session.beginEncounterChoice();
+
+    const promptText = (discovered: boolean): string =>
+      discovered
+        ? `${encounter.objectName} -- "${encounter.loreSentence}"  [C] Continue`
+        : `A ${encounter.objectName.toLowerCase()} waits off the road. [E] Explore  /  [C] Continue`;
+
+    const alreadyDiscovered = this.persistentMetadata.loreFlags.includes(encounter.loreFlag);
+    this.flashMessage(promptText(alreadyDiscovered), 60000, "warning");
+
+    const onExplore = () => {
+      if (!canResolveEncounterChoice(this.session.phase, this.session.generation, encounterGeneration)) {
+        return;
+      }
+      const result = resolveSidePocketExplore(encounter, this.persistentMetadata.loreFlags);
+      if (result.applied) {
+        // Mutate in place then persist, following the exact existing convention
+        // (`persistProgress`'s own doc comment) every other state-changing mutation in this
+        // scene already uses.
+        this.persistentMetadata.loreFlags = result.updatedLoreFlags;
+        this.hexcoin.awardPermanent(result.rewardHexcoin);
+        this.persistProgress();
+      }
+      // Re-render the "already explored" prompt regardless of whether this call actually
+      // applied anything — a duplicate/stale Explore delivered after the flag is already set
+      // must land on the exact same Continue-only prompt a legitimate first Explore does. One
+      // combined `flashMessage` call (not reveal-then-prompt as two calls): `flashMessage`
+      // unconditionally overwrites `messageText`, so a second call issued in the same tick
+      // would silently clobber the first before it ever renders.
+      this.flashMessage(promptText(true), 60000, "warning");
+    };
+    const onContinue = () => {
+      if (!canResolveEncounterChoice(this.session.phase, this.session.generation, encounterGeneration)) {
+        return;
+      }
+      this.session.beginAdvance();
+      this.input.keyboard?.off("keydown-E", onExplore);
+      this.input.keyboard?.off("keydown-C", onContinue);
+      this.sidePocketChoiceListeners = null;
+      this.time.delayedCall(200, () => {
+        if (!this.session.isCurrent(encounterGeneration)) {
+          return;
+        }
+        this.startWave(nextIndex);
+      });
+    };
+    this.sidePocketChoiceListeners = { onExplore, onContinue };
+    // Both keys are independent `.once` listeners, unlike the phase-break's Y/N (where either
+    // choice ends the prompt): pressing E must not disarm C, since Explore is meant to return
+    // control to the same Continue choice rather than end the prompt. Only C's own callback
+    // deregisters both (there's nothing left to explore once the player has moved on).
+    this.input.keyboard?.once("keydown-E", onExplore);
+    this.input.keyboard?.once("keydown-C", onContinue);
+  }
+
   private updateEnemies(deltaMs: number): void {
     if (!this.mage) {
       return;
@@ -1592,6 +1798,19 @@ export class SpellroadScene extends Phaser.Scene {
         // of auto-advancing — this is the phase-break, not a regular wave transition.
         this.startPhaseBreak(nextIndex);
         return;
+      }
+      // Issue #157 — the final wave of a regular level (1-4) with an undiscovered Side-Pocket
+      // Lore Encounter pauses here instead of auto-advancing, exactly the same interception
+      // point/shape as the boss phase-break branch above. `evaluateSidePocketOffer` already
+      // excludes boss waves and Level 5 (no catalog entry), so this check is safe to run
+      // unconditionally for every non-boss wave-clear, not only ones already known to be a
+      // level's last.
+      if (wave) {
+        const offer = evaluateSidePocketOffer(wave, next, this.persistentMetadata.loreFlags);
+        if (offer.offer && offer.encounter) {
+          this.startSidePocketChoice(offer.encounter, nextIndex);
+          return;
+        }
       }
       if (wave?.is_boss) {
         // Last phase of the boss just cleared.
@@ -1928,6 +2147,19 @@ export class SpellroadScene extends Phaser.Scene {
       this.input.keyboard?.off("keydown-Y", this.phaseChoiceListeners.onY);
       this.input.keyboard?.off("keydown-N", this.phaseChoiceListeners.onN);
       this.phaseChoiceListeners = null;
+    }
+    // Issue #157 — same reasoning as the phase-break cleanup just above: a death that
+    // interrupts an unresolved Side-Pocket Explore/Continue prompt (a delayed ranged impact
+    // can still land after the last enemy died and the prompt is already up, same timing gap
+    // `updateEnemies`'s own 1200ms-advance comment documents) must not leave `keydown-E`/
+    // `keydown-C` listeners registered for a later, unrelated prompt to accidentally co-fire
+    // alongside. `canResolveEncounterChoice`'s token check already makes the stale closure's
+    // side effects impossible even if this were skipped, but deregistering here means a later
+    // prompt never inherits a stale listener in the first place.
+    if (this.sidePocketChoiceListeners) {
+      this.input.keyboard?.off("keydown-E", this.sidePocketChoiceListeners.onExplore);
+      this.input.keyboard?.off("keydown-C", this.sidePocketChoiceListeners.onContinue);
+      this.sidePocketChoiceListeners = null;
     }
     const equipped = this.equippedSpells.map((s) => s.id);
     const affected = this.mastery.applyRandomDeathPenalty(equipped);
