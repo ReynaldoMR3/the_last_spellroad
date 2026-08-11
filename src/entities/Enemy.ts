@@ -230,8 +230,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     scene.physics.add.existing(this);
     // Issue #163 — the sprite art (`characterArt.ts`) is native 16x16, smaller than the old
     // generated 26x26 `fillRoundedRect` texture this footprint/hit-box size originally came
-    // from (see `ENEMY_SEPARATION_DISTANCE`'s own comment, which is sized relative to this
-    // exact 26x26 figure). Explicit `setDisplaySize`/body `setSize` keep both the on-screen
+    // from (see `ENEMY_SEPARATION_DISTANCE` in `systems/enemySeparation.ts`, which is sized
+    // relative to this exact 26x26 figure — issue #167 moved that constant out of this file,
+    // and `enemySeparation.test.ts` mirrors the 26 as `SPRITE_FOOTPRINT_PX`). Keeping this
+    // display size pinned is what keeps that separation tuning valid across the art swap.
+    // Explicit `setDisplaySize`/body `setSize` keep both the on-screen
     // footprint and the hit box unchanged at 26x26 regardless of the backing texture's native
     // size — a pure visual swap, per the ticket's own "collision/attack geometry unaffected"
     // acceptance criterion.
