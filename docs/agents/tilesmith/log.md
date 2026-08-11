@@ -612,3 +612,118 @@ Neither was downloaded, extracted, or referenced from any code this pass -- both
 **Self-verification:** `docker-compose run --rm game npm run typecheck && npm test && npm run build` re-run clean after the `sfx.ts` change (see this session's dev-branch commit for the exact output). Did not touch `spawnCastEffect`, `computeSpellSfxVariation`, or `SpellroadScene.confirmCast`'s overlap-stop guard -- all out of this ticket's scope per the dispatch brief.
 
 **Sign-off status:** license/source compliance for the 3 trimmed derivatives -- same CC0 grant as the untouched originals, re-confirmed above, but per this agent's standing rule still not self-certified; **pending human developer review**, same as every prior row. Whether the trims still read as "the same spell, just tighter" rather than an audibly bad cut is an aesthetic/playtest question this log's file-level check can't answer on its own. The #137 candidate shortlist above is **explicitly pending the developer's go/no-go** before any download happens -- flagged, not defaulted into either direction.
+
+## 2026-08-10 -- Issue #163: real sprite art wired into the mage and all 3 enemy archetypes
+
+Developer playtest (2026-08-10) reported the mage and every enemy still rendered as flat
+generated shapes -- `SpellroadScene.createMage`'s `graphics.generateTexture("mage-placeholder",
+...)` circle and `Enemy.ensureTexture`'s `fillRoundedRect` colored square, never replaced with
+real art. Per the ticket's own framing, this was **not a sourcing gap** for the 3 enemy
+archetypes: Tiny Creatures (CC0, downloaded and signed off 2026-07-30) and its specific
+melee/ranged/debuffer tile picks (`tile-legend.md`, 2026-08-01 curation entry -- golem idx127,
+harpy idx32, witch idx66) were already sitting in the repo, just never wired into `Enemy.ts`.
+Only the mage sprite and the actual engine wiring were missing.
+
+**No new sourcing needed for the mage either.** Re-inspected `kenney-tiny-dungeon`'s already
+CC0-signed-off tile set (`Tilemap/tilemap_packed.png`, 12x11 grid) directly rather than
+assuming the 2026-08-01 legend's "style/size reference only" framing of tile 84 (a purple-robed,
+white-bearded chibi wizard) permanently ruled it out as a player-facing pick -- it doesn't; that
+note only said this pack's base characters weren't the *enemy*-archetype source (Tiny Creatures
+is), not that tile 84 itself was unusable. Cropped and visually confirmed tile 84 reads exactly
+as its description says: a clean, readable wizard silhouette, a strong mage pick on its own
+merits. Promoted it from reference-only to the actual shipped mage sprite -- same pack, same
+2026-07-30 CC0 sign-off, no new third-party asset entering the repo.
+
+**Visually re-confirmed all 4 picks before wiring anything**, cropping each exact tile out of
+its pack's `Tilemap/tilemap_packed.png` (the same gutter-free sheet `tile-legend.md`'s picks were
+originally identified against) rather than trusting the legend's text description alone:
+- Mage: `kenney-tiny-dungeon`, tile 84 (row 7, col 0) -- purple-robed, white-bearded wizard, confirmed.
+- Melee/The Nearblade: `tiny-creatures`, tile 127 (row 12, col 7) -- grey rock-textured golem, confirmed.
+- Ranged/The Farlance: `tiny-creatures`, tile 32 (row 3, col 2) -- grey winged harpy, confirmed.
+- Debuffer/The Tarrywright: `tiny-creatures`, tile 66 (row 6, col 6) -- purple pointed-hat witch, confirmed.
+
+**Individual per-tile PNGs used, not the packed spritesheet.** Both packs already ship every
+tile as its own standalone file under `Tiles/tile_NNNN.png` (`tile_0084.png` for the mage;
+`tile_0128.png`/`tile_0033.png`/`tile_0067.png` for melee/ranged/debuffer, accounting for Tiny
+Creatures' 1-indexed filename gotcha the legend already documented) -- a plain
+`this.load.image(key, url)` per key, matching the existing `spellIcons.ts`/`TILESET_IMAGE_URL`
+"one file per load call" convention rather than introducing a new spritesheet-frame-indexing
+pattern for just this one case.
+
+**New `src/systems/characterArt.ts`** -- pure, Phaser-free module (same convention as
+`levelArt.ts`/`spellIcons.ts`) mapping the mage and each `EnemyArchetype` to its texture load
+key/URL. `SpellroadScene.ts`/`Enemy.ts` are the only callers.
+
+**Engine wiring, scoped strictly to texture/sprite loading and texture-key assignment** (per
+this dispatch's own scope-discipline constraint, since #164's spell-VFX work and a separate
+enemy-separation fix are in-flight parallel branches also touching `SpellroadScene.ts`/
+`Enemy.ts` -- `spawnCastEffect` and similar VFX/particle code, enemy movement/separation logic,
+and side-pocket/encounter code were not touched):
+- `SpellroadScene.ts`'s `preload()`: loads `MAGE_SPRITE_KEY` and all 3 `enemySpriteKey(archetype)`
+  images, same eager-preload convention as the tileset/spell-icon loads already there.
+- `SpellroadScene.createMage()`: `this.physics.add.sprite(...)` now constructs directly with
+  `MAGE_SPRITE_KEY` instead of `""`, and the old `generateTexture`/`graphics.destroy()` block is
+  gone entirely. `setDisplaySize(32, 32)`/`body.setSize(32, 32)` were already explicit before
+  this change and are unchanged, so the mage's on-screen footprint and hit box stay exactly
+  32x32 despite the new texture's native 16x16 size.
+- `Enemy.ensureTexture()`: reads `enemySpriteKey(archetype)` (same `enemy-${archetype}` key
+  format as before, so no other call site needed to change) and returns it if already preloaded;
+  the old `fillRoundedRect` generation is kept, not deleted, as a defensive fallback for a caller
+  that never ran the scene's preload (e.g. a hypothetical future isolated unit test), so a
+  missing preload degrades to the old flat-color square instead of Phaser throwing on a missing
+  key.
+- `Enemy`'s constructor: added explicit `setDisplaySize(26, 26)` and `body.setSize(26, 26)` right
+  after `physics.add.existing` -- previously implicit (the generated texture just *was* 26x26, so
+  the default body/display size already matched), now explicit so the swap to 16x16-native art
+  doesn't silently shrink the sprite's on-screen size or its hit box. `ENEMY_SEPARATION_DISTANCE`
+  and every movement/targeting/status-overlay number that already assumed a 26x26 footprint are
+  unaffected -- this is a pure visual change, per the ticket's own acceptance criterion.
+
+**New `src/systems/characterArt.test.ts`** -- unit-tests the pure key/URL lookup functions
+(stable per-archetype keys, correct URLs for all 4 picks, `ALL_ENEMY_ARCHETYPES` contents), same
+"pure module gets a unit test, Phaser-scene wiring gets a live dev-server check" split every
+prior sourcing-plus-wiring entry in this log has used.
+
+**Self-verification (`docker-compose`, per `docs/agents/_reference/docker-testing-contract.md`):**
+- `docker-compose run --rm game npm run typecheck` -- clean, no errors.
+- `docker-compose run --rm game npm test` -- 29 test files, 265 tests, all passed (261 existing
+  plus 4 new in `characterArt.test.ts`).
+- `docker-compose run --rm game npm run build` -- clean production build.
+- Brought up the dev server (a non-default host port, since another worktree's container already
+  held 5173) and drove it via a real browser session: confirmed the mage renders as the wizard
+  sprite and "The Nearblade" (melee) renders as the golem sprite in live Wave 1 gameplay, at
+  actual gameplay scale, with the name label/HP bar overlay correctly positioned above each
+  sprite and no console errors. Ranged ("The Farlance") and debuffer ("The Tarrywright") were not
+  additionally confirmed inside a live wave this session (the browser session became unstable
+  mid-verification, appearing to share its tab pool with another concurrent agent's dev server on
+  a different port) -- disclosed rather than silently assumed equivalent. Confidence for those two
+  instead rests on the same-mechanism argument plus an independent, pixel-level check: all 3
+  enemy archetypes' exact tiles were cropped directly from `tiny-creatures/Tilemap/
+  tilemap_packed.png` and visually inspected before wiring (see above), and all 3 go through the
+  identical `Enemy.ensureTexture`/`enemySpriteKey`/`enemySpriteUrl` code path, differing only in
+  which `EnemyArchetype` string is passed -- there is no code path by which melee's texture loads
+  correctly while ranged's or debuffer's would newly fail to resolve or fail to render.
+
+**Verification-rationale (ADR-0001):** this is texture-identity/asset-loading wiring, not new
+timing- or state-dependent logic -- the plausible failure classes are (1) a wrong/missing tile
+pick, ruled out by cropping and visually inspecting the exact tile from the exact spritesheet
+each key points at before wiring, not by trusting the legend's text description; (2) a shrunk
+hit box or footprint from the new textures' smaller native size, structurally ruled out by the
+explicit `setDisplaySize`/`body.setSize` calls added at both the mage and `Enemy` constructor
+call sites, unchanged from (mage) or matching (enemy, newly explicit) the pre-existing 32x32/
+26x26 figures; (3) a missing-texture runtime throw from an un-preloaded key, ruled out by the
+scene's `preload()` loop covering all 4 keys before any `Enemy`/mage construction can run, plus
+`ensureTexture`'s own defensive fallback for the case that isn't true. What this verification
+does **not** prove, per this agent's own standing success criterion: (1) license/source
+compliance sign-off -- moot for new licensing since no new third-party asset entered the repo,
+but the *mage sprite's specific fitness as the shipped mage* (a promotion of a previously
+reference-only pick) is a fresh aesthetic-fit question, never self-certified; (2) whether the
+ranged/debuffer sprites read correctly at real gameplay scale/animation speed in an actual live
+wave, per the ticket's own acceptance criterion -- confirmed via static pixel-crop inspection and
+code-path-identity reasoning here, not via the same live-wave check the mage and melee sprites
+got, disclosed above as this pass's real limitation rather than silently presented as equivalent.
+
+Sign-off status: **pending human developer review** -- both the aesthetic-fit question for the
+promoted mage sprite and (per the disclosed limitation above) a live-wave visual confirmation of
+the ranged/debuffer sprites specifically, neither of which this pass's typecheck/test/build/
+partial-live-check verification can settle on its own.

@@ -42,6 +42,7 @@ import {
   levelMapUrl
 } from "../systems/levelArt";
 import { SPELL_ICON_ELEMENTS, iconKeyForSpell, spellIconKey, spellIconUrl } from "../systems/spellIcons";
+import { ALL_ENEMY_ARCHETYPES, MAGE_SPRITE_KEY, MAGE_SPRITE_URL, enemySpriteKey, enemySpriteUrl } from "../systems/characterArt";
 import {
   ALL_CAST_ELEMENTS,
   ALL_SFX_CUES,
@@ -626,6 +627,22 @@ export class SpellroadScene extends Phaser.Scene {
       this.load.tilemapTiledJSON(levelMapKey(level), levelMapUrl(level));
     }
 
+    // Issue #163 — real mage sprite (`characterArt.ts`), replacing `createMage`'s old
+    // `generateTexture("mage-placeholder", ...)` flat circle. Already-committed CC0 art
+    // (Kenney Tiny Dungeon, 2026-07-30 sign-off), same eager-preload convention as the
+    // tileset image above (one tiny PNG).
+    this.load.image(MAGE_SPRITE_KEY, MAGE_SPRITE_URL);
+
+    // Issue #163 — real per-archetype enemy sprites (`characterArt.ts`), replacing
+    // `Enemy.ensureTexture`'s old `fillRoundedRect` flat-color-square placeholder. Loaded
+    // eagerly up front (3 tiny PNGs) so every archetype's texture already exists in the cache
+    // by the time the first wave spawns an `Enemy` — `ensureTexture`'s
+    // `scene.textures.exists(key)` check is what makes this preload load-bearing rather than
+    // cosmetic.
+    for (const archetype of ALL_ENEMY_ARCHETYPES) {
+      this.load.image(enemySpriteKey(archetype), enemySpriteUrl(archetype));
+    }
+
     // backlog 2.30 / issue #56 — one hand-authored icon per element (`spellIcons.ts`), loaded
     // eagerly up front same as the tileset image above (4 tiny PNGs, no runtime cost worth a
     // dynamic-loading dance).
@@ -971,21 +988,17 @@ export class SpellroadScene extends Phaser.Scene {
   }
 
   private createMage(): void {
-    this.mage = this.physics.add.sprite(MAGE_START.x, MAGE_START.y, "");
+    // Issue #163 — real sprite art (`characterArt.ts`'s `MAGE_SPRITE_KEY`, preloaded above)
+    // replaces the old `generateTexture("mage-placeholder", ...)` flat tan-and-purple circle.
+    // `setDisplaySize`/`body.setSize` stay explicit at the same 32x32 figure as before the
+    // swap, so the on-screen footprint and hit box are unaffected by the new texture's native
+    // 16x16 size — a pure visual change, per the ticket's own "collision geometry unaffected"
+    // acceptance criterion.
+    this.mage = this.physics.add.sprite(MAGE_START.x, MAGE_START.y, MAGE_SPRITE_KEY);
     this.mage.setDisplaySize(32, 32);
     this.mage.setCollideWorldBounds(true);
     this.mage.body.setSize(32, 32);
     this.mage.body.setBoundsRectangle(LANE_RECT);
-
-    const graphics = this.add.graphics();
-    graphics.fillStyle(0xd9c27f, 1);
-    graphics.fillCircle(16, 16, 16);
-    graphics.lineStyle(3, 0x4b3f72, 1);
-    graphics.strokeCircle(16, 16, 13);
-    graphics.generateTexture("mage-placeholder", 32, 32);
-    graphics.destroy();
-
-    this.mage.setTexture("mage-placeholder");
 
     this.playerStatusBar = this.add.graphics();
     this.playerStatusBar.setDepth(UI_DEPTH);
