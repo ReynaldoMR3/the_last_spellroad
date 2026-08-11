@@ -1075,11 +1075,19 @@ export class SpellroadScene extends Phaser.Scene {
         .setDepth(UI_DEPTH)
     );
 
+    // Issue #170 — this element was unbounded until the Side-Pocket prompt (#157) started
+    // routing a full lore sentence plus "[E] Explore / [C] Continue" through `flashMessage`:
+    // as one centered line at 20px serif that overruns 960px and clips off both screen edges.
+    // Same `wordWrap` width `bossBannerText` already uses for its own multi-line prose, with
+    // `align: "center"` so wrapped lines stay centered under this element's 0.5 origin. Every
+    // other `flashMessage` caller is short enough to still render on a single line.
     this.messageText = this.add.text(480, 400, "", {
       color: MESSAGE_DEFAULT_COLOR,
       fontFamily: "Georgia, serif",
       fontSize: "20px",
-      padding: { x: 10, y: 6 }
+      align: "center",
+      padding: { x: 10, y: 6 },
+      wordWrap: { width: 640 }
     });
     this.messageText.setOrigin(0.5, 0.5);
     this.messageText.setDepth(UI_DEPTH);
