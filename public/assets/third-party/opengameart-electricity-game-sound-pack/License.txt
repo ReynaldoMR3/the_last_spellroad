@@ -18,3 +18,20 @@ meet). This pack's own flavor is a generic sci-fi electric-game effect, not a fa
 spell -- picked as the closest available CC0 stand-in for the lightning element's cast cue,
 same handling as 3.10's original sci-fi zap stand-ins. Flagged for a future re-source pass if a
 better-fitting CC0 lightning spell sound surfaces later.
+
+---
+
+2026-08-11 (issue #111): added groundhit-normalized.wav, a derivative of groundhit.wav above
+(Art Sourcing Contract step 3 -- derived from an already-approved CC0 asset, not a new
+download). RMS-normalized to -16 dBFS (from -25.68 dBFS whole-clip / measured -17.32 dBFS over
+just the actual 0.285s of audible content once you exclude the trailing pad below -- this file
+is by far the quietest and spikiest of the 4, so a smooth tanh soft-limiter, not a hard clip,
+caps the few loudest transient samples while still allowing the +9.68dB gain the rest of the
+signal needed) and length-fit to the shared 1.20s target by appending 0.915s of trailing silence
+(the original audible content is unchanged -- 0.285s, same recording -- only a silent tail was
+added so the file's scheduled playback duration matches the other 3 elements). This does NOT
+fix issue #137 (the recording itself still reads as a generic sci-fi stand-in, not a fantasy
+lightning spell) -- only loudness and file-duration were normalized here, per #111's own
+out-of-scope note not to touch #137's content problem. Same CC0 license applies to the
+derivative. Original file kept alongside, untouched, as provenance. See
+docs/agents/tilesmith/log.md's 2026-08-11 entry for the full before/after measurement table.

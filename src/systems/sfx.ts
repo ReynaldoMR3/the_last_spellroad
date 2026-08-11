@@ -112,17 +112,45 @@ export function sfxUrl(cue: SfxCue): string {
  * #137 (it reads as the old placeholder, an aesthetic/content problem no trim can fix) --
  * so it's untouched here. See `docs/agents/tilesmith/log.md`'s 2026-08-09 entry for exact
  * before/after durations and the #137 re-source candidates researched but NOT yet pulled in
- * (pending the developer's explicit go-ahead this repo's download convention requires). */
+ * (pending the developer's explicit go-ahead this repo's download convention requires).
+ *
+ * **2026-08-11 (issue #111, loudness/length cohesion pass):** #151's own trims fixed length
+ * outliers but never addressed loudness, and a further developer playtest (2026-08-10/11, on
+ * top of the original 2026-08-07/08 reports) reconfirmed the complaint in the developer's own
+ * words -- "the volumes differs and the lenghts, so it doesnt really feel cohesive... different
+ * volumes, length." Measured all 4 files (`soundfile`/`numpy`, in Docker per ADR-0003): peak/RMS
+ * loudness varied by ~6.6dB RMS across fire/ice/earth (before lightning, which is a separate
+ * case below) and clip length ranged 0.285s-1.300s -- both large enough to read as "inconsistent"
+ * exactly as reported. All 4 are now derivatives of the already-approved CC0 files above (Art
+ * Sourcing Contract step 3, same as #151 -- no new download): each was RMS-normalized to a common
+ * -16 dBFS target (a smooth tanh soft-limiter, not a hard clip, caps any post-gain peak so a
+ * quiet, spiky-transient file like `groundhit.wav` can still be boosted to the target without
+ * distortion) and length-fit to a common 1.20s (trim-with-60ms-fade for longer files, same
+ * convention as #151's trims; trailing-silence pad, with the same 60ms safety fade into the pad,
+ * for shorter files). Each now points at a `-normalized` sibling of its `-trimmed`/original file
+ * (both kept alongside, untouched, as provenance -- same "-trimmed sits next to the untouched
+ * original" convention #151 established, now one layer deeper). Lightning's actual 0.285s of
+ * audible content is unchanged -- only gain and a trailing silence pad were applied -- per #111's
+ * own out-of-scope note that #137's placeholder-content problem isn't this ticket's to fix; its
+ * *file* duration now matches the other 3 (1.20s) but its *audible* portion is still short,
+ * disclosed rather than presented as a full fix. See `docs/agents/tilesmith/log.md`'s 2026-08-11
+ * entry for the full before/after table (all 4 files, both whole-clip and lightning's
+ * audible-portion-only figures) and `tools/cast-sfx-normalize/` for the Docker-only script that
+ * produced them. */
 const ELEMENT_CAST_URL: Record<Element, string> = {
-  fire: "assets/third-party/opengameart-fireball/105016__julien-matthey__jm-fx-fireball-01-trimmed.wav",
-  ice: "assets/third-party/opengameart-freeze-spell/freeze-trimmed.wav",
+  // 2026-08-11 (issue #111): points at the `-normalized` sibling now -- see this const's doc
+  // comment above and `docs/agents/tilesmith/log.md`'s 2026-08-11 entry for the full before/
+  // after loudness+duration table and the target-value reasoning.
+  fire: "assets/third-party/opengameart-fireball/105016__julien-matthey__jm-fx-fireball-01-normalized.wav",
+  ice: "assets/third-party/opengameart-freeze-spell/freeze-normalized.wav",
   earth:
-    "assets/third-party/opengameart-earth-element-magic-spell/earth-element-magic-spell-trimmed.ogg",
+    "assets/third-party/opengameart-earth-element-magic-spell/earth-element-magic-spell-normalized.ogg",
   // Disclosed stand-in, not a fantasy lightning-spell recording -- see this const's own doc
-  // comment and the pack's License.txt for why. Already short (0.285s) so issue #151 doesn't
-  // apply here -- issue #137 (wrong content/reads-as-placeholder) is still open, tracked in
-  // the 2026-08-09 log entry's researched-but-not-downloaded candidate list.
-  lightning: "assets/third-party/opengameart-electricity-game-sound-pack/groundhit.wav"
+  // comment and the pack's License.txt for why. Issue #137 (wrong content/reads-as-placeholder)
+  // is still open, tracked in the 2026-08-09 log entry's researched-but-not-downloaded candidate
+  // list -- only its loudness/length were normalized here (2026-08-11, issue #111), its actual
+  // recording is untouched, per #111's own out-of-scope note.
+  lightning: "assets/third-party/opengameart-electricity-game-sound-pack/groundhit-normalized.wav"
 };
 
 /** Cache key for a given element's cast one-shot -- parallel to `sfxKey`, one entry per

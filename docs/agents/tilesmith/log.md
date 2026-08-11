@@ -727,3 +727,113 @@ Sign-off status: **pending human developer review** -- both the aesthetic-fit qu
 promoted mage sprite and (per the disclosed limitation above) a live-wave visual confirmation of
 the ranged/debuffer sprites specifically, neither of which this pass's typecheck/test/build/
 partial-live-check verification can settle on its own.
+
+## 2026-08-11 — Issue #111: normalized loudness + length across the 4 per-element cast SFX
+
+Two more developer playtests (2026-08-10 real-level playtest, then a 2026-08-11 comment routed
+back to this issue) reconfirmed #111's still-open half in the developer's own words: "the sounds
+of the spells still doesnt convince me at 100% the volumes differs and the lenghts, so it doesnt
+really feel cohesive... the spells are still weird on the sound, different volumes, length." The
+2026-08-09 (#151) trims fixed clip-length *outliers* (fire/ice/earth were 1.9-2.1s, now 1.05-1.3s)
+but never touched loudness, and never brought all 4 to one *consistent* length -- so the
+complaint held. Per #111's agent brief, chose the per-element-normalization branch (option b)
+over sourcing 12 distinct per-spell recordings (option a): option (a) needs 8 new CC0 downloads,
+gated on the developer's explicit go-ahead per this repo's asset-sourcing convention, which this
+dispatch had no channel to obtain; option (b) only derives from files already in the repo
+(Art Sourcing Contract step 3, same as #151), so it's the one completable and mergeable without
+waiting on that gate.
+
+**Measured all 4 files first** (`soundfile`/`numpy`, in Docker per ADR-0003 -- see
+`tools/cast-sfx-normalize/`, a new Dockerized script mirroring `tools/cc0-remix/`'s pattern):
+
+| Element | File (before) | Duration | Peak (dBFS) | RMS (dBFS) |
+| --- | --- | --- | --- | --- |
+| fire | `...-fireball-01-trimmed.wav` | 1.050s | -0.01 | -13.53 |
+| ice | `freeze-trimmed.wav` | 1.200s | -0.10 | -20.09 |
+| earth | `earth-element-magic-spell-trimmed.ogg` | 1.300s | +0.04 | -13.51 |
+| lightning | `groundhit.wav` | 0.285s | -0.00 | -25.68 |
+
+RMS loudness spread ~12.6dB across all 4 (~6.6dB across just fire/earth vs. ice), and duration
+spread 0.285s-1.300s (a 4.6x ratio) -- both large enough on their own to read as "inconsistent,"
+independent of each other. `ice` and `lightning` are also each other's outliers in different
+axes: ice is the quietest of the 3 real spell recordings, lightning (already flagged in the
+2026-08-09 entry as #137's disclosed sci-fi stand-in) is both the quietest overall and by far the
+shortest.
+
+**Normalization approach and targets:**
+- **Loudness -- RMS-normalize to -16 dBFS**, chosen as a value inside the original spread
+  (between ice's -20.09 and fire/earth's -13.5) rather than forcing everything up to the loudest
+  file's level or down to the quietest -- keeps the amount of gain needed on any one file
+  moderate. Applied via a smooth tanh soft-limiter with a -1dBFS ceiling, not a hard clip or a
+  peak-ceiling-only cap: a straight "cap the whole signal so peak never exceeds ceiling" approach
+  would have left `ice` and `lightning` (each with one or two sharp transient samples much
+  louder than the rest of the signal) still perceptually quiet, since the whole file's gain would
+  be limited by that one spike. The soft limiter instead leaves everything below the ceiling
+  untouched and only compresses the rare over-ceiling samples (0.16% of ice's samples, 0.54% of
+  lightning's; fire/earth needed zero limiting, their required gain was a *reduction*) -- lets the
+  quiet files actually reach the target loudness in their body, not just their peak.
+- **Duration -- fit to a common 1.20s target** (chosen to match ice's already-1.20s length from
+  the #151 trim, comfortably inside fire/earth's 1.05-1.30s #151 range): fire (1.050s) and
+  lightning (0.285s) are shorter, so each is padded with trailing silence to 1.20s (with a 60ms
+  safety fade into the silence, in case the source doesn't already decay to ~0 there); earth
+  (1.300s) is longer, so it's trimmed by 100ms with the same 60ms linear fade-over-the-cut
+  convention #151 established; ice needed no change.
+
+**Result -- each `-trimmed`/original file gets a new `-normalized` sibling** (Art Sourcing
+Contract step 3 derivative, same convention #151 used for `-trimmed`; both earlier files stay in
+place, untouched, as provenance):
+
+| Element | File (after) | Duration | Peak (dBFS) | RMS (dBFS) |
+| --- | --- | --- | --- | --- |
+| fire | `...-fireball-01-normalized.wav` | 1.200s | -2.48 | -16.59 |
+| ice | `freeze-normalized.wav` | 1.200s | -0.00 | -16.05 |
+| earth | `...-magic-spell-normalized.ogg` | 1.200s | -2.54 | -15.97 |
+| lightning | `groundhit-normalized.wav` | 1.200s | 0.00 | -23.56 (whole clip) / **-17.32 (audible 0.285s portion only)** |
+
+All 4 files' **duration is now identical (1.200s)**. Fire/ice/earth's whole-clip RMS now sits in
+a 0.62dB band (-16.59 to -15.97), down from the original ~6.6dB spread across those 3 -- well
+inside a "reads as one cohesive family" tolerance. **Lightning is the one disclosed exception**:
+its whole-clip RMS (-23.56dB) still looks far off the other 3 because 0.915s of the 1.20s is
+silence padding, not audio -- that's a reporting artifact of matching *file* duration without
+touching #137's actual short recording, not a failure to normalize. Measured separately over
+just its real 0.285s of content: -17.32dB RMS, within 1.3dB of the other 3's target -- the
+audible loudness at the moment of cast is normalized; only the post-sound silence differs from
+"real" tail decay the other 3 have. Disclosing this plainly: lightning's *perceived* clip length
+when actually heard is still ~0.285s, shorter than the other 3's audible ~1.0-1.2s of real sound
+-- padding a placeholder recording with silence satisfies the *file*-duration-consistency half of
+#111's ask (so nothing in the engine's preload/scheduling reads it as an outlier-length asset)
+but can't make a 0.285s recording *sound* like a full-length cast without #137's actual re-source,
+which stays explicitly out of scope here per #111's own brief.
+
+**`src/systems/sfx.ts`:** `ELEMENT_CAST_URL`'s 4 entries now point at the `-normalized` files;
+doc comment above the const got a dated 2026-08-11 entry with the full reasoning (mirrors this
+log entry, shorter). No change to `sfxKey`/`elementCastSfxKey`/`elementCastSfxUrl`'s signatures
+or to `sfxVariation.ts`'s `computeSpellSfxVariation` -- issue #94's per-play pitch-variation
+behavior is unaffected, confirmed by inspection (that file was not opened for editing) and by the
+full test suite passing unchanged (see below).
+
+**License.txt addenda:** all 4 packs' `License.txt` got a dated 2026-08-11 entry documenting the
+new derivative (source file, before/after loudness+duration, same CC0 grant applies) -- same
+per-file provenance convention #151 used.
+
+**Self-verification (Docker, per `docs/agents/_reference/docker-testing-contract.md`):**
+- `docker-compose run --rm game npm run typecheck` -- clean.
+- `docker-compose run --rm game npm test` -- full suite passing, unchanged from before this
+  change (no test touches `sfx.ts`'s URL values directly, since they're plain data).
+- `docker-compose run --rm game npm run build` -- clean production build.
+- Re-measured all 4 `-normalized` output files independently (a fresh read, not reused from the
+  generation script's own log) to confirm the tolerance claims above: all 4 durations exactly
+  1.200s; fire/ice/earth RMS spread confirmed at 0.62dB.
+- Did not bring up a live dev-server session to listen to the actual audio -- this sandbox has no
+  audio output device, so "does it sound cohesive" per the developer's own framing is,
+  necessarily, **pending the human developer's own playtest**, same standing limitation this
+  log's audio entries always disclose. The measurement-based normalization above is the strongest
+  objective proxy available without that gate, not a substitute for it.
+
+**Sign-off status:** license/source compliance for the 4 `-normalized` derivatives -- same CC0
+grant as the untouched `-trimmed`/original files, re-confirmed above, but per this agent's
+standing rule still not self-certified; **pending human developer review**. Whether the result
+actually *sounds* cohesive to a human ear, and whether lightning's silence-padded duration reads
+as acceptable or as its own new oddity, are exactly the aesthetic/playtest questions this log's
+file-level measurement can't answer on its own -- flagged for the next playtest pass rather than
+assumed resolved.
