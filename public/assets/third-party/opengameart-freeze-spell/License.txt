@@ -19,3 +19,11 @@ download). The original ran 2.125s and has multiple crackle swells rather than o
 decay; the trimmed copy cuts at 1.20s, right at a natural low point between the first and
 second swell (avoids chopping mid-crescendo), fading the last 60ms to zero. Same CC0 license
 applies to the derivative. Original file kept alongside, untouched, as provenance.
+
+2026-08-11 (issue #111): added freeze-normalized.wav, a derivative of the -trimmed file above
+(Art Sourcing Contract step 3, same as the 2026-08-09 entry). RMS-normalized to -16 dBFS (from
+-20.09 dBFS -- the quietest of the 4 per-element files pre-normalization) via a smooth
+tanh soft-limiter (not a hard clip) so the needed +4.09dB gain doesn't distort the loudest
+transients; length was already at the shared 1.20s target so no trim/pad was needed. Same CC0
+license applies. Both earlier files kept alongside, untouched, as provenance. See
+docs/agents/tilesmith/log.md's 2026-08-11 entry for the full before/after measurement table.

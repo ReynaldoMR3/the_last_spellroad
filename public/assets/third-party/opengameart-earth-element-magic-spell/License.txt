@@ -21,3 +21,10 @@ file above (Art Sourcing Contract step 3 -- recombine/derive an already-sourced 
 not a new download). The original ran 1.886s; the trimmed copy cuts at 1.30s (past the main
 rumble, before a small late bump around 1.5s), fading the last 60ms to zero. Same CC0 license
 applies to the derivative. Original file kept alongside, untouched, as provenance.
+
+2026-08-11 (issue #111): added earth-element-magic-spell-normalized.ogg, a derivative of the
+-trimmed file above (Art Sourcing Contract step 3, same as the 2026-08-09 entry). RMS-normalized
+to -16 dBFS (from -13.51 dBFS) and length-fit to the shared 1.20s target (from 1.300s -- trimmed
+by 100ms with a 60ms fade over the cut). Same CC0 license applies. Both earlier files kept
+alongside, untouched, as provenance. See docs/agents/tilesmith/log.md's 2026-08-11 entry for the
+full before/after measurement table.
