@@ -9,6 +9,25 @@
  * combining this per-pair push into one final velocity vector alongside its own movement.
  */
 
+/**
+ * Issue #167 — these two live here, next to the arithmetic they tune, rather than in `Enemy.ts`
+ * where they started. They were moved because the bug they caused was a *tuning* bug, not a
+ * logic bug, and no test could reach them while they sat inside a Phaser-importing module (no
+ * test in this repo imports Phaser — see the pure-seam convention in this file's header). The
+ * force-balance contract in `enemySeparation.test.ts` now asserts them directly.
+ *
+ * See `Enemy.ts`'s `ENEMY_SEPARATION_SPEED` comment for the full derivation and the measured
+ * before/after. Both remain explicit engine-feel numbers, not Pato's economy values.
+ */
+/** How close two enemies (any archetype) may get before pushing apart. Sized above the 26x26
+ * sprite footprint (`Enemy.ensureTexture`) so the push fires before sprites visibly overlap,
+ * and still below the ~50px gap between the ranged/debuffer preferred-range bands so it can
+ * never reach across them. */
+export const ENEMY_SEPARATION_DISTANCE = 40;
+/** Must exceed the fastest chase speed that opposes it (`ARCHETYPE_SPEED.melee` = 90 in
+ * `Enemy.ts`) — see `MELEE_CHASE_SPEED` in this module's test. */
+export const ENEMY_SEPARATION_SPEED = 140;
+
 export interface Point {
   x: number;
   y: number;
@@ -66,23 +85,14 @@ export function addSeparationVelocity(
 }
 
 /**
- * The one settled-movement boundary used by all three enemy archetypes. Keeping the
- * archetype exhaustive here lets the tests exercise the contract that melee, ranged, and
- * debuffer all retain their base velocity while receiving the same bounded separation.
+ * Issue #167 — `computeSettledEnemyVelocity(archetype, ...)` used to sit here: an exhaustive
+ * switch over the three archetypes whose every arm returned the identical
+ * `addSeparationVelocity` call, fed a parameter literally named `sameArchetypeEnemies`. It was
+ * removed rather than renamed, because its shape encoded the very bug #167 reports. Separation
+ * is anti-overlap geometry between two 26x26 sprite footprints — it has nothing to say about
+ * what archetype either sprite is, and nothing to say about whether that sprite has "settled".
+ * `Enemy.ts` now calls `addSeparationVelocity` directly, against every nearby enemy regardless
+ * of archetype, on every movement branch rather than only the hold-range ones. See
+ * `Enemy.update`'s own comment for why that cannot disturb the per-archetype preferred-range
+ * bands.
  */
-export function computeSettledEnemyVelocity(
-  archetype: EnemyArchetype,
-  baseVelocity: Point,
-  self: Point,
-  sameArchetypeEnemies: Point[],
-  minDistance: number,
-  separationSpeed: number
-): Point {
-  switch (archetype) {
-    case "melee":
-    case "ranged":
-    case "debuffer":
-      return addSeparationVelocity(baseVelocity, self, sameArchetypeEnemies, minDistance, separationSpeed);
-  }
-}
-import type { EnemyArchetype } from "../data/types";
