@@ -19,6 +19,11 @@ const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: "game",
   backgroundColor: "#15161f",
+  // Issue #163 wired native 16x16 CC0 tile art (mage, enemy archetypes) upscaled to their
+  // existing 32x32/26x26 footprints via setDisplaySize. Without pixelArt mode, Phaser's default
+  // bilinear texture filtering smears that upscale into a blurry, indistinct blob instead of
+  // crisp pixel art -- pixelArt: true switches to nearest-neighbor sampling for every texture.
+  pixelArt: true,
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
