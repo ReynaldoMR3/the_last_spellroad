@@ -42,6 +42,7 @@ import {
   levelMapUrl
 } from "../systems/levelArt";
 import { SPELL_ICON_ELEMENTS, iconKeyForSpell, spellIconKey, spellIconUrl } from "../systems/spellIcons";
+import { ALL_ENEMY_ARCHETYPES, MAGE_SPRITE_KEY, MAGE_SPRITE_URL, enemySpriteKey, enemySpriteUrl } from "../systems/characterArt";
 import {
   ALL_CAST_ELEMENTS,
   ALL_SFX_CUES,
@@ -233,8 +234,74 @@ const ELEMENT_EFFECT_COLOR: Record<Element, number> = {
   lightning: 0xf5e14a,
   earth: 0x8a6b3d
 };
+/** backlog 2.13 — the enemy ranged-attack projectile/impact color, deliberately distinct from
+ * every `ELEMENT_EFFECT_COLOR` entry and every enemy archetype's own sprite tint (see
+ * `spawnRangedProjectile`'s own comment on why "a color that doesn't match any enemy body" was
+ * the original fix for the shot not being noticed). Named out of the original inline literal
+ * (issue #164) since it's now read from 3 call sites (`spawnRangedProjectile`,
+ * `spawnEnemyRangedImpactVfx`) instead of 1. */
+const ENEMY_THREAT_COLOR = 0xff3b3b;
 const CAST_EFFECT_DURATION_MS = 220;
 const IMPACT_BURST_DURATION_MS = 260;
+/** Issue #164 — real animated cast/impact VFX for the 3 elements `spawnOpeningVfxCast` never
+ * covered (see `systems/openingVfx.ts`'s own module comment: there is no developer-reviewed
+ * CC0 Remix sprite art for ice/earth/lightning, and re-tinting fire's specific sprites would be
+ * a muddy, never-reviewed guess). Procedurally generated instead of sourced: a runtime particle
+ * burst per element, tinted by the same `ELEMENT_EFFECT_COLOR` axis, distinct in speed/spread/
+ * gravity per element so ice/earth/lightning still read as different from each other, not just
+ * three colors of the same effect. `undefined` for fire on purpose — fire keeps its own sourced
+ * sprite-sheet treatment via `spawnOpeningVfxCast`/`spawnImpactBurst`'s existing fire branch. */
+interface ElementalCastVfxConfig {
+  color: number;
+  particleRadius: number;
+  quantity: number;
+  speedMin: number;
+  speedMax: number;
+  lifespanMs: number;
+  scaleStart: number;
+  gravityY: number;
+  spreadDeg: number;
+}
+const ELEMENTAL_CAST_VFX_CONFIG: Partial<Record<Element, ElementalCastVfxConfig>> = {
+  // Icy shards drifting/falling slightly as they spread — a light gravity pull, moderate speed.
+  ice: {
+    color: 0x9fe8ff,
+    particleRadius: 4,
+    quantity: 14,
+    speedMin: 140,
+    speedMax: 260,
+    lifespanMs: 420,
+    scaleStart: 1,
+    gravityY: 60,
+    spreadDeg: 22
+  },
+  // Chunky, slower debris thrown up and pulled back down hard — reads as heavier than ice/lightning.
+  earth: {
+    color: 0xa9814a,
+    particleRadius: 5,
+    quantity: 10,
+    speedMin: 90,
+    speedMax: 180,
+    lifespanMs: 480,
+    scaleStart: 1.1,
+    gravityY: 260,
+    spreadDeg: 30
+  },
+  // Fast, short-lived, near-zero gravity sparks, tightest spread — reads as a quick jolt rather
+  // than a lobbed effect. Paired with `spawnLightningBoltFlicker`'s jagged bolt for the beat
+  // particles alone can't sell (a bolt, not just sparks).
+  lightning: {
+    color: 0xfff6b0,
+    particleRadius: 3,
+    quantity: 18,
+    speedMin: 220,
+    speedMax: 380,
+    lifespanMs: 260,
+    scaleStart: 0.9,
+    gravityY: 0,
+    spreadDeg: 14
+  }
+};
 /** backlog 2.35 / issue #78 — developer full playtest of #30: add an onboarding prompt
  * explaining hotbar targeting. Sized to the ticket's own floor (a one-time overlay/hint), not
  * a full tutorial system — see the ticket's own note that this may later fold into the
@@ -558,6 +625,22 @@ export class SpellroadScene extends Phaser.Scene {
     this.load.image(TILESET_IMAGE_KEY, TILESET_IMAGE_URL);
     for (const level of ALL_LEVELS) {
       this.load.tilemapTiledJSON(levelMapKey(level), levelMapUrl(level));
+    }
+
+    // Issue #163 — real mage sprite (`characterArt.ts`), replacing `createMage`'s old
+    // `generateTexture("mage-placeholder", ...)` flat circle. Already-committed CC0 art
+    // (Kenney Tiny Dungeon, 2026-07-30 sign-off), same eager-preload convention as the
+    // tileset image above (one tiny PNG).
+    this.load.image(MAGE_SPRITE_KEY, MAGE_SPRITE_URL);
+
+    // Issue #163 — real per-archetype enemy sprites (`characterArt.ts`), replacing
+    // `Enemy.ensureTexture`'s old `fillRoundedRect` flat-color-square placeholder. Loaded
+    // eagerly up front (3 tiny PNGs) so every archetype's texture already exists in the cache
+    // by the time the first wave spawns an `Enemy` — `ensureTexture`'s
+    // `scene.textures.exists(key)` check is what makes this preload load-bearing rather than
+    // cosmetic.
+    for (const archetype of ALL_ENEMY_ARCHETYPES) {
+      this.load.image(enemySpriteKey(archetype), enemySpriteUrl(archetype));
     }
 
     // backlog 2.30 / issue #56 — one hand-authored icon per element (`spellIcons.ts`), loaded
@@ -905,21 +988,17 @@ export class SpellroadScene extends Phaser.Scene {
   }
 
   private createMage(): void {
-    this.mage = this.physics.add.sprite(MAGE_START.x, MAGE_START.y, "");
+    // Issue #163 — real sprite art (`characterArt.ts`'s `MAGE_SPRITE_KEY`, preloaded above)
+    // replaces the old `generateTexture("mage-placeholder", ...)` flat tan-and-purple circle.
+    // `setDisplaySize`/`body.setSize` stay explicit at the same 32x32 figure as before the
+    // swap, so the on-screen footprint and hit box are unaffected by the new texture's native
+    // 16x16 size — a pure visual change, per the ticket's own "collision geometry unaffected"
+    // acceptance criterion.
+    this.mage = this.physics.add.sprite(MAGE_START.x, MAGE_START.y, MAGE_SPRITE_KEY);
     this.mage.setDisplaySize(32, 32);
     this.mage.setCollideWorldBounds(true);
     this.mage.body.setSize(32, 32);
     this.mage.body.setBoundsRectangle(LANE_RECT);
-
-    const graphics = this.add.graphics();
-    graphics.fillStyle(0xd9c27f, 1);
-    graphics.fillCircle(16, 16, 16);
-    graphics.lineStyle(3, 0x4b3f72, 1);
-    graphics.strokeCircle(16, 16, 13);
-    graphics.generateTexture("mage-placeholder", 32, 32);
-    graphics.destroy();
-
-    this.mage.setTexture("mage-placeholder");
 
     this.playerStatusBar = this.add.graphics();
     this.playerStatusBar.setDepth(UI_DEPTH);
@@ -1889,17 +1968,74 @@ export class SpellroadScene extends Phaser.Scene {
     // other game object via depth (nothing else in the scene sets one, so equal-depth
     // insertion order should already have put this on top — setting it explicitly rules
     // that out as a cause rather than assuming it wasn't the problem).
-    const dot = this.add.circle(fromX, fromY, 7, 0xff3b3b);
+    const dot = this.add.circle(fromX, fromY, 7, ENEMY_THREAT_COLOR);
     dot.setStrokeStyle(2, 0xffffff, 0.9);
     dot.setDepth(1000);
+    // Issue #164 — developer playtest: enemy attacks read as flat next to the new spell VFX.
+    // A pulsing scale on the bolt itself plus a short trail of fading spark particles following
+    // it (`startFollow`) turns the previously-static dot into a genuinely animated projectile,
+    // without changing its travel timing/hitbox math (both still key off `RANGED_TRAVEL_MS` and
+    // `toX`/`toY` exactly as before — this is visual-only).
+    this.tweens.add({
+      targets: dot,
+      scale: { from: 0.85, to: 1.25 },
+      duration: 140,
+      yoyo: true,
+      repeat: -1
+    });
+    const trailTextureKey = this.ensureElementalVfxTexture("enemy-threat", ENEMY_THREAT_COLOR, 5);
+    const trail = this.add.particles(fromX, fromY, trailTextureKey, {
+      lifespan: 200,
+      scale: { start: 0.5, end: 0 },
+      alpha: { start: 0.6, end: 0 },
+      frequency: 20,
+      quantity: 1
+    });
+    trail.setDepth(999);
+    trail.startFollow(dot);
     this.tweens.add({
       targets: dot,
       x: toX,
       y: toY,
       duration: RANGED_TRAVEL_MS,
       ease: "Linear",
-      onComplete: () => dot.destroy()
+      onComplete: () => {
+        dot.destroy();
+        trail.stop();
+        this.time.delayedCall(220, () => trail.destroy());
+        this.spawnEnemyRangedImpactVfx(toX, toY);
+      }
     });
+  }
+
+  /** Issue #164 — a small animated burst at the projectile's arrival point (visual only, fires
+   * regardless of whether the delayed damage check in `onRangedFire` actually lands — matching
+   * `spawnCastEffect`'s own existing "flash fires unconditionally, even on a whiff" convention)
+   * so a ranged shot's landing is a distinct visible beat, not silent until the HP bar moves. */
+  private spawnEnemyRangedImpactVfx(x: number, y: number): void {
+    const burst = this.add.circle(x, y, 4, ENEMY_THREAT_COLOR, 0.55);
+    burst.setStrokeStyle(2, ENEMY_THREAT_COLOR, 1);
+    burst.setDepth(1000);
+    this.tweens.add({
+      targets: burst,
+      radius: 20,
+      alpha: 0,
+      duration: 260,
+      ease: "Cubic.Out",
+      onUpdate: () => burst.setStrokeStyle(2, ENEMY_THREAT_COLOR, burst.alpha),
+      onComplete: () => burst.destroy()
+    });
+    const textureKey = this.ensureElementalVfxTexture("enemy-threat", ENEMY_THREAT_COLOR, 4);
+    const sparks = this.add.particles(x, y, textureKey, {
+      speed: { min: 80, max: 160 },
+      lifespan: 220,
+      scale: { start: 0.6, end: 0 },
+      alpha: { start: 1, end: 0 },
+      emitting: false
+    });
+    sparks.setDepth(1000);
+    sparks.explode(8, x, y);
+    this.time.delayedCall(240, () => sparks.destroy());
   }
 
   /** Issue #125 — registers the 3 CC0 Remix fire-VFX play-once animations exactly once per
@@ -1911,22 +2047,30 @@ export class SpellroadScene extends Phaser.Scene {
     if (this.anims.exists(OPENING_VFX_CAST_ANIM_KEY)) {
       return;
     }
+    // Issue #164 — developer playtest (2026-08-10): "the spell from the fire...seems very
+    // fast, you cant really see the animation." At the original 16fps, every one of these
+    // 4-frame atlases played in 4/16 = 250ms total — verified frame count x frame rate before
+    // touching anything, per this repo's root-cause-before-fix convention, rather than assuming
+    // where the slowness should go. Halved to 8fps (500ms total per atlas) so the shape is
+    // actually readable at real gameplay speed; still a single quick beat, not a lingering one,
+    // since these layer on top of `spawnCastEffect`'s own fast flash rather than replacing it.
+    const READABLE_FRAME_RATE = 8;
     this.anims.create({
       key: OPENING_VFX_CAST_ANIM_KEY,
       frames: this.anims.generateFrameNumbers(OPENING_VFX_CAST_KEY, { start: 0, end: OPENING_VFX_CAST_FRAME.frameCount - 1 }),
-      frameRate: 16,
+      frameRate: READABLE_FRAME_RATE,
       repeat: 0
     });
     this.anims.create({
       key: OPENING_VFX_IMPACT_ANIM_KEY,
       frames: this.anims.generateFrameNumbers(OPENING_VFX_IMPACT_KEY, { start: 0, end: OPENING_VFX_IMPACT_FRAME.frameCount - 1 }),
-      frameRate: 16,
+      frameRate: READABLE_FRAME_RATE,
       repeat: 0
     });
     this.anims.create({
       key: OPENING_VFX_TRAIL_ANIM_KEY,
       frames: this.anims.generateFrameNumbers(OPENING_VFX_TRAIL_KEY, { start: 0, end: OPENING_VFX_TRAIL_FRAME.frameCount - 1 }),
-      frameRate: 16,
+      frameRate: READABLE_FRAME_RATE,
       repeat: 0
     });
   }
@@ -1987,6 +2131,124 @@ export class SpellroadScene extends Phaser.Scene {
     });
   }
 
+  /** Issue #164 — one small runtime-generated circular texture per element, cached by key so
+   * repeated casts of the same element don't regenerate a texture every time. Procedural (built
+   * from `Graphics.generateTexture`, the same primitive `createMage`'s placeholder already uses
+   * in this file) rather than a loaded asset file — no new art dependency, matching
+   * `spawnDebuffPulse`'s existing "no new art asset" bound for effects that don't have a
+   * developer-reviewed sprite yet. */
+  private ensureElementalVfxTexture(cacheKey: string, color: number, radius: number): string {
+    const key = `elemental-vfx-particle-${cacheKey}`;
+    if (this.textures.exists(key)) {
+      return key;
+    }
+    const size = radius * 2;
+    const graphics = this.add.graphics();
+    graphics.fillStyle(color, 1);
+    graphics.fillCircle(radius, radius, radius);
+    graphics.generateTexture(key, size, size);
+    graphics.destroy();
+    return key;
+  }
+
+  /** Issue #164 — the real animated cast VFX for ice/earth/lightning (fire keeps its own
+   * sourced-sprite `spawnOpeningVfxCast`). A one-shot particle burst, angled toward the target
+   * and tuned per `ELEMENTAL_CAST_VFX_CONFIG` so each element still reads as visually distinct
+   * from the others, not just three tints of one effect. Lightning additionally gets a jagged
+   * bolt flicker (`spawnLightningBoltFlicker`) since a spark burst alone doesn't read as
+   * "lightning" the way a burst alone does read as "ice shards" or "earth debris". */
+  private spawnElementalCastVfx(spell: SpellDefinition, targetX: number, targetY: number): void {
+    if (!this.mage) {
+      return;
+    }
+    const config = ELEMENTAL_CAST_VFX_CONFIG[spell.element];
+    if (!config) {
+      return;
+    }
+    const direction = new Phaser.Math.Vector2(targetX - this.mage.x, targetY - this.mage.y);
+    if (direction.length() === 0) {
+      direction.x = 1;
+    }
+    const angleDeg = Phaser.Math.RadToDeg(Math.atan2(direction.y, direction.x));
+    const textureKey = this.ensureElementalVfxTexture(spell.element, config.color, config.particleRadius);
+    const emitter = this.add.particles(this.mage.x, this.mage.y, textureKey, {
+      angle: { min: angleDeg - config.spreadDeg, max: angleDeg + config.spreadDeg },
+      speed: { min: config.speedMin, max: config.speedMax },
+      lifespan: config.lifespanMs,
+      scale: { start: config.scaleStart, end: 0 },
+      alpha: { start: 1, end: 0 },
+      gravityY: config.gravityY,
+      emitting: false
+    });
+    emitter.setDepth(10);
+    emitter.explode(config.quantity, this.mage.x, this.mage.y);
+    this.time.delayedCall(config.lifespanMs + 60, () => emitter.destroy());
+
+    if (spell.element === "lightning") {
+      this.spawnLightningBoltFlicker(this.mage.x, this.mage.y, targetX, targetY, config.color);
+    }
+  }
+
+  /** Issue #164 — a short jagged bolt redrawn with fresh jitter a few times in quick succession
+   * before fading, the same "a handful of discrete, readable steps" feel `spawnOpeningVfxCast`'s
+   * sourced sprite-sheet animation gives fire, built from `Graphics` instead since no lightning
+   * sprite sheet exists (see `ELEMENTAL_CAST_VFX_CONFIG`'s own comment). Purely additive to the
+   * particle burst `spawnElementalCastVfx` already fires for lightning. */
+  private spawnLightningBoltFlicker(fromX: number, fromY: number, toX: number, toY: number, color: number): void {
+    const bolt = this.add.graphics();
+    bolt.setDepth(11);
+    const segments = 5;
+    const steps = 3;
+    const stepDelayMs = 55;
+    const drawJitteredBolt = () => {
+      bolt.clear();
+      bolt.lineStyle(3, color, 0.95);
+      bolt.beginPath();
+      bolt.moveTo(fromX, fromY);
+      for (let i = 1; i <= segments; i++) {
+        const t = i / segments;
+        const baseX = Phaser.Math.Linear(fromX, toX, t);
+        const baseY = Phaser.Math.Linear(fromY, toY, t);
+        const jitter = i === segments ? 0 : Phaser.Math.Between(-10, 10);
+        bolt.lineTo(baseX + jitter, baseY + jitter);
+      }
+      bolt.strokePath();
+    };
+    drawJitteredBolt();
+    for (let step = 1; step < steps; step++) {
+      this.time.delayedCall(step * stepDelayMs, drawJitteredBolt);
+    }
+    this.tweens.add({
+      targets: bolt,
+      alpha: 0,
+      duration: 180,
+      delay: steps * stepDelayMs,
+      onComplete: () => bolt.destroy()
+    });
+  }
+
+  /** Issue #164 — the per-hit impact-side counterpart to `spawnElementalCastVfx`, same rationale
+   * as that method's own comment (fire keeps its sourced sprite via `spawnImpactBurst`'s
+   * existing fire branch; the other 3 elements get a small procedural puff instead of stopping
+   * at the plain tinted ring `spawnImpactBurst` already draws for every element). */
+  private spawnElementalImpactVfx(element: Element, x: number, y: number): void {
+    const config = ELEMENTAL_CAST_VFX_CONFIG[element];
+    if (!config) {
+      return;
+    }
+    const textureKey = this.ensureElementalVfxTexture(element, config.color, config.particleRadius);
+    const emitter = this.add.particles(x, y, textureKey, {
+      speed: { min: 40, max: 110 },
+      lifespan: 220,
+      scale: { start: config.scaleStart * 0.7, end: 0 },
+      alpha: { start: 1, end: 0 },
+      emitting: false
+    });
+    emitter.setDepth(11);
+    emitter.explode(6, x, y);
+    this.time.delayedCall(260, () => emitter.destroy());
+  }
+
   /** backlog 2.36 / issue #79 — a one-shot flash of the actual cast shape (line/cone/circle),
    * tinted by the spell's element, fading out fast. Reuses `updatePreview`'s own
    * mage-to-target geometry (angle/distance math), drawn once on a fresh `Graphics` instead of
@@ -2026,9 +2288,13 @@ export class SpellroadScene extends Phaser.Scene {
       onComplete: () => flash.destroy()
     });
 
-    // Issue #125 — see spawnOpeningVfxCast's own doc comment for why this is fire-only.
+    // Issue #125 — see spawnOpeningVfxCast's own doc comment for why fire gets its own sourced
+    // sprite treatment. Issue #164 — every other element now gets a real animated VFX too
+    // (`spawnElementalCastVfx`), not just this flat shape flash.
     if (spell.element === "fire") {
       this.spawnOpeningVfxCast(spell, targetX, targetY);
+    } else {
+      this.spawnElementalCastVfx(spell, targetX, targetY);
     }
   }
 
@@ -2058,12 +2324,15 @@ export class SpellroadScene extends Phaser.Scene {
 
     // Issue #125 — layers the developer-selected CC0 Remix impact sprite on top of the
     // existing tinted burst above, fire element only (see `systems/openingVfx.ts`'s module
-    // comment). Purely additive, same rationale as `spawnOpeningVfxCast`.
+    // comment). Purely additive, same rationale as `spawnOpeningVfxCast`. Issue #164 — the other
+    // 3 elements get their own procedural particle impact instead of stopping at the plain ring.
     if (element === "fire") {
       const impact = this.add.sprite(x, y, OPENING_VFX_IMPACT_KEY);
       impact.setDepth(11);
       impact.play(OPENING_VFX_IMPACT_ANIM_KEY);
       impact.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => impact.destroy());
+    } else {
+      this.spawnElementalImpactVfx(element, x, y);
     }
   }
 
