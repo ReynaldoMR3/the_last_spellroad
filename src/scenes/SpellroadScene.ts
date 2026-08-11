@@ -1700,21 +1700,29 @@ export class SpellroadScene extends Phaser.Scene {
     // `this.enemies`. Without both guards, the loop's next iteration calls .update() on an
     // already-destroyed enemy whose Arcade body Phaser has nulled, throwing
     // "Cannot read properties of undefined (reading 'setVelocity')" and freezing the game.
-    // Issues #110/#138 — every enemy receives its same-archetype allies so settled attackers
-    // cannot overlap or co-travel indefinitely. Different archetypes retain their deliberately
-    // non-overlapping preferred-range bands (240 ranged vs. 150 debuffer vs. 34 melee).
+    // Issues #110/#138/#167 — every enemy receives *every* other live enemy's position, not
+    // just its same-archetype peers, so no two enemies can overlap or co-travel indefinitely.
+    // Issue #167: this used to be bucketed per archetype (`positionsByArchetype`), on the
+    // reasoning that the deliberately non-overlapping preferred-range bands (240 ranged vs. 150
+    // debuffer vs. 34 melee) already kept different archetypes apart. They don't: those bands
+    // describe a settled distance from the mage, and say nothing about a Nearblade crossing
+    // straight through a Farlance on its way in — which is exactly what the developer saw. The
+    // bands are still safe from the flat separation applied here; see `Enemy.update`'s comment.
+    //
+    // Snapshotted once, before the update loop, so separation is computed from a single
+    // consistent start-of-frame world state rather than letting an enemy's push depend on where
+    // it happens to sit in `this.enemies` (earlier enemies would otherwise react to
+    // start-of-frame positions and later ones to already-moved positions).
     const activeEnemies = this.enemies.filter((enemy) => enemy.active);
-    const positionsByArchetype = new Map<Enemy["archetype"], Array<{ x: number; y: number; separationId: number }>>();
-    for (const enemy of activeEnemies) {
-      const positions = positionsByArchetype.get(enemy.archetype) ?? [];
-      positions.push({ x: enemy.x, y: enemy.y, separationId: enemy.separationId });
-      positionsByArchetype.set(enemy.archetype, positions);
-    }
+    const enemyPositions = activeEnemies.map((enemy) => ({
+      x: enemy.x,
+      y: enemy.y,
+      separationId: enemy.separationId
+    }));
     for (const enemy of activeEnemies) {
       if (!enemy.active) {
         continue;
       }
-      const sameArchetypeEnemies = positionsByArchetype.get(enemy.archetype) ?? [];
       enemy.update(
         deltaMs,
         this.mage.x,
@@ -1752,9 +1760,9 @@ export class SpellroadScene extends Phaser.Scene {
             this.debuff.applyStack(variant);
           }
         },
-        // Issue #110 — see `Enemy.update`'s own comment: lets a melee enemy push off any
-        // other melee enemy crowded too close instead of stacking on the same point.
-        sameArchetypeEnemies
+        // Issues #110/#167 — see `Enemy.update`'s own comment: lets any enemy push off any
+        // other enemy crowded too close instead of stacking on the same point.
+        enemyPositions
       );
     }
 

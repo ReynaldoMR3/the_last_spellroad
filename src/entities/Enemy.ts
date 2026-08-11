@@ -2,7 +2,12 @@ import Phaser from "phaser";
 import type { DebuffVariant, EnemyArchetype } from "../data/types";
 import { archetypeDisplayName, computeHpBarColor, computeHpFraction } from "../systems/enemyStatusOverlay";
 import { RANGED_STRAFE_SPEED, computeStrafeDirection } from "../systems/rangedStrafe";
-import { computeSettledEnemyVelocity, type Point } from "../systems/enemySeparation";
+import {
+  ENEMY_SEPARATION_DISTANCE,
+  ENEMY_SEPARATION_SPEED,
+  addSeparationVelocity,
+  type Point
+} from "../systems/enemySeparation";
 import { resolveWallSlideWantsNegativeY } from "../systems/wallSlideDirection";
 
 /** hp-template.md, "Enemy Archetype Per-Hit Damage" — fixed, never invented per-encounter. */
@@ -18,6 +23,13 @@ const ARCHETYPE_COLOR: Record<EnemyArchetype, number> = {
   debuffer: 0x6f4fa8
 };
 
+/**
+ * Issue #167 — `melee: 90` is the strongest force that opposes enemy separation (every enemy
+ * steers at the mage's single point, so a chase converges continuously and at full strength).
+ * `ENEMY_SEPARATION_SPEED` in `enemySeparation.ts` must stay above it, and
+ * `enemySeparation.test.ts` mirrors this number as `MELEE_CHASE_SPEED` to assert that. If this
+ * value ever rises, raise that one with it — otherwise enemies start stacking again.
+ */
 const ARCHETYPE_SPEED: Record<EnemyArchetype, number> = {
   melee: 90,
   ranged: 60,
@@ -40,12 +52,48 @@ const MELEE_COOLDOWN_MS = 1200;
  * economy values), same as `RANGED_STRAFE_SPEED` — free to retune without a template change.
  */
 const MELEE_STRAFE_SPEED = 18;
-/** Issues #110/#138 — how close same-archetype enemies can get before pushing apart;
- * sized a little larger than the 26x26 sprite footprint (`Enemy.ensureTexture`) so the push
- * fires just before sprites visibly overlap, not only after. Same "explicit engine-feel
- * number, not Pato's scope" reasoning as `MELEE_STRAFE_SPEED` above. */
-const ENEMY_SEPARATION_DISTANCE = 32;
-const ENEMY_SEPARATION_SPEED = 40;
+/**
+ * Issues #110/#138/#167 — `ENEMY_SEPARATION_DISTANCE`/`ENEMY_SEPARATION_SPEED` now live in
+ * `enemySeparation.ts` (imported above) so the pure force-balance contract is testable without
+ * importing Phaser; this comment stays here because it documents the playtest bug that drove
+ * their retune, alongside the movement code that fights them.
+ *
+ * Two of the three #167 root causes were structural and are fixed in `update()` below (see its
+ * comment): separation was applied only on the settled branches, and only between same-archetype
+ * peers. The third, and the dominant one:
+ *
+ * Retuned `ENEMY_SEPARATION_SPEED` 40->140 and `ENEMY_SEPARATION_DISTANCE` 32->40. This was the
+ * dominant cause of the reported stacking, and the one that made the other two look cosmetic
+ * by comparison: separation was set at 40px/s while the melee chase it has to fight is
+ * `ARCHETYPE_SPEED.melee` = 90px/s. Every enemy steers at one single point (the mage), so
+ * convergence is continuous and full-strength, while separation could only ever push back at
+ * under half that. The arithmetic in `enemySeparation.ts` was never wrong — it was simply being
+ * asked to win a tug-of-war it was tuned to lose, which is why its unit tests stayed green
+ * (they assert the push exists and points the right way, never that it beats an opposing chase).
+ *
+ * Derivation: separation must out-push the strongest force that opposes it, so it has to exceed
+ * 90. It needs headroom above that rather than merely matching it, because a crowded enemy's
+ * several per-ally pushes are normalized down to one capped vector (`addSeparationVelocity`)
+ * while each opposing chase stays at full strength, and because the linear falloff means the
+ * push only reaches its nominal speed at full overlap. 140 with a 40px trigger radius is the
+ * measured knee of that curve.
+ *
+ * Measured over 60 headless encounters (3 real Level 1 wave compositions x 20 spawn-jitter
+ * seeds, integrating this exact velocity model): worst-case gap between any two settled enemies
+ * went 0.5px -> 23.6px, and worst-case gap between a Nearblade and a Farlance specifically went
+ * 0.3px -> 23.6px, against the 26x26 sprite footprint. The structural fixes below/above
+ * contribute too (cross-archetype alone moved the Nearblade/Farlance case 0.3 -> 9.8) but could
+ * not on their own overcome the force imbalance.
+ *
+ * Verified not to break what these enemies are *for*: the fraction of settled frames with at
+ * least one melee inside `MELEE_RANGE` of the mage is unchanged (63% before, 63% after), and the
+ * ranged/debuffer preferred-range bands are untouched — the 40px trigger radius is still shorter
+ * than the ~50px gap between the [220,260] and [130,170] bands, so separation still cannot reach
+ * across them (band excursions in the same simulation did not increase).
+ *
+ * Still explicit engine-feel numbers, not Pato's economy values (see `MELEE_STRAFE_SPEED`):
+ * they change spacing only, never per-hit damage, HP, or income.
+ */
 /**
  * backlog 2.10 — retuned 220->240 (Warden, 2026-07-25) so ranged/debuffer settle into
  * non-overlapping bands: each archetype holds preferredRange +/- 20, so the old 220/200
@@ -280,9 +328,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     targetX: number,
     targetY: number,
     callbacks: EnemyCallbacks,
-    /** Issues #110/#138 — positions of currently-alive same-archetype allies, so settled
-     * melee/ranged/debuffer enemies cannot overlap or co-travel as one target. */
-    sameArchetypeEnemies: Point[] = []
+    /**
+     * Issues #110/#138/#167 — positions of every currently-alive *other* enemy (any archetype),
+     * so no two enemies can overlap or co-travel as one target. Safe to include this enemy
+     * itself: `computeSeparationNudge` skips a zero-distance pair whose separation ids match.
+     */
+    nearbyEnemies: Point[] = []
   ): void {
     this.refreshStatusOverlay();
     this.attackCooldownMs = Math.max(0, this.attackCooldownMs - deltaMs);
@@ -291,24 +342,60 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const distance = toTarget.length();
     const direction = distance === 0 ? new Phaser.Math.Vector2(0, 0) : toTarget.clone().normalize();
 
+    /**
+     * Issue #167 — developer playtest: Farlance (ranged) and Nearblade (melee) enemies still
+     * stacked on top of each other instead of surrounding the mage, even though #110/#95's
+     * separation and strafe systems were merged and green in isolation. Two gaps, both in this
+     * method's *invocation* of them rather than in their arithmetic:
+     *
+     *   1. Separation was applied only on the hold-range/settled branches — the melee
+     *      `distance <= MELEE_RANGE` arm and the ranged/debuffer in-band arm. The chase branch
+     *      (`distance > MELEE_RANGE`, `distance > preferredRange + 20`), the retreat branch, and
+     *      the wall-slide branch all called `body.setVelocity` with a raw chase/retreat vector
+     *      and no separation at all. `WaveLoader.spawnWave` spawns every enemy around one fixed
+     *      point (`ENEMY_SPAWN_X`, +/-40/+/-30 jitter) and each one then steers radially at its
+     *      archetype's fixed speed toward the same mage — so same-speed peers converge back onto
+     *      a single point during the entire approach and only ever un-stacked after arriving.
+     *      That approach is most of what the player actually watches.
+     *   2. Separation was applied only against same-archetype peers, so a Nearblade could stand
+     *      exactly inside a Farlance (and did, every time one ran through the other's hold band
+     *      on its way to the mage) with zero mutual push.
+     *
+     * Fix: hoist separation out of the individual branches into one post-processing step applied
+     * to whatever base velocity the branch chose, against every nearby enemy of any archetype.
+     *
+     * The third root cause was a force-balance one — see `ARCHETYPE_SPEED` above and
+     * `ENEMY_SEPARATION_SPEED` in `enemySeparation.ts`.
+     *
+     * None of this disturbs the deliberately non-overlapping preferred-range bands (240 ranged /
+     * 150 debuffer / 34 melee, all distances from the *mage*): `ENEMY_SEPARATION_DISTANCE` is
+     * 40px, still shorter than the ~50px gap between adjacent bands, so the push can only ever
+     * resolve genuine sprite overlap between two enemies. It never has the reach to shove one
+     * out of its own band. Nor does it stall a chase — separation is a bounded addition to the
+     * chase vector, not a replacement for it, so a crowded chaser fans out sideways while still
+     * closing (asserted by `enemySeparation.test.ts`'s "still lets a crowded chaser close").
+     */
+    const applyVelocity = (baseVelocity: Point): void => {
+      const velocity = addSeparationVelocity(
+        baseVelocity,
+        { x: this.x, y: this.y, separationId: this.separationId },
+        nearbyEnemies,
+        ENEMY_SEPARATION_DISTANCE,
+        ENEMY_SEPARATION_SPEED
+      );
+      body.setVelocity(velocity.x, velocity.y);
+    };
+
     if (this.archetype === "melee") {
       if (distance > MELEE_RANGE) {
-        body.setVelocity(direction.x * ARCHETYPE_SPEED.melee, direction.y * ARCHETYPE_SPEED.melee);
+        applyVelocity({ x: direction.x * ARCHETYPE_SPEED.melee, y: direction.y * ARCHETYPE_SPEED.melee });
       } else {
         // Issue #110 — see `MELEE_STRAFE_SPEED`'s own comment: strafe perpendicular to the
         // hold-range line (same bounce logic `rangedStrafe.ts` ships for the ranged
         // archetype, via `strafeVelocity`) instead of stopping dead, and push off any
-        // too-close melee ally (`enemySeparation.ts`) instead of stacking on top of it.
+        // too-close ally (`enemySeparation.ts`) instead of stacking on top of it.
         const strafe = this.strafeVelocity(direction, MELEE_STRAFE_SPEED);
-        const velocity = computeSettledEnemyVelocity(
-          this.archetype,
-          { x: strafe.x, y: strafe.y },
-          { x: this.x, y: this.y, separationId: this.separationId },
-          sameArchetypeEnemies,
-          ENEMY_SEPARATION_DISTANCE,
-          ENEMY_SEPARATION_SPEED
-        );
-        body.setVelocity(velocity.x, velocity.y);
+        applyVelocity({ x: strafe.x, y: strafe.y });
         if (this.attackCooldownMs <= 0) {
           this.attackCooldownMs = MELEE_COOLDOWN_MS;
           callbacks.onMeleeHit?.();
@@ -321,7 +408,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const speed = ARCHETYPE_SPEED[this.archetype];
     if (distance > preferredRange + 20) {
       this.wallSlideWantsNegativeY = null;
-      body.setVelocity(direction.x * speed, direction.y * speed);
+      applyVelocity({ x: direction.x * speed, y: direction.y * speed });
     } else if (distance < preferredRange - 20) {
       const retreatX = -direction.x * speed;
       const retreatY = -direction.y * speed;
@@ -360,10 +447,10 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         ) {
           perpendicular.negate();
         }
-        body.setVelocity(perpendicular.x * speed, perpendicular.y * speed);
+        applyVelocity({ x: perpendicular.x * speed, y: perpendicular.y * speed });
       } else {
         this.wallSlideWantsNegativeY = null;
-        body.setVelocity(retreatX, retreatY);
+        applyVelocity({ x: retreatX, y: retreatY });
       }
     } else if (this.archetype === "ranged") {
       this.wallSlideWantsNegativeY = null;
@@ -376,26 +463,10 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       // bounce decision, and `strafeVelocity` for the shared mechanics issue #110 factored
       // out once the melee archetype needed this same shape too.
       const strafe = this.strafeVelocity(direction, RANGED_STRAFE_SPEED);
-      const velocity = computeSettledEnemyVelocity(
-        this.archetype,
-        { x: strafe.x, y: strafe.y },
-        { x: this.x, y: this.y, separationId: this.separationId },
-        sameArchetypeEnemies,
-        ENEMY_SEPARATION_DISTANCE,
-        ENEMY_SEPARATION_SPEED
-      );
-      body.setVelocity(velocity.x, velocity.y);
+      applyVelocity({ x: strafe.x, y: strafe.y });
     } else {
       this.wallSlideWantsNegativeY = null;
-      const velocity = computeSettledEnemyVelocity(
-        this.archetype,
-        { x: 0, y: 0 },
-        { x: this.x, y: this.y, separationId: this.separationId },
-        sameArchetypeEnemies,
-        ENEMY_SEPARATION_DISTANCE,
-        ENEMY_SEPARATION_SPEED
-      );
-      body.setVelocity(velocity.x, velocity.y);
+      applyVelocity({ x: 0, y: 0 });
     }
 
     if (distance <= preferredRange + 40 && this.attackCooldownMs <= 0) {
