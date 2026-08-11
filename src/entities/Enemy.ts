@@ -4,6 +4,7 @@ import { archetypeDisplayName, computeHpBarColor, computeHpFraction } from "../s
 import { RANGED_STRAFE_SPEED, computeStrafeDirection } from "../systems/rangedStrafe";
 import { computeSettledEnemyVelocity, type Point } from "../systems/enemySeparation";
 import { resolveWallSlideWantsNegativeY } from "../systems/wallSlideDirection";
+import { enemySpriteKey } from "../systems/characterArt";
 
 /** hp-template.md, "Enemy Archetype Per-Hit Damage" — fixed, never invented per-encounter. */
 export const ARCHETYPE_DAMAGE: Record<EnemyArchetype, number> = {
@@ -179,7 +180,16 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     );
     scene.add.existing(this);
     scene.physics.add.existing(this);
+    // Issue #163 — the sprite art (`characterArt.ts`) is native 16x16, smaller than the old
+    // generated 26x26 `fillRoundedRect` texture this footprint/hit-box size originally came
+    // from (see `ENEMY_SEPARATION_DISTANCE`'s own comment, which is sized relative to this
+    // exact 26x26 figure). Explicit `setDisplaySize`/body `setSize` keep both the on-screen
+    // footprint and the hit box unchanged at 26x26 regardless of the backing texture's native
+    // size — a pure visual swap, per the ticket's own "collision/attack geometry unaffected"
+    // acceptance criterion.
+    this.setDisplaySize(26, 26);
     this.setCollideWorldBounds(true);
+    (this.body as Phaser.Physics.Arcade.Body).setSize(26, 26);
     // backlog 2.10 — mirror the mage's own lane clamp (SpellroadScene.createMage); enemies
     // previously only had the full-canvas default, and could wander outside the visible lane.
     (this.body as Phaser.Physics.Arcade.Body).setBoundsRectangle(this.lane);
@@ -196,8 +206,19 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.refreshStatusOverlay();
   }
 
+  /**
+   * Issue #163 — real sprite art (`characterArt.ts`, one CC0 Tiny Creatures tile per
+   * archetype) replaces the old `fillRoundedRect` flat-color-square placeholder. The scene's
+   * own `preload()` loads each archetype's key via `this.load.image(enemySpriteKey(a), ...)`
+   * before any wave can spawn an `Enemy`, so the normal path here is just "the key already
+   * exists in the texture cache, return it." The `fillRoundedRect` fallback is kept, not
+   * deleted, for the one case that isn't true — a caller that never ran that preload (e.g. a
+   * future isolated unit test constructing an `Enemy` directly against a bare Scene) — so a
+   * missing preload degrades to the old flat-color square instead of Phaser throwing on a
+   * missing texture key.
+   */
   private static ensureTexture(scene: Phaser.Scene, archetype: EnemyArchetype): string {
-    const key = `enemy-${archetype}`;
+    const key = enemySpriteKey(archetype);
     if (scene.textures.exists(key)) {
       return key;
     }
