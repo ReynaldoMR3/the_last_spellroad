@@ -11,26 +11,30 @@
     "damage_modifier": 1.0
   },
   {
+    "_variant_schedule": "issue #162: first appearance of glint_archer (ranged variant of hexbow_skirmisher), splitting the original hexbow_skirmisher x3 into hexbow_skirmisher x2 + glint_archer x1 -- same total Ranged=3, so computeThreatBudget's composition is unchanged from the pre-#162 file. See docs/agents/warden/log.md (2026-08-12).",
     "level": 1,
     "wave_index": 1,
     "enemies": [
       { "type": "spellbound_thug", "count": 2, "spawn_delay_ms": 0 },
-      { "type": "hexbow_skirmisher", "count": 3, "spawn_delay_ms": 1000 },
+      { "type": "hexbow_skirmisher", "count": 2, "spawn_delay_ms": 1000 },
+      { "type": "glint_archer", "count": 1, "spawn_delay_ms": 1000 },
       { "type": "murmur_wisp", "count": 1, "spawn_delay_ms": 2000 }
     ],
-    "hp_modifier": 1.0,
-    "damage_modifier": 1.0
+    "hp_modifier": 1.01,
+    "damage_modifier": 1.01
   },
   {
+    "_variant_schedule": "issue #162: first appearance of ash_footman (melee variant of spellbound_thug), splitting the original spellbound_thug x3 into spellbound_thug x2 + ash_footman x1 -- same total Melee=3, budget-neutral. See docs/agents/warden/log.md (2026-08-12).",
     "level": 1,
     "wave_index": 2,
     "enemies": [
-      { "type": "spellbound_thug", "count": 3, "spawn_delay_ms": 0 },
+      { "type": "spellbound_thug", "count": 2, "spawn_delay_ms": 0 },
+      { "type": "ash_footman", "count": 1, "spawn_delay_ms": 0 },
       { "type": "hexbow_skirmisher", "count": 2, "spawn_delay_ms": 1200 },
       { "type": "creeping_bramble", "count": 1, "spawn_delay_ms": 1800 },
       { "type": "murmur_wisp", "count": 1, "spawn_delay_ms": 2400 }
     ],
-    "hp_modifier": 1.0,
-    "damage_modifier": 1.0
+    "hp_modifier": 1.02,
+    "damage_modifier": 1.02
   }
 ]

@@ -1,26 +1,30 @@
 [
   {
+    "_variant_schedule": "issue #162: first appearance of bonecage_brute (melee variant of spellbound_thug), splitting spellbound_thug x3 into spellbound_thug x2 + bonecage_brute x1 -- same total Melee=3, budget-neutral. See docs/agents/warden/log.md (2026-08-12).",
     "level": 3,
     "wave_index": 0,
     "enemies": [
-      { "type": "spellbound_thug", "count": 3, "spawn_delay_ms": 0 },
+      { "type": "spellbound_thug", "count": 2, "spawn_delay_ms": 0 },
+      { "type": "bonecage_brute", "count": 1, "spawn_delay_ms": 0 },
       { "type": "hexbow_skirmisher", "count": 2, "spawn_delay_ms": 900 },
       { "type": "murmur_wisp", "count": 1, "spawn_delay_ms": 1400 }
     ],
-    "hp_modifier": 1.0,
-    "damage_modifier": 1.0
+    "hp_modifier": 1.16,
+    "damage_modifier": 1.16
   },
   {
+    "_variant_schedule": "issue #162: first appearance of thistle_marksman (ranged variant of hexbow_skirmisher), splitting hexbow_skirmisher x3 into hexbow_skirmisher x2 + thistle_marksman x1 -- same total Ranged=3, budget-neutral. See docs/agents/warden/log.md (2026-08-12).",
     "level": 3,
     "wave_index": 1,
     "enemies": [
       { "type": "spellbound_thug", "count": 2, "spawn_delay_ms": 0 },
-      { "type": "hexbow_skirmisher", "count": 3, "spawn_delay_ms": 700 },
+      { "type": "hexbow_skirmisher", "count": 2, "spawn_delay_ms": 700 },
+      { "type": "thistle_marksman", "count": 1, "spawn_delay_ms": 700 },
       { "type": "creeping_bramble", "count": 1, "spawn_delay_ms": 1300 },
       { "type": "murmur_wisp", "count": 1, "spawn_delay_ms": 1700 }
     ],
-    "hp_modifier": 1.0,
-    "damage_modifier": 1.0
+    "hp_modifier": 1.17,
+    "damage_modifier": 1.17
   },
   {
     "level": 3,
@@ -32,7 +36,7 @@
       { "type": "storm_lancer", "count": 1, "spawn_delay_ms": 800 },
       { "type": "creeping_bramble", "count": 1, "spawn_delay_ms": 1300 }
     ],
-    "hp_modifier": 1.0,
-    "damage_modifier": 1.0
+    "hp_modifier": 1.18,
+    "damage_modifier": 1.18
   }
 ]
