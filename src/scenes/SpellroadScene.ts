@@ -344,6 +344,11 @@ const BOSS_BANNER_OUTRO_TEXT =
   "also, once, someone's careful work. Somewhere in the ledger a line closes; you do not know " +
   "yet whether the Director notices, or minds, or is already writing the next trial. The road " +
   "ahead stays exactly as endless as it was an hour ago, and you walk it anyway.";
+/** Issue #183 — a UI-only confirm hint appended at the outro banner's call site, not folded
+ * into `BOSS_BANNER_OUTRO_TEXT` itself: Loomwright doesn't author or edit Lorena's lore prose
+ * (see that constant's own comment), and this line is pure interface chrome (the same shape as
+ * `startPhaseBreak`'s "[Y] Pay ... / [N] Refuse" suffix), not narration. */
+const BOSS_BANNER_OUTRO_CONFIRM_HINT = "\n\n[Y] Continue";
 /** Issue #113 — developer playtest found the outro banner (110 words) vanished on the same
  * flat timer as the intro (85 words), regardless of reading speed. Auto-hide is a fallback for
  * a player who never clicks/presses a key to dismiss (see `showBossBanner`'s own comment for
@@ -574,8 +579,32 @@ export class SpellroadScene extends Phaser.Scene {
    * `BOSS_BANNER_MIN_DISPLAY_MS`). `update()` skips `updateEnemies` (freezing enemy
    * movement/attacks, not a full `scene.pause()` — that would also open the Esc pause menu,
    * which isn't the ask here) and any keypress/click dismisses the banner early instead of
-   * waiting out the timer. */
+   * waiting out the timer.
+   *
+   * **Issue #183 — narrowed, disclosed carve-out for the victory/outro banner specifically,
+   * not a reversal of the above.** The any-keypress/click-dismisses behavior above is still
+   * exactly right for the intro banner and every other in-combat message: #112/#113 fixed a
+   * real complaint about vision/combat getting blocked, and that reasoning is untouched here.
+   * But the outro banner (`BOSS_BANNER_OUTRO_TEXT`, Lorena's ending narration — this vertical
+   * slice's only shipped ending) is a one-time, unrepeatable beat, and a leftover cast-key press
+   * or click from the fight that just ended could skip it before the player reads a single word.
+   * `bossBannerRequiresConfirm` (set only by the victory/outro call site, see `showBossBanner`'s
+   * `requireConfirm` option) swaps the any-input dismiss for an explicit `[Y] Continue` gate,
+   * reusing the same Y/N confirm pattern already established by `startPhaseBreak`/
+   * `startSidePocketChoice` (this scene) and `TitleScene`'s overwrite confirm/`PauseScene`'s
+   * quit confirm, rather than inventing a second mechanism. */
   private bossBannerActive = false;
+  /** Issue #183 — see `bossBannerActive`'s own comment above for the full carve-out reasoning.
+   * Set only by `showBossBanner`'s `requireConfirm` option (currently only the victory/outro
+   * call site passes it); every other banner display leaves this false. */
+  private bossBannerRequiresConfirm = false;
+  /** The armed `keydown-Y` listener for the current `bossBannerRequiresConfirm` display, or
+   * `null` if none is pending — same hoisted-out-of-the-closure reasoning as
+   * `phaseChoiceListeners`/`sidePocketChoiceListeners`, so `hideBossBanner` can always
+   * deregister it by reference regardless of which path ends the banner (the explicit Y press
+   * itself, a death interrupting it, or a scene reset), rather than leaking a stale listener for
+   * a later, unrelated confirm-gated banner to accidentally co-fire alongside. */
+  private bossBannerConfirmListener: (() => void) | null = null;
   /** Issue #116 — persistent boss-name HUD element ("The Invigilator") shown for the whole
    * Level 5 encounter. `boss-1.json`'s three phases are composed entirely of ordinary
    * registry enemy types (`spellbound_thug`/`hexbow_skirmisher`/etc.), so before this the
@@ -812,6 +841,14 @@ export class SpellroadScene extends Phaser.Scene {
     // showing when the player quit mid-fight would otherwise freeze every enemy in the fresh
     // run (see `update()`'s `bossBannerActive` gate) with nothing left to ever flip it back.
     this.bossBannerActive = false;
+    // Issue #183 — same reasoning: a scene restart mid-outro-banner must not leave a stale
+    // confirm-gate flag or a `keydown-Y` listener registered against game objects `create()`
+    // below is about to rebuild from scratch.
+    this.bossBannerRequiresConfirm = false;
+    if (this.bossBannerConfirmListener) {
+      this.input.keyboard?.off("keydown-Y", this.bossBannerConfirmListener);
+      this.bossBannerConfirmListener = null;
+    }
 
     this.createRoad();
     this.createMage();
@@ -1274,7 +1311,13 @@ export class SpellroadScene extends Phaser.Scene {
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       // Issues #112/#113 — a click while the boss banner is showing dismisses it early
       // instead of casting/cancelling underneath it.
+      // Issue #183 — except the confirm-gated outro banner: a click is swallowed (neither
+      // dismisses the banner nor casts/cancels underneath it) rather than acting as a second,
+      // undocumented dismiss path alongside the `[Y]` gate the on-screen text actually promises.
       if (this.bossBannerActive) {
+        if (this.bossBannerRequiresConfirm) {
+          return;
+        }
         this.hideBossBanner();
         return;
       }
@@ -1294,8 +1337,13 @@ export class SpellroadScene extends Phaser.Scene {
     // meaning below (cancel preview, or open the pause menu) — letting it also dismiss the
     // banner here would fire both on the same keypress (banner vanishes AND PauseScene
     // launches at once), a confusing combination neither #112 nor #113 asked for.
+    //
+    // Issue #183 — `bossBannerRequiresConfirm` opts the outro banner out of this any-keypress
+    // path entirely: it's ended only by the dedicated `keydown-Y` listener
+    // `armBossBannerConfirmListener` arms, the same way `startPhaseBreak`'s Y/N prompt is only
+    // ended by its own specific listeners, not this generic handler.
     this.input.keyboard?.on("keydown", (event: KeyboardEvent) => {
-      if (this.bossBannerActive && event.code !== "Escape") {
+      if (this.bossBannerActive && !this.bossBannerRequiresConfirm && event.code !== "Escape") {
         this.hideBossBanner();
       }
     });
@@ -1700,11 +1748,21 @@ export class SpellroadScene extends Phaser.Scene {
     // complaint on the Mana-rejection message — reused here rather than inventing a second
     // styling scheme. Issue #115's HP-carries-over reminder is folded into this same prompt,
     // since it's the actual decision point where that fact changes what "pay or refuse" means.
+    //
+    // Issue #182 — developer playtest: taking longer than the old fixed 60000ms to decide (read
+    // it, went AFK, or paused-and-came-back) let `update()`'s generic `messageClearAt` timer
+    // wipe this prompt's text while the `keydown-Y`/`keydown-N` listeners below were still
+    // armed with no expiry of their own — the game sat blocked waiting for a keypress with
+    // nothing on screen saying why. `Infinity` here means `update()`'s
+    // `this.time.now > this.messageClearAt` check can never trip while this choice is still
+    // pending: the prompt now persists until `resolve()` actually fires (which itself calls
+    // `flashMessage`/`startWave`'s own flashes with a real duration, naturally retiring this
+    // text once the choice is resolved) rather than auto-clearing on any fixed timer.
     this.flashMessage(
       canPay
         ? `The ledger waits. [Y] Pay ${FEE_PHASE_RECOVERY} Hexcoin -> restore ${Math.round(MAX_HP * PHASE_RECOVERY_HP_FRACTION)} HP (HP won't reset otherwise!)  /  [N] Refuse`
         : "Phase clear! HP carries into the next phase (no reset) — press Y to continue.",
-      60000,
+      Infinity,
       "warning"
     );
     const resolve = (pay: boolean) => {
@@ -1782,7 +1840,12 @@ export class SpellroadScene extends Phaser.Scene {
         : `A ${encounter.objectName.toLowerCase()} waits off the road. [E] Explore  /  [C] Continue`;
 
     const alreadyDiscovered = this.persistentMetadata.loreFlags.includes(encounter.loreFlag);
-    this.flashMessage(promptText(alreadyDiscovered), 60000, "warning");
+    // Issue #182 — same fix as `startPhaseBreak`'s Y/N prompt just above: this is also an
+    // indefinite-wait keyboard choice (`keydown-E`/`keydown-C` below, armed with no expiry), so
+    // it must not auto-clear on a fixed timer while unresolved. `Infinity` keeps `update()`'s
+    // generic clear check from ever tripping until a real `flashMessage` call (the re-rendered
+    // "already explored" prompt below, or the next wave's own flash) naturally replaces it.
+    this.flashMessage(promptText(alreadyDiscovered), Infinity, "warning");
 
     const onExplore = () => {
       if (!canResolveEncounterChoice(this.session.phase, this.session.generation, encounterGeneration)) {
@@ -1802,8 +1865,10 @@ export class SpellroadScene extends Phaser.Scene {
       // must land on the exact same Continue-only prompt a legitimate first Explore does. One
       // combined `flashMessage` call (not reveal-then-prompt as two calls): `flashMessage`
       // unconditionally overwrites `messageText`, so a second call issued in the same tick
-      // would silently clobber the first before it ever renders.
-      this.flashMessage(promptText(true), 60000, "warning");
+      // would silently clobber the first before it ever renders. Issue #182 — still an
+      // unresolved choice (Continue hasn't fired yet), so this re-render keeps the same
+      // `Infinity` no-auto-clear duration as the initial prompt above.
+      this.flashMessage(promptText(true), Infinity, "warning");
     };
     const onContinue = () => {
       if (!canResolveEncounterChoice(this.session.phase, this.session.generation, encounterGeneration)) {
@@ -1973,7 +2038,17 @@ export class SpellroadScene extends Phaser.Scene {
         this.hexcoin.endBossFight();
         this.flashMessage("Director Trial — Victory!", 2500);
         this.stopBossTheme();
-        this.showBossBanner(BOSS_BANNER_OUTRO_TEXT);
+        // Issue #183 — narrowed carve-out from #112/#113's any-input-dismisses behavior: this
+        // is the run's actual ending beat (Lorena's outro narration, the vertical slice's only
+        // shipped ending), so a leftover cast-key press or click from the fight that just ended
+        // must not be able to skip it. `requireConfirm` swaps that for an explicit
+        // `[Y] Continue` gate, reusing this file's existing Y/N confirm pattern
+        // (`startPhaseBreak`) rather than a new mechanism. The intro banner a few phases back
+        // and every other in-combat message are deliberately untouched — #112/#113's reasoning
+        // (don't block vision/combat unnecessarily) still holds for those.
+        this.showBossBanner(BOSS_BANNER_OUTRO_TEXT + BOSS_BANNER_OUTRO_CONFIRM_HINT, undefined, {
+          requireConfirm: true
+        });
         // Issue #116 — the fight is over; clear the persistent name plate rather than leaving
         // "The Invigilator" on screen through the regular levels that follow.
         this.bossNameText?.setText("").setVisible(false);
@@ -2636,20 +2711,44 @@ export class SpellroadScene extends Phaser.Scene {
    * that constant's own comment, issue #113).
    * @param onHidden issue #134 — optional callback fired once the banner has fully hidden
    * (see `bossBannerOnHidden`'s own comment), so a caller can defer a message that would
-   * otherwise render on top of/alongside the banner. */
-  private showBossBanner(text: string, onHidden?: () => void): void {
+   * otherwise render on top of/alongside the banner.
+   * @param options.requireConfirm issue #183 — the victory/outro banner's narrowed carve-out
+   * (see `bossBannerRequiresConfirm`'s own comment): when true, skips the reading-speed-scaled
+   * auto-hide timer entirely and does not respond to the generic any-keypress/click dismiss
+   * (`createInput`) — only an explicit `[Y]` press (armed by `armBossBannerConfirmListener`)
+   * ends the display. Defaults to false so every other caller (the intro banner, and any future
+   * banner call) keeps #112/#113's existing fast-dismiss behavior unchanged. */
+  private showBossBanner(text: string, onHidden?: () => void, options?: { requireConfirm?: boolean }): void {
     if (!this.bossBannerText) {
       return;
     }
     this.bossBannerActive = true;
+    this.bossBannerRequiresConfirm = options?.requireConfirm ?? false;
     this.bossBannerOnHidden = onHidden;
     // See `bossBannerHideTimer`'s own comment: a still-pending auto-hide from a previous
     // display (e.g. the intro banner, cut short by a death) must not fire mid-way through
     // this new display and hide it early.
     this.bossBannerHideTimer?.remove();
+    this.bossBannerHideTimer = undefined;
+    // Issue #183 — same reasoning for a still-armed confirm listener from a previous
+    // confirm-gated display: at most one is ever pending, so a fresh display must not inherit
+    // an earlier one's listener registration.
+    if (this.bossBannerConfirmListener) {
+      this.input.keyboard?.off("keydown-Y", this.bossBannerConfirmListener);
+      this.bossBannerConfirmListener = null;
+    }
     this.bossBannerText.setText(text);
     this.tweens.killTweensOf(this.bossBannerText);
     this.bossBannerText.setAlpha(0);
+    if (this.bossBannerRequiresConfirm) {
+      this.tweens.add({
+        targets: this.bossBannerText,
+        alpha: 1,
+        duration: 400,
+        onComplete: () => this.armBossBannerConfirmListener()
+      });
+      return;
+    }
     const wordCount = text.trim().split(/\s+/).length;
     const displayMs = Math.max(BOSS_BANNER_MIN_DISPLAY_MS, wordCount * BOSS_BANNER_MS_PER_WORD);
     this.tweens.add({
@@ -2662,9 +2761,34 @@ export class SpellroadScene extends Phaser.Scene {
     });
   }
 
+  /** Issue #183 — arms the single `[Y] Continue` listener a confirm-gated banner (currently
+   * only the victory/outro banner) waits on, mirroring `startPhaseBreak`'s own `onY` shape:
+   * a `.once` listener that deregisters itself and calls `hideBossBanner` to end the display.
+   * Deliberately no expiry/auto-hide alongside it — same "persist until resolved" fix issue
+   * #182 applies to the phase-break/Side-Pocket prompts, so this banner does not reintroduce
+   * that exact bug in a new form by pairing an indefinite keyboard wait with a timed
+   * auto-dismiss of its own. */
+  private armBossBannerConfirmListener(): void {
+    const onY = () => {
+      this.input.keyboard?.off("keydown-Y", onY);
+      this.bossBannerConfirmListener = null;
+      this.hideBossBanner();
+    };
+    this.bossBannerConfirmListener = onY;
+    this.input.keyboard?.once("keydown-Y", onY);
+  }
+
   private hideBossBanner(): void {
     this.bossBannerHideTimer?.remove();
     this.bossBannerHideTimer = undefined;
+    // Issue #183 — end the display via any path (the explicit Y press already deregistered
+    // itself before calling here, but death interrupting the banner or a scene reset call
+    // this directly) without leaking a stale `keydown-Y` registration for a later, unrelated
+    // confirm-gated banner to co-fire alongside.
+    if (this.bossBannerConfirmListener) {
+      this.input.keyboard?.off("keydown-Y", this.bossBannerConfirmListener);
+      this.bossBannerConfirmListener = null;
+    }
     if (!this.bossBannerText) {
       this.bossBannerActive = false;
       const onHidden = this.bossBannerOnHidden;

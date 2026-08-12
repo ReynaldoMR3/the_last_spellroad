@@ -27,10 +27,26 @@ export const BOSS_THEME_KEY = "bgm-boss-1-invigilator-trial-theme";
 
 export const BOSS_THEME_URL = "assets/audio/music/boss-1-invigilator-trial-theme.ogg";
 
-/** Loops continuously under one-shot SFX (`sfx.ts`, played at default volume) for the whole
- * boss encounter — kept well under 1.0 so it sits behind the hit/cast/impact/death cues
- * instead of competing with them, per the ticket's own "shouldn't drown them out" criterion. */
-export const BOSS_THEME_VOLUME = 0.35;
+/** Loops continuously under one-shot SFX (`sfx.ts`, played via `computeSfxVariation`/
+ * `computeSpellSfxVariation`'s 0.85-1.0 per-play range, `sfxVariation.ts`) for the whole
+ * boss encounter — kept under that range so it still sits behind the hit/cast/impact/death
+ * cues instead of competing with them, per issue #97's original "shouldn't drown them out"
+ * criterion.
+ *
+ * **2026-08-12 (issue #180):** developer playtest on the final level: "the audio of the spells
+ * are higher... it needs adjusting so it's at the same level." At the original 0.35 this loop
+ * sat at roughly 35-41% of the SFX one-shots' loudness (0.35 / 0.85-1.0) — read as buried
+ * rather than merely "behind." Raised to 0.55 (+0.20, ×1.57): now roughly 55-65% of the SFX
+ * range, audibly present under a rapid-fire cast sequence per this issue's own acceptance
+ * criterion, while staying below every SFX one-shot's floor (0.85) so #97's original complaint
+ * (spells drowned out by the music) doesn't reopen in the other direction. Deliberately not
+ * raised to parity (~1.0): the one-shots are still the moment-to-moment feedback a player reacts
+ * to (am I getting hit, did that cast land), and #97 exists because parity is exactly what
+ * buried them the first time. Left as a `BOSS_THEME_VOLUME` constant/`COMBAT_CUE_VOLUME` pair
+ * rather than touching `sfxVariation.ts`'s SFX range: that range is shared by every level, not
+ * just the boss encounter this ticket calls out, and the ticket's own acceptance criterion is
+ * scoped to "the boss/Level 5 encounter, at minimum." */
+export const BOSS_THEME_VOLUME = 0.55;
 
 /**
  * Issue #142 — the ordinary (non-boss) monster-engagement loop, composed against Lorena's
@@ -51,12 +67,21 @@ export const COMBAT_CUE_KEY = "bgm-combat-encounter-loop";
 
 export const COMBAT_CUE_URL = "assets/audio/music/combat-encounter-loop.ogg";
 
-/** A notch under `BOSS_THEME_VOLUME` (0.35) rather than equal to it: this track is
- * continuously busy by design (a 16th-note tremolo bed under an 8th-note ostinato, versus the
- * boss theme's slow solo-cello line), so matching the boss theme's level would put measurably
- * more sustained energy under the same one-shot SFX. Same "sits behind the cues, never competes
- * with them" intent, arrived at from the two tracks' actual densities. */
-export const COMBAT_CUE_VOLUME = 0.3;
+/** A notch under `BOSS_THEME_VOLUME` rather than equal to it: this track is continuously busy
+ * by design (a 16th-note tremolo bed under an 8th-note ostinato, versus the boss theme's slow
+ * solo-cello line), so matching the boss theme's level would put measurably more sustained
+ * energy under the same one-shot SFX. Same "sits behind the cues, never competes with them"
+ * intent, arrived at from the two tracks' actual densities.
+ *
+ * **2026-08-12 (issue #180):** raised from 0.3 to 0.5 alongside `BOSS_THEME_VOLUME`'s own
+ * 0.35→0.55 raise, keeping the original 0.05 gap between the two tracks rather than scaling it
+ * proportionally — the density difference the comment above describes is a fixed property of
+ * the two compositions, not something that should shrink or grow with the absolute volume. Only
+ * the boss/Level 5 encounter was the developer's explicit playtest complaint, but the ticket
+ * asked to consider this constant too "while in there," and leaving the two tracks at
+ * different absolute distances from the SFX floor (0.35 vs 0.3 stayed 0.05 apart pre-fix) than
+ * post-fix would have been the one asymmetry with no stated reason. */
+export const COMBAT_CUE_VOLUME = 0.5;
 
 /**
  * Whether the combat cue owns the music for a given wave.
