@@ -27,3 +27,13 @@ entry -- derived from an already-approved CC0 asset, not a new download). RMS-no
 cast files (from 1.050s -- padded with a 60ms-fade-then-silence tail, no trim needed). Same CC0
 license applies. Both earlier files kept alongside, untouched, as provenance. See
 docs/agents/tilesmith/log.md's 2026-08-11 entry for the full before/after measurement table.
+
+2026-08-12 (issue #184): added 105016__julien-matthey__jm-fx-fireball-01-normalized-trimmed.wav,
+a derivative of the -normalized file above (Art Sourcing Contract step 3, same as the 2026-08-09
+and 2026-08-11 entries). A repeat developer playtest reported fire/ice's cast SFX still read as
+too long even after #111's 1.20s cohesion pass. Cut from 1.200s to 0.830s at a clean envelope dip
+right after the main attack/decay hump, well past its ~0.6s peak, with the same 60ms fade-out
+convention. The truncation nudged RMS from -16.59 to -15.62 dBFS, within the 0.5dB tolerance
+`trim_fire_ice_184.py` checks against, so no re-normalization was needed. Same CC0 license
+applies. All 3 earlier files kept alongside, untouched, as provenance. See
+docs/agents/tilesmith/log.md's 2026-08-12 entry for the full before/after measurement table.
