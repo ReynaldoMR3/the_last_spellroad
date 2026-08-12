@@ -52,7 +52,15 @@ import {
   sfxUrl
 } from "../systems/sfx";
 import { computeSfxVariation, computeSpellSfxVariation } from "../systems/sfxVariation";
-import { BOSS_THEME_KEY, BOSS_THEME_URL, BOSS_THEME_VOLUME } from "../systems/bgm";
+import {
+  BOSS_THEME_KEY,
+  BOSS_THEME_URL,
+  BOSS_THEME_VOLUME,
+  COMBAT_CUE_KEY,
+  COMBAT_CUE_URL,
+  COMBAT_CUE_VOLUME,
+  shouldPlayCombatCueForWave
+} from "../systems/bgm";
 import {
   OPENING_VFX_CAST_ANIM_KEY,
   OPENING_VFX_CAST_FRAME,
@@ -583,6 +591,15 @@ export class SpellroadScene extends Phaser.Scene {
    * unlike the one-shot SFX cues, something must be able to end it early (victory, death, or a
    * scene shutdown mid-fight). */
   private bossThemeSound?: Phaser.Sound.BaseSound;
+  /** Issue #142 — the currently-playing ordinary-wave combat cue, or `undefined` if none is
+   * active. Tracked for the same reason as `bossThemeSound`: it loops, so something has to end
+   * it. Its lifetime is much shorter and far more frequent than the boss theme's — it starts on
+   * a wave's *first enemy contact* and stops the moment that wave is cleared (or the player
+   * dies, or the scene shuts down), which is many start/stop cycles per level. Lorena's brief
+   * anticipated exactly that ("starts and stops many times across a single level, sometimes cut
+   * short mid-phrase when a wave clears early") and set the 20-35s loop length for it, so the
+   * cut is a designed behavior, not an artifact of this wiring. */
+  private combatCueSound?: Phaser.Sound.BaseSound;
   /** backlog 2.35 / issue #78 — one-time onboarding hint explaining hotbar targeting (1-6
    * arms a spell, press/click again to confirm-fire, or Esc/right-click to cancel). Shown once
    * per run; dismissed the first time the player actually arms a spell (`handleHotbarPress`,
@@ -670,6 +687,12 @@ export class SpellroadScene extends Phaser.Scene {
     // backlog 4.11 / issue #97 — mini-boss/Director trial theme, same eager-preload
     // convention as the SFX cues above (one small .ogg, not worth a dynamic-loading dance).
     this.load.audio(BOSS_THEME_KEY, BOSS_THEME_URL);
+
+    // Issue #142 — the ordinary-wave combat cue, same eager-preload convention as the boss
+    // theme above. Loaded once here, not per wave: `startWave` fires this cue on the first
+    // enemy of nearly every wave in the game, so a lazy load would put a network fetch on the
+    // exact frame combat starts.
+    this.load.audio(COMBAT_CUE_KEY, COMBAT_CUE_URL);
 
     // Issue #125 — the developer-selected CC0 Remix VFX treatment (Prototype 1, issue #128)
     // for `flame_sweep`'s fire cast/impact/trail. Same eager-preload convention as the tileset
@@ -777,6 +800,11 @@ export class SpellroadScene extends Phaser.Scene {
     // so this has to be stopped explicitly rather than assumed to reset on its own.
     this.bossThemeSound?.stop();
     this.bossThemeSound = undefined;
+    // Issue #142 — the combat cue needs the identical treatment for the identical reason, and
+    // hits it far more often than the boss theme does: quitting to Title mid-wave (any wave in
+    // Levels 1-4, not just the one boss fight) leaves this looping otherwise.
+    this.combatCueSound?.stop();
+    this.combatCueSound = undefined;
     this.bossBannerHideTimer?.remove();
     this.bossBannerHideTimer = undefined;
     // Issues #112/#113 — same class of stale-state bug this comment block already documents:
@@ -800,7 +828,13 @@ export class SpellroadScene extends Phaser.Scene {
     // ends this scene stops the boss theme too, so the two explicit stop call sites (trial
     // victory, death) don't have to be the only things standing between this track and playing
     // forever over a screen it no longer belongs to.
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stopBossTheme());
+    // Issue #142 — the combat cue rides the same safety net, for the same reason. Both stops in
+    // one handler rather than two registrations: "this scene is going away, no music of its
+    // survives it" is a single rule.
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.stopBossTheme();
+      this.stopCombatCue();
+    });
 
     const debugStartRequested =
       import.meta.env.DEV && new URLSearchParams(window.location.search).has("debugLevel");
@@ -1580,6 +1614,11 @@ export class SpellroadScene extends Phaser.Scene {
         // rendered simultaneously and competed for attention. Deferred to the banner's
         // `onHidden` callback so the player reads the narration first, then the mechanical
         // warning, never both at once.
+        // Issue #142 — the two tracks are mutually exclusive (`shouldPlayCombatCueForWave`).
+        // Level 5's Phase 1 is entered directly from the last ordinary wave of Level 4, whose
+        // cue is already stopped by the wave-clear path below; this is belt-and-braces for the
+        // one path that isn't a normal wave clear (`?debugLevel=5` boots straight in).
+        this.stopCombatCue();
         this.playBossTheme();
         this.showBossBanner(BOSS_BANNER_INTRO_TEXT, () => {
           this.flashMessage("Director Trial — Phase 1 (HP won't reset again until you win or die)", 2400, "warning");
@@ -1612,6 +1651,19 @@ export class SpellroadScene extends Phaser.Scene {
       (enemy) => {
         this.enemies.push(enemy);
         this.enemiesRemainingToSpawn -= 1;
+        // Issue #142 — "first enemy contact," concretely: the moment the first monster of this
+        // wave actually exists in the world. Hooked to `spawnWave`'s own spawn callback rather
+        // than to `startWave`'s top, because waves stagger their spawns (`spawn_delay_ms`) and
+        // a level-transition wave can open on a beat with no enemy on screen yet — starting the
+        // music there would score the empty road, which is the exact complaint this ticket
+        // exists to fix. Not hooked to first *damage* either: the player is already reading and
+        // repositioning against a visible threat well before anyone lands a hit, and that is the
+        // moment Lorena's brief names ("the mage stops reading the road and starts reading a
+        // threat in motion"). `playCombatCue` is idempotent while playing, so the second and
+        // subsequent spawns of the same wave are no-ops and never restart the loop mid-phrase.
+        if (shouldPlayCombatCueForWave(wave)) {
+          this.playCombatCue();
+        }
       },
       // Issue #48 — this wave's staggered spawn timers only fire while this wave is still the
       // live one. A death (or any later wave start) takes a new generation, so leftovers from
@@ -1885,6 +1937,15 @@ export class SpellroadScene extends Phaser.Scene {
     if (shouldAutoAdvance(this.session.phase, this.enemiesRemainingToSpawn, this.enemies.length)) {
       const advanceGeneration = this.session.generation;
       this.session.beginAdvance(); // replaces the old `enemiesRemainingToSpawn = -1` sentinel
+      // Issue #142 — end of wave: every enemy is spawned and dead, so combat is over and the
+      // cue stops here, before any of the branches below (phase break, Side-Pocket prompt,
+      // boss victory, plain 1200ms auto-advance) decide what comes next. Placed once at the
+      // top rather than repeated per branch: "the wave is cleared" is the single condition that
+      // ends the cue, and two of those branches (`startPhaseBreak`, `startSidePocketChoice`)
+      // `return` early, so a stop at the bottom would be silently skipped for them. That also
+      // means the Side-Pocket lore prompt — the closest thing the shipped game currently has to
+      // an exploration beat — is read in quiet, not over combat music.
+      this.stopCombatCue();
       const wave = this.waves[this.waveIndex];
       const next = this.waves[this.waveIndex + 1];
       const nextIndex = this.waveIndex + 1;
@@ -2411,6 +2472,12 @@ export class SpellroadScene extends Phaser.Scene {
     // lingers, unstyled, over the "Died —..." beat in the meantime; harmless no-op if the death
     // didn't happen mid-boss-fight (nothing is playing/visible to stop).
     this.stopBossTheme();
+    // Issue #142 — same reasoning for the ordinary-wave cue, which is what will actually be
+    // playing for the overwhelming majority of deaths (Levels 1-4). The retry's `startWave`
+    // restarts it on its own at the respawned wave's first spawn; stopping here means the
+    // "Died — ..." beat and the 1500ms respawn pause aren't scored by combat music for a fight
+    // that is already over.
+    this.stopCombatCue();
     this.hideBossBanner();
     // Issue #48 — taken first, before any state is cleared: from this line on, every callback
     // scheduled by the wave the player just died in (its remaining staggered spawn timers, a
@@ -2532,6 +2599,31 @@ export class SpellroadScene extends Phaser.Scene {
   private stopBossTheme(): void {
     this.bossThemeSound?.stop();
     this.bossThemeSound = undefined;
+  }
+
+  // ----- ordinary-wave combat cue (issue #142) -----
+
+  /** Starts looping on a wave's first enemy contact if nothing is already playing; a no-op
+   * otherwise, so the second through nth spawn of a staggered wave never restarts the loop from
+   * the top mid-phrase. Deliberately shaped exactly like `playBossTheme` above (same
+   * already-playing guard, same tracked-instance pattern) rather than generalized into one
+   * parameterized helper: the two tracks share four lines of Phaser boilerplate but nothing
+   * about when they start or stop, and collapsing them would put the interesting difference —
+   * the lifecycle — behind a shared abstraction that has nothing to say about it. */
+  private playCombatCue(): void {
+    if (this.combatCueSound?.isPlaying) {
+      return;
+    }
+    this.combatCueSound = this.sound.add(COMBAT_CUE_KEY, { loop: true, volume: COMBAT_CUE_VOLUME });
+    this.combatCueSound.play();
+  }
+
+  /** Idempotent — called from the wave-clear path, `handleDeath`, a boss Phase 1 entry, the
+   * scene-restart reset block, and the SHUTDOWN safety net, several of which can be reached
+   * back-to-back with nothing playing in between. */
+  private stopCombatCue(): void {
+    this.combatCueSound?.stop();
+    this.combatCueSound = undefined;
   }
 
   /** Fades in, holds, then fades back out. Issues #112/#113 — developer playtest: the intro
