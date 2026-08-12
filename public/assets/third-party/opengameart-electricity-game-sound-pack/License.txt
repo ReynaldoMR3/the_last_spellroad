@@ -35,3 +35,15 @@ lightning spell) -- only loudness and file-duration were normalized here, per #1
 out-of-scope note not to touch #137's content problem. Same CC0 license applies to the
 derivative. Original file kept alongside, untouched, as provenance. See
 docs/agents/tilesmith/log.md's 2026-08-11 entry for the full before/after measurement table.
+
+2026-08-12 (issue #181): added groundhit-muted.wav, a derivative of groundhit-normalized.wav
+above (Art Sourcing Contract step 3 -- derived from an already-approved CC0 asset, not a new
+download). A developer playtest asked for the disclosed placeholder stand-in (still tracked as
+open in issue #137) muted outright rather than left audible while #137's re-source pick is
+still pending. This file is all-silence, same format/samplerate/subtype/duration (1.200s) as
+groundhit-normalized.wav -- no new sourcing, no content change to the original recording. This
+is an explicit stopgap, not a resolution of #137: once the developer approves one of #137's
+shortlisted candidates, that fix should replace ELEMENT_CAST_URL's lightning entry with the
+real recording, not just re-mute a different file. Same CC0 license applies to the derivative.
+All earlier files kept alongside, untouched, as provenance. See docs/agents/tilesmith/log.md's
+2026-08-12 entry for the full before/after measurement.

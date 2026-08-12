@@ -837,3 +837,124 @@ actually *sounds* cohesive to a human ear, and whether lightning's silence-padde
 as acceptable or as its own new oddity, are exactly the aesthetic/playtest questions this log's
 file-level measurement can't answer on its own -- flagged for the next playtest pass rather than
 assumed resolved.
+
+## 2026-08-12 -- Issues #181/#184: muted the lightning cast placeholder, further-trimmed fire/ice's cast SFX
+
+Two developer playtests on the same day, both repeats of earlier complaints this domain had
+already partially addressed:
+
+- **#181** -- "I continue to hear the wrong sound when casting spells, there's the annoying
+  sound from the first time we added sound to the spells, it sucks, please remove it." A direct
+  follow-up to #137 (still open, with a fresh 3-candidate CC0 shortlist from the 2026-08-09 entry
+  awaiting the developer's go/no-go). Per this repo's asset-sourcing convention, no candidate can
+  be downloaded/wired in without that explicit sign-off, so the developer is asking for the
+  disliked placeholder gone *now*, independent of when #137 itself gets resolved.
+- **#184** -- "also the audio of the fire and ice spells are still too long." A repeat of #151's
+  2026-08-09 complaint. #111's 2026-08-11 pass normalized all 4 elements to a common 1.20s file
+  length for *cross-element cohesion*, but never re-asked "is 1.20s itself short enough" -- this
+  playtest answers that: no.
+
+**#181 -- lightning muted, not re-sourced.** Per the ticket's own explicit instruction, did NOT
+pull in either of #137's shortlisted candidates (Electricity Sound Effects / Magic Spell SFX,
+still pending the developer's pick) -- this is purely "stop playing the disliked recording," not
+a #137 fix. New `tools/cast-sfx-normalize/mute_lightning_181.py` (Docker-only, per ADR-0003)
+reads `groundhit-normalized.wav` (#111's output: 1.200s file, still containing the original
+0.285s of real audio before the silence padding) and writes an all-zero sibling of identical
+format/samplerate/subtype/duration:
+
+| File | Duration | Peak (dBFS) | RMS (dBFS) |
+| --- | --- | --- | --- |
+| `groundhit-normalized.wav` (before) | 1.200s | 0.00 | -23.56 |
+| `groundhit-muted.wav` (after) | 1.200s | -inf | -inf |
+
+`ELEMENT_CAST_URL.lightning` in `src/systems/sfx.ts` now points at `groundhit-muted.wav`. The
+doc comment above the const and the inline comment on the `lightning` entry both carry an
+explicit "this is a #181 stopgap, not a #137 fix" pointer, plus the `License.txt` addendum below
+-- so this doesn't read as a silent permanent removal to whoever next opens the file. Fire, ice,
+and earth's `ELEMENT_CAST_URL` entries are untouched by this change.
+
+**#184 -- fire and ice trimmed further past #111's 1.20s target.** Used
+`tools/cast-sfx-normalize/fine_envelope.py` (10ms-window RMS envelope, Docker-only) to find a
+clean, non-mid-crescendo cut point in each file's `-normalized` version before cutting anything,
+same "read the envelope, don't guess" method the 2026-08-09 (#151) entry used:
+
+- **Fire**: envelope shows the main attack/decay hump peaking around 0.60-0.65s (RMS as high as
+  -9.29 dBFS), decaying steadily after. Picked **0.830s** -- a clean dip (-20.48/-21.97 dBFS at
+  0.82-0.83s) well past the hump, before the file trails into its silence pad.
+- **Ice**: a noisier, crackly texture with a final crescendo swell peaking around 0.85-1.00s (as
+  loud as -9.23 dBFS). Picked **0.710s** -- a local low point (-18.12 dBFS) right before that
+  final swell starts ramping up again at 0.72s, so the cut lands in a quiet gap rather than
+  chopping the swell mid-crescendo (same rule #151's original ice trim used).
+
+New `tools/cast-sfx-normalize/trim_fire_ice_184.py` (Docker-only) applies each cut with the same
+60ms linear fade-out convention as #151/#111, then re-measures RMS: if the cut drifted the
+whole-clip RMS more than 0.5dB from #111's -16 dBFS target, it re-applies the same tanh
+soft-limited gain #111's `normalize_cast_sfx.py` used, so the loudness-normalization acceptance
+criterion holds by measurement rather than by assumption.
+
+**Measured before/after** (script stdout, cross-checked with an independent re-read of each
+output file):
+
+| Element | File (before, #111) | Duration | RMS (dBFS) | File (after, #184) | Duration | RMS (dBFS) | Re-normalized? |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| fire | `...-fireball-01-normalized.wav` | 1.200s | -16.59 | `...-fireball-01-normalized-trimmed.wav` | 0.830s | -15.62 | No -- `abs(-15.62 - (-16.0)) = 0.38dB`, inside the script's 0.5dB tolerance (checked against the fixed -16.0 dBFS target, not fire's own pre-cut -16.59 dBFS) |
+| ice | `freeze-normalized.wav` | 1.200s | -16.05 | `freeze-normalized-trimmed.wav` | 0.710s | -16.06 | Yes -- the raw cut alone drifted RMS to -21.60 dBFS (removing the loudest swell content pulls the average down), so the script re-applied the same tanh soft-limited gain #111 used, landing back at -16.06 dBFS |
+
+An independent re-read of both `-normalized-trimmed` output files (fresh `soundfile.read`, not
+reused from the generation script's own printed log) confirms: fire 0.830s / -15.62 dBFS RMS /
+-2.48 dBFS peak; ice 0.710s / -16.06 dBFS RMS / -0.00 dBFS peak.
+
+**Earth -- checked, not touched.** Earth's cast file (`earth-element-magic-spell-normalized.ogg`)
+is also currently 1.200s at -15.97 dBFS RMS -- the same file length fire/ice had *before* this
+trim. The developer's #184 complaint named fire and ice specifically, not earth, and the ticket
+explicitly said not to silently extend the fix to anything not asked for. Flagging this plainly:
+earth shares fire/ice's pre-trim duration and hasn't been re-confirmed as "long enough to bother
+a player" or not -- left untouched per the ticket's own instruction, not because it's
+structurally different from what fire/ice used to be. Worth a note for a future playtest pass if
+the developer ever calls out earth's cast the same way.
+
+**`src/systems/sfx.ts`:** `ELEMENT_CAST_URL.fire`/`.ice` now point at the `-normalized-trimmed`
+files; `ELEMENT_CAST_URL.lightning` now points at `groundhit-muted.wav`. `.earth` is unchanged.
+The doc comment above the const got two new dated sub-entries (#184, then #181) with the full
+reasoning; each changed entry's own inline comment also got a dated pointer. No change to
+`sfxKey`/`elementCastSfxKey`/`elementCastSfxUrl`'s signatures, `sfxVariation.ts`'s
+`computeSpellSfxVariation`, or any file in `SpellroadScene.ts` -- both fixes are fully contained
+inside `sfx.ts` and the asset files themselves, deliberately, since a parallel branch is also
+touching `SpellroadScene.ts`/`bgm.ts` for unrelated issues and this domain's own scope is
+`sfx.ts`/cast-SFX assets.
+
+**License.txt addenda:** all 3 affected packs' `License.txt` (fireball, freeze-spell,
+electricity-game-sound-pack) got a dated 2026-08-12 entry documenting the new derivative (source
+file, before/after duration+loudness, same CC0 grant applies) -- same per-file provenance
+convention #151/#111 used. Earth's pack was not touched (no new derivative there).
+
+**New tools:** `tools/cast-sfx-normalize/mute_lightning_181.py` (silence derivative for #181),
+`tools/cast-sfx-normalize/trim_fire_ice_184.py` (further-trim-with-conditional-re-normalize for
+#184), and `tools/cast-sfx-normalize/fine_envelope.py` (10ms-window RMS envelope printer used to
+pick #184's cut points, kept for any future re-run). All three reuse the existing
+`tools/cast-sfx-normalize/Dockerfile`/`requirements.txt` image (`soundfile`/`numpy`, no new
+dependencies) -- built once as `cast-sfx-tools` and invoked with the script name as the
+`--entrypoint python` argument, with both this directory and `public/assets/third-party`
+bind-mounted, same pattern as the existing `normalize_cast_sfx.py`.
+
+**Self-verification (Docker, per `docs/agents/_reference/docker-testing-contract.md`):**
+- `docker-compose run --rm game npm run typecheck` -- clean.
+- `docker-compose run --rm game npm test` -- 30 test files, 302 tests, all passed, unchanged from
+  before this change (no test touches `sfx.ts`'s URL string values directly, since they're plain
+  data -- same reasoning the 2026-08-11 entry gave).
+- `docker-compose run --rm game npm run build` -- clean production build.
+- Independently re-measured all touched/new files (`groundhit-muted.wav`,
+  `...-fireball-01-normalized-trimmed.wav`, `freeze-normalized-trimmed.wav`) and earth's
+  untouched file with a fresh read (not reused from either generation script's own stdout) to
+  confirm the tables above.
+- Did not bring up a live dev-server session to listen to the actual audio -- this sandbox has no
+  audio output device, same standing limitation every prior audio entry in this log discloses.
+  Whether lightning's silence reads as "acceptably nothing" rather than "a broken/missing sound"
+  and whether fire/ice's new sub-1s lengths feel snappy rather than clipped are exactly the
+  aesthetic/playtest questions this log's file-level measurement can't answer on its own.
+
+**Sign-off status:** license/source compliance for the 3 new derivatives (`groundhit-muted.wav`,
+both `-normalized-trimmed` files) -- same CC0 grant as the untouched files they derive from,
+re-confirmed above, but per this agent's standing rule still not self-certified; **pending human
+developer review**. Whether the mute and the new fire/ice lengths actually resolve the two
+playtest complaints is, as always, a question only the next human playtest can answer.
