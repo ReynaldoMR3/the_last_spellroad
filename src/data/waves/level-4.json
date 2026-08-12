@@ -1,26 +1,31 @@
 [
   {
+    "_variant_schedule": "issue #162: bonecage_brute and thistle_marksman (introduced Level 3) recur here, splitting spellbound_thug x3 into spellbound_thug x2 + bonecage_brute x1, and hexbow_skirmisher x2 into hexbow_skirmisher x1 + thistle_marksman x1 -- same totals Melee=3/Ranged=2, budget-neutral. See docs/agents/warden/log.md (2026-08-12).",
     "level": 4,
     "wave_index": 0,
     "enemies": [
-      { "type": "spellbound_thug", "count": 3, "spawn_delay_ms": 0 },
-      { "type": "hexbow_skirmisher", "count": 2, "spawn_delay_ms": 650 },
+      { "type": "spellbound_thug", "count": 2, "spawn_delay_ms": 0 },
+      { "type": "bonecage_brute", "count": 1, "spawn_delay_ms": 0 },
+      { "type": "hexbow_skirmisher", "count": 1, "spawn_delay_ms": 650 },
+      { "type": "thistle_marksman", "count": 1, "spawn_delay_ms": 650 },
       { "type": "creeping_bramble", "count": 1, "spawn_delay_ms": 1050 }
     ],
-    "hp_modifier": 1.0,
-    "damage_modifier": 1.0
+    "hp_modifier": 1.24,
+    "damage_modifier": 1.24
   },
   {
+    "_variant_schedule": "issue #162: glint_archer (introduced Level 1) recurs here, splitting hexbow_skirmisher x3 into hexbow_skirmisher x2 + glint_archer x1 -- same total Ranged=3, budget-neutral. See docs/agents/warden/log.md (2026-08-12).",
     "level": 4,
     "wave_index": 1,
     "enemies": [
       { "type": "spellbound_thug", "count": 2, "spawn_delay_ms": 0 },
-      { "type": "hexbow_skirmisher", "count": 3, "spawn_delay_ms": 600 },
+      { "type": "hexbow_skirmisher", "count": 2, "spawn_delay_ms": 600 },
+      { "type": "glint_archer", "count": 1, "spawn_delay_ms": 600 },
       { "type": "creeping_bramble", "count": 1, "spawn_delay_ms": 1000 },
       { "type": "murmur_wisp", "count": 1, "spawn_delay_ms": 1300 }
     ],
-    "hp_modifier": 1.0,
-    "damage_modifier": 1.0
+    "hp_modifier": 1.25,
+    "damage_modifier": 1.25
   },
   {
     "level": 4,
@@ -33,7 +38,7 @@
       { "type": "creeping_bramble", "count": 1, "spawn_delay_ms": 950 },
       { "type": "murmur_wisp", "count": 1, "spawn_delay_ms": 1250 }
     ],
-    "hp_modifier": 1.0,
-    "damage_modifier": 1.0
+    "hp_modifier": 1.26,
+    "damage_modifier": 1.26
   }
 ]

@@ -366,3 +366,38 @@ Validated Loomwright's Side-Pocket Lore Encounters implementation against my own
 **Check 7 (economic sanity, judgment call): NEGLIGIBLE** — per `hexcoin-template.md`'s documented ~20-70 Hexcoin plausible pre-boss income range, an extra 8 one-time Hexcoin sits inside that range's own noise band. Neither the 30- nor 100-Hexcoin fee threshold needs re-pricing.
 
 No FAILs, no flagged diffs. All 29 relevant tests pass. See `loomwright/log.md`, `lorena/log.md`, `heckler/log.md`, and `ana/backlog.md` (3.23), all 2026-08-10.
+
+## 2026-08-12 — Issue #162: defining the Per-Level Difficulty Curve (resolves backlog 3.12/issue #95's flat-numbers finding)
+
+Every prior Warden log entry that touched `hp_modifier`/`damage_modifier` held both at 1.0 and said so explicitly: "no template field defines a base enemy-HP number or a per-level multiplier to scale against, so any value other than 1.0 would be an invented, unchecked number." That's correct under the templates as they stood — my own `hp-template.md` never defined a curve. Developer playtest on 2026-08-10 confirmed the resulting flatness ("same monsters, same difficulty, every level"), and issue #162 asks me to close that gap: define an actual curve, using `waveThreatBudget.ts`'s existing functions rather than hand-deriving new arithmetic.
+
+**What I did NOT touch.** Mana/Mastery/Hexcoin numbers — untouched, not even read for this task beyond confirming no wave-file change alters kill counts (see the composition-neutrality check below). `HIT_PCT` (melee 7/ranged 4/debuffer 0), the debuff-cap table, the Level 1 Wave 0 onboarding exception's own composition and thresholds — all unchanged. The only thing this issue authorizes touching is `hp_modifier`/`damage_modifier` (the field explicitly named in the ticket) and, separately, the enemy roster (Warden's half, see `warden/log.md` 2026-08-12).
+
+**The curve, in full, is now in `hp-template.md`'s new "Per-Level Difficulty Curve" section** — not duplicating it here. Summary: one shared scalar (`hp_modifier === damage_modifier` on every wave) driven by a per-level band-widening multiplier (`LEVEL_BAND_MULTIPLIER`: 1.00/1.08/1.16/1.24 for Levels 1-4) plus a small within-level step (e.g. Level 4: 1.24 → 1.25 → 1.26), extending `waveThreatBudget.ts` with `scaleBand`/`levelRegularWaveBand`/`applyDamageModifier`/`BOSS_TRIAL_BAND`/`sumThreatBudgets` rather than inventing new hand arithmetic.
+
+**Independent verification, not just asserted.** Recomputed every wave's modifier-scaled budget directly (script run against the real composition each wave's `enemies` array resolves to via `ENEMY_REGISTRY`, same lookup `waveThreatBudget.test.ts`'s new `compositionOf` helper uses):
+
+| Wave | M,R | raw (competent,careless) | `damage_modifier` | effective (competent,careless) | level band | PASS? |
+| --- | --- | --- | --- | --- | --- | --- |
+| L1W0 | 2,1 | 6.80, 18.00 | 1.00 | 6.80, 18.00 | onboarding exception (`isOnboardingGrace`) | PASS |
+| L1W1 | 2,3 | 14.80, 26.00 | 1.01 | 14.95, 26.26 | [10.0-15.0]/[25.0-35.0] | PASS |
+| L1W2 | 3,2 | 12.20, 29.00 | 1.02 | 12.44, 29.58 | [10.0-15.0]/[25.0-35.0] | PASS |
+| L2W0 | 3,2 | 12.20, 29.00 | 1.08 | 13.18, 31.32 | [10.8-16.2]/[27.0-37.8] | PASS |
+| L2W1 | 2,3 | 14.80, 26.00 | 1.09 | 16.13, 28.34 | [10.8-16.2]/[27.0-37.8] | PASS |
+| L2W2 | 3,2 | 12.20, 29.00 | 1.10 | 13.42, 31.90 | [10.8-16.2]/[27.0-37.8] | PASS |
+| L3W0 | 3,2 | 12.20, 29.00 | 1.16 | 14.15, 33.64 | [11.6-17.4]/[29.0-40.6] | PASS |
+| L3W1 | 2,3 | 14.80, 26.00 | 1.17 | 17.32, 30.42 | [11.6-17.4]/[29.0-40.6] | PASS |
+| L3W2 | 3,2 | 12.20, 29.00 | 1.18 | 14.40, 34.22 | [11.6-17.4]/[29.0-40.6] | PASS |
+| L4W0 | 3,2 | 12.20, 29.00 | 1.24 | 15.13, 35.96 | [12.4-18.6]/[31.0-43.4] | PASS |
+| L4W1 | 2,3 | 14.80, 26.00 | 1.25 | 18.50, 32.50 | [12.4-18.6]/[31.0-43.4] | PASS |
+| L4W2 | 3,2 | 12.20, 29.00 | 1.26 | 15.37, 36.54 | [12.4-18.6]/[31.0-43.4] | PASS |
+| Boss P0 | 1,3 | 13.40, 19.00 | 1.00 | 13.40, 19.00 | — (cumulative) | — |
+| Boss P1 | 2,4 | 18.80, 30.00 | 1.05 | 19.74, 31.50 | — (cumulative) | — |
+| Boss P2 | 2,4 | 18.80, 30.00 | 1.10 | 20.68, 33.00 | — (cumulative) | — |
+| Boss cumulative | — | — | — | 53.82, 83.50 | `BOSS_TRIAL_BAND` [40-60]/[70-90] | PASS |
+
+Every regular wave clears its own level's scaled band; the boss's summed modifier-scaled budget (53.82% competent / 83.50% careless) clears `BOSS_TRIAL_BAND`. All 15 rows verified via a standalone script reproducing `computeThreatBudget`/`applyDamageModifier`/`sumThreatBudgets`' exact arithmetic before writing a single line of `waveThreatBudget.ts`, then re-verified as real `waveThreatBudget.test.ts` assertions against the actual shipped JSON (not the script) — see that file's `issue #162` describe block. `docker-compose run --rm game npm test` output pasted in the PR description; all green including the 15+ new assertions.
+
+**Composition-neutrality check (why this doesn't need a Mastery re-derivation).** Every new named enemy variant Warden introduced (see `warden/log.md`, 2026-08-12) is a same-archetype, same-count split of an existing line (e.g. `hexbow_skirmisher` x3 → `hexbow_skirmisher` x2 + `glint_archer` x1) — total per-wave enemy count is unchanged in every file, confirmed by diffing enemy-count sums per level against the pre-#162 files: Level 1 = 16, Level 2 = 19, Level 3 = 19, Level 4 = 20, all identical to backlog 3.12's post-trim figures (`pato/log.md`, 2026-08-06 (3)). `MasterySystem.ts`'s `k = 24` derivation and its stated margins are therefore untouched by this issue — no re-derivation needed, and I didn't touch `mastery-template.md`.
+
+**Verdict: PASS.** Curve defined, checkable via `waveThreatBudget.ts` rather than hand-derived, every wave/phase independently re-verified against it, Mana/Mastery/Hexcoin untouched. See `warden/log.md` (2026-08-12) for the paired enemy-roster schedule and per-wave authoring notes.

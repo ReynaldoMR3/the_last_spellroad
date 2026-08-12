@@ -88,3 +88,85 @@ export function isOnboardingGrace(budget: ThreatBudget): boolean {
     budget.carelessPct < ONBOARDING_CARELESS_CEILING
   );
 }
+
+/**
+ * Per-level difficulty curve (issue #162, resolving backlog 3.12/issue #95's flat-numbers
+ * finding). `hp-template.md`'s "Per-Level Difficulty Curve" section is the authoritative
+ * derivation; this is that section's own checkable reproduction, same relationship
+ * `computeThreatBudget`/`isWithinBand` already have to the Wave/Boss Damage-Threat Budget
+ * section above.
+ *
+ * Each level's regular-wave band is the standard band's own floor/ceiling envelope, scaled
+ * uniformly by this multiplier -- not a new, independently-chosen band per level. Level 1's
+ * multiplier is exactly 1.0 (i.e. Level 1 keeps validating against `STANDARD_REGULAR_WAVE_BAND`
+ * completely unchanged), so nothing about Level 1's already-shipped, already-Pato-validated
+ * margins moves. Levels 2-4 step the envelope up by a fixed +0.08 per level -- small enough
+ * that every already-validated (Melee=3,Ranged=2)/(Melee=2,Ranged=3) composition pair still
+ * clears the scaled floor at every level (see `waveThreatBudget.test.ts`), large enough that a
+ * `damage_modifier` > 1.0 is actually necessary to reach the scaled ceiling instead of the
+ * envelope just floating uselessly above the unmodified composition.
+ */
+export const LEVEL_BAND_MULTIPLIER: Record<number, number> = {
+  1: 1.0,
+  2: 1.08,
+  3: 1.16,
+  4: 1.24
+};
+
+/** Scales every bound of a `ThreatBand` by the same factor -- the floor and ceiling move
+ * together, so the band's shape (ratio of competent to careless width) never distorts. */
+export function scaleBand(band: ThreatBand, multiplier: number): ThreatBand {
+  return {
+    competentMin: band.competentMin * multiplier,
+    competentMax: band.competentMax * multiplier,
+    carelessMin: band.carelessMin * multiplier,
+    carelessMax: band.carelessMax * multiplier
+  };
+}
+
+/** The regular-wave band a given level's waves are checked against -- `STANDARD_REGULAR_WAVE_BAND`
+ * scaled by that level's `LEVEL_BAND_MULTIPLIER` entry. Throws for a level with no defined
+ * multiplier (only 1-4 are regular-wave levels; the boss/trial uses `BOSS_TRIAL_BAND` below,
+ * never this function) -- an unrecognized level is an authoring mistake, not a value to
+ * silently pass through. */
+export function levelRegularWaveBand(level: number): ThreatBand {
+  const multiplier = LEVEL_BAND_MULTIPLIER[level];
+  if (multiplier === undefined) {
+    throw new Error(`levelRegularWaveBand: no LEVEL_BAND_MULTIPLIER entry for level ${level}`);
+  }
+  return scaleBand(STANDARD_REGULAR_WAVE_BAND, multiplier);
+}
+
+/** Applies a wave's `damage_modifier` to a raw composition budget -- `hp_modifier`/`damage_modifier`
+ * scale the per-hit damage figures this file's `HIT_PCT` table encodes, so the modifier belongs
+ * multiplied onto the composition's own competent/careless percentages, not layered separately. */
+export function applyDamageModifier(budget: ThreatBudget, damageModifier: number): ThreatBudget {
+  return {
+    competentPct: budget.competentPct * damageModifier,
+    carelessPct: budget.carelessPct * damageModifier
+  };
+}
+
+/** `hp-template.md`'s Boss/trial row (40-60% competent / 70-90% careless), as a `ThreatBand` --
+ * cumulative across every phase of a multi-phase fight (no HP reset between phases), never
+ * scaled by `LEVEL_BAND_MULTIPLIER` (that table is for the four regular-wave levels only). */
+export const BOSS_TRIAL_BAND: ThreatBand = {
+  competentMin: 40,
+  competentMax: 60,
+  carelessMin: 70,
+  carelessMax: 90
+};
+
+/** Sums per-phase budgets into the cumulative figure a multi-phase boss/trial is checked
+ * against `BOSS_TRIAL_BAND` with -- separate from `computeThreatBudget` because a boss fight's
+ * threat is cumulative across phases, not per-encounter like a regular wave's reset-every-time
+ * budget. */
+export function sumThreatBudgets(budgets: ThreatBudget[]): ThreatBudget {
+  return budgets.reduce(
+    (acc, budget) => ({
+      competentPct: acc.competentPct + budget.competentPct,
+      carelessPct: acc.carelessPct + budget.carelessPct
+    }),
+    { competentPct: 0, carelessPct: 0 }
+  );
+}
