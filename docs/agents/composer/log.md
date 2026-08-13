@@ -182,3 +182,94 @@ Script: `docs/agents/composer/scripts/revise-boss-1-invigilator-trial-theme-bras
 - **CLEAR (adversarial QA) — no new clipping, no dropped notes, no tempo/time-signature drift introduced**, all re-verified independently per the checks above.
 
 **Status:** `in-progress-with-owner`. Musically revised, self-verified at the MIDI level and directly measured at the rendered-audio level (duration, loop-boundary cleanliness, and audible-loudness-at-the-target-beats), with one MAJOR self-flagged risk (does the sine-wave render actually read as brass/percussion to a human ear, not just structurally contain more brass/percussion notation) left explicitly open — that is a developer-listening gate, not something further self-verification from this same agent could close. Not yet independently Heckler-gated (a real six-persona pass from a separate dispatch, not this self-check, is still the standing recommendation before this counts as validated the way 4.9 was). Does not close issue #139.
+
+## 2026-08-12 — Issue #188: two sibling variations of the Level 1-4 exploration/interlude loop
+
+**Target:** the Level 1-4 non-combat interlude — the quiet window between waves inside a level, where issue #157's Side-Pocket Explore/Continue prompt sits. Two new tracks that rotate alongside the existing `opening-magic-deterministic-original` loop (my 2026-08-07 and 2026-08-07 (2) entries above), not replacing it. Not the Level 5 Director trial (4.9's track), not active ordinary combat (#142's cue). Developer playtest (issue #188): "its good the level 1 music i like it, but i think we need 2 more very similar with some variations, so the loop of the song gets to bother it."
+
+**Brief:** `docs/agents/lorena/log.md`, 2026-08-12 entry "Issue #188: variation brief for the Level 1 exploration loop (2 sibling tracks)" — an amendment scoped to two siblings, written against the already-approved `docs/agents/_reference/opening-experience-brief.md`. Unlike my 2026-08-07 entry (which had to fill in an unstated tempo/key/duration and flagged each as [INTERPRETIVE]), this brief needed almost no interpretation: everything it locks it locks by pointing at the shipped original, and everything it opens it names as one of five explicit axes. So the labels below are **[LOCKED]** (brief says don't vary; copied verbatim from the original script) and **[VARIED, axis N]** (one of the brief's own five). Note that this run had a real Lorena brief written for it first — a deliberate correction of the process deviation my 2026-08-09 (2) entry disclosed for issue #139.
+
+**Scripts:** `docs/agents/composer/scripts/compose-exploration-loop-variation-a.py` and `compose-exploration-loop-variation-b.py`. Both are deliberate near-copies of `compose-opening-magic-deterministic-original.py` — same module layout, same four `build_*_part()` functions, same `PHRASE_CHORDS`/`CYCLE_ARPEGGIO_TRANSPOSE` shape — rather than fresh compositions, because "very similar with some variations" is a structural instruction as much as a musical one. The original script is untouched.
+
+**What varies, and what doesn't:**
+
+| | Original | Sibling A | Sibling B |
+| --- | --- | --- | --- |
+| Tempo [LOCKED] | 128 BPM 4/4 | 128 BPM 4/4 | 128 BPM 4/4 |
+| Key [LOCKED] | D major | D major | D major |
+| Bars / notated length [LOCKED] | 24 / 45.0s | 24 / 45.0s | 24 / 45.0s |
+| Voices [LOCKED] | Celesta, GM46 pizz., GM116 woodblock, Glockenspiel | identical | identical |
+| Phrase ending [LOCKED] | V | V | V |
+| Chord path [VARIED, 1] | I-V-vi-IV-I-V-IV-V | I-vi-IV-V-I-vi-ii-V | I-IV-I-V-vi-IV-ii-V |
+| Melodic ornament [VARIED, 2] | arpeggio + 2-note descent | arpeggio + 16th turn at the peak + held arrival | longer values, 5-6 notes/bar |
+| Octave-lift cycle [VARIED, 2] | 12-24-12 | 12-24-12 (unchanged) | 12-12-24 (the climb arrives last) |
+| Percussion accent [VARIED, 3] | beats 1, 3 | beats 1, 4 | beats 2, 4 (backbeat) |
+| Bell flourish [VARIED, 4] | D6-F#6-A6 ascending, 3 notes | A6-F#6-D6 descending, 3 notes | D6-F#6-A6-B6, 4 even eighths |
+| Ostinato figure [VARIED, 5] | 0-1-2-1-2-1-0-1 | 0-2-1-2-0-1-2-1 | 0-0-2-1-0-0-1-2 (dwells on the root) |
+| Melody velocity | 66 | 68 (A is "brighter and busier") | 62 (B is "more spacious") |
+
+**Tool/Docker commands used** — the same pinned image the 2026-08-07 entry recorded, still present locally at the **same image ID** (`sha256:a7e274307052...`), verified before use rather than assumed: `music21` 10.5.0, `mido` 1.3.3, FluidSynth 2.4.4, ffmpeg 7.1.5. Entirely in Docker per ADR-0003; no host venv, no `pretty_midi` fallback. **Deliberate toolchain choice, disclosed:** #142's combat cue was rendered through the `pretty_midi` additive-sine path because no fluidsynth was available for that dispatch. These three tracks are rendered through FluidSynth + a licensed GM SoundFont instead, because the original of the three already was, and re-rendering it through the sine path to "match" would have changed the exact track the developer said he liked.
+
+```
+docker run --rm -v <repo>:/work -w /work spellroad/composer:opening-magic-1 \
+  python docs/agents/composer/scripts/compose-exploration-loop-variation-a.py \
+  public/assets/audio/music/exploration-loop-variation-a.mid
+# (same for -b)
+
+fluidsynth -ni /usr/share/sounds/sf2/FluidR3_GM.sf2 exploration-loop-<x>.mid -F /tmp/<x>.wav -r 44100
+ffmpeg -y -i /tmp/<x>.wav -af "volume=26.4dB,afade=t=out:st=45.05:d=0.25" -t 45.3 \
+  -c:a libvorbis -q:a 4 exploration-loop-<x>.ogg
+```
+
+**The `volume=26.4dB` stage is a fix, added after Heckler's pass, and it is worth reading the "Gain correction" section below before treating the rest of this entry's numbers as final** — the first render of all three had no gain stage and shipped ~27 dB below the two already-shipped tracks.
+
+The trim/fade values are copied verbatim from my own 2026-08-07 (2) dead-air fix, and applied **pre-emptively** rather than after a Heckler finding: FluidSynth's raw render of these two came out at 48.334s and 48.331s against a 45.0s notated end — the same ~3.3s of decay-plus-dead-air that entry diagnosed on the original, reproduced exactly, on a different composition. That is now a known, deterministic property of this render step, not a per-track surprise, and skipping the trim would have shipped an audible gap at every loop seam.
+
+**Rendered output** (all under `public/assets/audio/music/`, alongside the boss theme and combat cue, rather than in `assets/prototypes/` — these are shipped production tracks now, not staged audition candidates, and the prototypes directory's own "candidates remain staged; none silently becomes production art" framing is exactly why they shouldn't ship from there):
+- `exploration-loop-variation-a.mid` (5,344 B, sha256 `931991c2...9d9c91`) / `.ogg` (662,624 B, sha256 `360db29d...52cae5`)
+- `exploration-loop-variation-b.mid` (4,939 B, sha256 `d6d7c8b4...479a0b`) / `.ogg` (653,591 B, sha256 `9e76fb67...d7e607b`)
+- `exploration-loop-original.mid` (5,128 B, sha256 `50dd87f6...228def`) / `.ogg` (657,063 B, sha256 `81f598f9...c0deb5`) — the existing original, restored from the commit before issue #125 removed it and promoted to this directory. The **`.mid` is byte-identical** to the file my 2026-08-07 entry recorded (sha256 matches exactly) — that is the authored source of truth and nothing about the composition changed. The **`.ogg` is not** byte-identical: it is a fresh FluidSynth render of that same untouched `.mid`, differing from the 2026-08-07 (2) file (`f903cbb5...4d24c2`) only by the uniform `volume=26.4dB` gain stage described below. Same notes, same tempo, same timbres, same trim and fade — a linear level change and nothing else.
+
+**Self-verification (independent reload via `mido` and `music21` separately, plus `ffprobe`/`volumedetect` on the actual rendered `.ogg` — not re-reading my own scripts' printed output), run over all three tracks so the siblings are compared against the real original rather than against my description of it:**
+
+- `mido`: all three are type 1, 5 tracks (1 tempo/meta + 4 instrument), `ticks_per_beat` 10080, `set_tempo` = **exactly 128.0 BPM**, notated `.length` **45.46875s** — identical across all three (the ~0.47s past the notated 45.0s is the same uniform `music21`-writer end-of-track padding artifact already documented on every previous track).
+- Per-track `note_on` counts, each independently recomputable from the script's own parameters, and each matched exactly:
+  - Original: Celesta 152, Pizz 192, Percussion 192, Glockenspiel 9.
+  - Sibling A: Celesta **176** (= 8 bars x 7 notes + 8 x 8 + 8 x 7, the middle cycle's two-step tail), Pizz **192** (= 24 x 8), Percussion **192** (= 24 x 8), Glockenspiel **9** (= 3 x 3).
+  - Sibling B: Celesta **128** (= 8 x 5 + 8 x 5 + 8 x 6, the last cycle's stepped tail), Pizz **192**, Percussion **192**, Glockenspiel **12** (= 3 x 4).
+- `music21.converter.parse` round-trip: 4 parts each, all reporting 128 BPM / 4/4 with **no drift between parts**; Celesta/Pizz/Percussion each 96.0 quarter-notes (= 24 bars, exact); Glockenspiel 68.0 on all three — the same already-explained not-a-bug (MIDI has no trailing-rest event, so the readback ends at the last flourish note).
+- **Channel/program check, specifically because this is where the original script found a real bug:** all three files place Celesta on channel 0 (prog 8), Pizzicato Strings on 1 (prog 45), Hand Percussion on **channel 2** (prog 115), Glockenspiel on 3 (prog 9). The percussion part is on a normal melodic channel, not channel 10, in both new files — the generic-`Instrument`-with-explicit-`midiProgram` technique carried over correctly. Confirmed at the render step too: **neither** FluidSynth run emitted an "Instrument not found / substituted" warning, which is the exact log line that exposed the bug the first time.
+- **Rendered `.ogg`, measured on the actual shipped bytes:** all three are Vorbis, 44.1 kHz, **stereo**, **45.300000s** — three siblings of identical length, which the brief called out as mattering more than usual for tracks swapped into the same slot.
+
+Measured on the pre-gain render (see "Gain correction" below for the shipped numbers); the *relative* windows are what this table is for, and the gain stage shifts every row by the same +26.4 dB without changing any relationship in it:
+
+| Window | Original | Sibling A | Sibling B |
+| --- | --- | --- | --- |
+| Full file mean / max | -41.3 / **-27.9** dB | -41.3 / **-27.4** dB | -42.9 / **-29.9** dB |
+| 0-44s (steady music) | -41.3 / -27.9 dB | -41.2 / -27.4 dB | -42.9 / -29.9 dB |
+| 44-45s (last musical second) | -41.5 / -29.8 dB | -42.3 / -29.8 dB | -44.1 / -32.4 dB |
+| final 100 ms (45.2-45.3s) | -78.0 / -64.7 dB | -80.8 / -67.4 dB | -77.8 / -63.5 dB |
+| first 100 ms (0-0.1s) | -39.2 / -30.8 dB | -38.5 / -30.0 dB | -40.3 / -31.9 dB |
+
+  - **No clipping** on any of the three, before or after the gain correction: shipped peaks are -1.72 dBFS (original), -0.83 dBFS (A) and -3.53 dBFS (B), with **0 samples** at or above 0.999 in any file. (Worth noting against my 2026-08-09 entry's finding that the `pretty_midi` path *over*-normalized the boss theme past 1.0 — the FluidSynth path errs the other way, which is exactly what the gain stage below exists to correct.)
+  - **No dead air and no click at the loop seam:** the final 100 ms sits well below audibility (inside the deliberate 250 ms fade) and the first 100 ms comes straight in at essentially the steady-state music level. A loop wrapping from the former into the latter has neither a gap nor a discontinuity. Independently confirmed post-gain by a 100 ms windowed RMS scan: longest interior run below -60 dB anywhere in any of the three files is **0.0s**.
+  - **One real number I am flagging rather than smoothing over:** Sibling B is **1.7 dB quieter** than the original across the whole file (-16.70 vs -15.03 dB RMS in the shipped files). It is a direct, intended consequence of the brief's "more spacious" instruction realized as fewer notes at lower velocities, and the gain correction below was applied as one common gain to all three specifically so this intended relationship survives rather than being flattened by per-file normalization — but it is also the one measurable way the three siblings are *not* interchangeable in the rotation, and a listener could conceivably read it as the game getting quieter rather than the music changing. 1.7 dB is well inside the range a single track's own dynamics cover, so I have not corrected it; it is Heckler's call whether that is acceptable, not mine.
+
+**Gain correction (Heckler BLOCKING finding, `docs/agents/heckler/log.md` 2026-08-12 (2), fixed before this shipped).** My first render of all three had no gain stage, and every table above was self-consistent, correct, and completely missed the problem: measured *against the other tracks in the game* rather than against themselves, the three interlude loops peaked at -27.9/-27.4/-29.9 dBFS while the two already-shipped tracks peak at +0.19 dBFS (boss theme) and -0.85 dBFS (combat cue). That is a **~27 dB** deficit — at the same `0.5` playback volume, the track meant to fix "i dont hear any music" would have been very nearly inaudible, and would have vanished completely under any SFX one-shot. This is a genuine gap in my own verification method, not just an unlucky render: every duration/clipping/seam check I ran was *intra-file*, and no intra-file check can detect a file that is correct but 27 dB too quiet for the mix it is joining. Root cause is the render step, not the composition — FluidSynth against FluidR3_GM produces a conservative absolute level from these low velocities (38-68 of 127) and four thin voices, where `pretty_midi`'s synthesizer normalizes to full scale by default, which is why the two earlier tracks came out hot and these came out cold.
+
+Fixed by adding `volume=26.4dB` to the existing ffmpeg filter chain and re-rendering all three from their unchanged `.mid` sources. **One common gain across all three**, not per-file peak normalization: the gain was sized so the loudest of the three (Sibling A, -27.40 dBFS peak) lands at -1.0 dBFS, which puts it alongside the combat cue's -0.85 dBFS and leaves the other two exactly where their own compositions put them relative to it. Post-fix, independently re-measured:
+
+| Track | Peak dBFS | Whole-file RMS dBFS |
+| --- | --- | --- |
+| boss theme (#97, unchanged) | +0.19 | -13.54 |
+| combat cue (#142, unchanged) | -0.85 | -15.89 |
+| interlude original | **-1.72** | **-15.03** |
+| interlude variation A | **-0.83** | **-15.02** |
+| interlude variation B | **-3.53** | **-16.70** |
+
+All three now sit inside the same ~3 dB band as the two tracks the developer already hears, with no clipping and no change to duration (45.300s), seam behaviour, or any note in any `.mid`.
+- **Divergence measured, not asserted** (the brief's whole risk is a variation that is either too close to be worth shipping or too far to be the same theme). Comparing note sequences part-by-part against the original: the diatonic **pitch-class set is identical** for both siblings (C#, D, E, F#, G, A, B — same key, same harmonic vocabulary, no borrowed or chromatic tones), while positional pitch agreement with the original is **7.2%** (A's melody) and **3.9%** (B's melody), 20.3% / 12.5% on the ostinato. A against B is 3.9% on the melody, so the two siblings are as distinct from each other as each is from the original — the brief's "a rotation of three where two are near-identical is a rotation of two" warning. The percussion part reads as 100% pitch-identical across all three, which is expected and not a defect: that part's pitch is a GM patch selector, not melody, and its variation is in velocity — verified separately, first-bar accent slots are `[0,4]` (original), `[0,6]` (A), `[2,6]` (B).
+
+**Status:** generated and self-verified against Lorena's brief with an independent reload toolchain, same rigor as the entries above. Handed to Heckler for issue #188's validation stage — see `docs/agents/heckler/log.md`, 2026-08-12. **What self-verification structurally cannot close, and I am not claiming it does:** every number above is a measurement of structure, and the brief's own acceptance test is perceptual — "a player who has heard the original should register 'this bit sounds different' and not 'the music changed'." Nothing in this section proves the siblings land on that side of the line. That is a Heckler pass and then a developer listen, not a `mido` readback.
+
+**Not touched, per my own contract and this ticket's scope:** `compose-opening-magic-deterministic-original.py`, `docs/agents/_reference/opening-experience-brief.md`, the boss theme, the #142 combat cue, and the `assets/prototypes/opening-magic/` staging tree (which issue #125 already emptied of these files; nothing was written back into it).
