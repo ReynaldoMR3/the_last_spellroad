@@ -35,6 +35,14 @@ if [ ! -f "$REPO_ROOT/$SCRIPT_PATH" ]; then
   exit 1
 fi
 
+# <output-name> is a basename, not a path — reject anything that could escape the gitignored
+# $OUT_DIR (a stray "/" or ".." would otherwise write a large binary somewhere `git status`
+# doesn't ignore, one typo away from an accidental commit).
+if [[ "$OUTPUT_NAME" == *"/"* || "$OUTPUT_NAME" == *".."* ]]; then
+  echo "Invalid output-name '$OUTPUT_NAME': must be a plain basename, no '/' or '..'" >&2
+  exit 1
+fi
+
 mkdir -p "$REPO_ROOT/$OUT_DIR"
 
 docker build -t "$IMAGE" -f "$REPO_ROOT/tools/composer/Dockerfile" "$REPO_ROOT"
