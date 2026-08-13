@@ -838,6 +838,135 @@ as acceptable or as its own new oddity, are exactly the aesthetic/playtest quest
 file-level measurement can't answer on its own -- flagged for the next playtest pass rather than
 assumed resolved.
 
+## 2026-08-12 — Issue #137: third lightning cast-SFX sourcing pass, widened beyond OpenGameArt; fresh shortlist posted, nothing downloaded
+
+**Why a third pass.** The 2026-08-07 entry's original `electricspell.ogg` candidate failed on
+ambiguous licensing; the 2026-08-09 entry's shortlist (BMacZero's `spark.wav` from "Electricity
+Sound Effects" and JaggedStone's "Magic Spell SFX" pack) was previewed by the developer on their
+OpenGameArt pages and rejected outright ("i didnt like any of them," per issue #137's own comment
+thread) -- not a licensing failure this time, a fit/taste one. Issue #137 asked explicitly for a
+*fresh* pass that widens past OpenGameArt's CC0 pool specifically, since two passes running into
+the same thin pool is itself the diagnosis. This pass did not re-open or re-preview either
+rejected candidate, or the disqualified-on-licensing ones from 2026-08-09 (qubodup's "Ice &
+Electricity Magic," the two OwlishMedia aggregator pages, rubberduck's two packs).
+
+**Search order followed, widened per the ticket's own instruction (not a deviation from the Art
+Sourcing Contract's step order, since Kenney and OpenGameArt were both re-checked first and
+turned up nothing new -- the widening is *which* CC0-friendly sources count as "OpenGameArt,"
+not a skip-ahead):**
+- **Kenney.nl, re-checked:** still no dedicated magic/lightning-cast pack in Kenney's audio
+  catalog (Digital Audio's own listing was re-read file-by-file via its page -- confirmed no
+  per-file listing is even exposed there beyond tag/count, so there was nothing new to check
+  against beyond the "Digital Audio"/"Impact Sounds"/"Interface Sounds" packs already used
+  elsewhere in `sfx.ts`).
+- **Freesound.org, filtered to CC0 only** (not tried in either prior pass -- both stayed inside
+  OpenGameArt). Freesound licenses per-file, same individually-CC0 discipline this project
+  already applies to OpenGameArt packs; each candidate below was opened on its own sound page,
+  not inferred from a search-result snippet or a pack's aggregate page.
+- **itch.io, CC0-tagged assets.** Checked several fantasy/magic SFX packs surfaced under
+  itch.io's own `assets-cc0` tag plus direct search: "Magic Spell Sound Effects Pack Vol 1"
+  (placeholder-assets, has a Lightning category, but $19.99 -- not CC0, not free, disqualified
+  on price alone) and "Combat Magic Spells - Sound Effects" (ad-sounds, has thunder/electric
+  spell files, but a paid $4.99 pack under a custom "non-exclusive license," explicitly not CC0
+  -- disqualified). "Fantasy Ambient Sound Effects Pack (CC0)" (kmontesdev) is genuinely
+  name-your-own-price CC0 and lists a "spells" category, but its page doesn't expose a
+  per-file listing to confirm a lightning-specific file inside a ~2GB pack sight-unseen --
+  not shortlisted without that confirmation (same "don't cite an aggregator you can't verify"
+  rule the 2026-08-09 entry applied to the OwlishMedia pages).
+- **Different search terms**, per the ticket's own suggested list: "arcane zap," "spell electric,"
+  "thunder crack magic," "energy bolt cast" -- run against both OpenGameArt and Freesound. The
+  OpenGameArt side of this turned up nothing not already covered by the 2026-08-09 pass's
+  disqualified list; the Freesound side is where this pass's real candidates came from.
+
+**Disqualified this pass (checked, not shortlisted):**
+- Freesound, newlocknew's "ELECArc_Movement Of An Electric Arc..Jacobs Ladder" -- individually
+  licensed **Attribution-NonCommercial 4.0** on its own sound page, not CC0. Fails the bar even
+  though it surfaced under a CC0-filtered search result list (the filter reflects the search
+  tool's summary, not a substitute for opening the actual page -- confirmed this discrepancy by
+  fetching the page directly).
+- itch.io "Magic Spell Sound Effects Pack Vol 1" and "Combat Magic Spells - Sound Effects" --
+  both paid, custom licenses, not CC0 (details above).
+- itch.io "Fantasy Ambient Sound Effects Pack (CC0)" -- plausibly fine, but not verifiable to a
+  specific lightning file without downloading a 2GB pack sight-unseen; not shortlisted, flagged
+  here in case a future pass wants to actually pull and inspect it with developer go-ahead.
+
+**Shortlisted CC0 candidates (none downloaded, none wired in -- pending the developer's
+audition and explicit go-ahead per this repo's asset-sourcing convention):**
+
+1. **"Electric zap.wav" by michael_grinnell** -- `freesound.org/people/michael_grinnell/sounds/512471/`.
+   License confirmed on the sound's own page: "You can copy, modify, distribute and perform the
+   sound, even for commercial purposes, all without the need of asking permission to the
+   author" -- Freesound's CC0 grant, individually confirmed (not inferred from the pack it's
+   filed under, "Sci-fi Sounds"). WAV, stereo, 44.1kHz/16-bit, 0.224s, 38.8KB. Tags: arc, buzz,
+   electric, electricity, jolt, shock, spark, zap. A real recorded electrical-arc discharge, not
+   a synthesized sci-fi laser tone -- already close to a usable cast-SFX length with no trim
+   needed. Likely fit: a tight, percussive "snap" -- probably the closest single-file match to
+   "a spell just went off" of anything found across all three passes, though its source pack's
+   sci-fi framing means it may still read slightly more "electronics" than "storm" once heard in
+   the stone/dungeon setting -- an aesthetic call only the developer's own audition can settle.
+
+2. **"Taser/High Voltage discharge in glass tube" by The_Chemical_Workshop** --
+   `freesound.org/people/The_Chemical_Workshop/sounds/403253/`. License confirmed on the sound's
+   own page: same Freesound CC0 grant, individually confirmed. WAV, mono, 44.1kHz/16-bit,
+   20.758s, 1.7MB. Tags: arc, electric, electricity, high-voltage, ozone, plasma, shock, spark,
+   taser, zap. A real recording of high-voltage sparks discharging through chlorine gas --
+   distinctly harsher/more textured than a clean electrical zap, closer to a crackling
+   thunder-adjacent hiss-and-snap. Explicitly disclosing the fit tradeoff: at 20.8s this is a
+   raw-material recording, not a one-shot -- if the developer likes the texture, it needs a
+   trim (Art Sourcing Contract step 3, a derivative of this same CC0 file, same as the
+   fire/ice/earth `-trimmed` precedent) down to just the attack transient before it could ever
+   be wired in; not proposing a specific cut point yet since that's premature before an
+   audition even confirms interest in the texture at all.
+
+3. **Hand-synthesized candidate (no third-party license question at all).** Per issue #137's
+   own acceptance criteria ("if no suitable CC0 recording exists, a hand-authored/synthesized
+   alternative is proposed") and the Art Sourcing Contract's step 4 -- flagged here rather than
+   silently treated as a last resort, since the repeated failure mode across all 3 passes has
+   specifically been thin/mismatched CC0 pool fit, exactly the condition step 4 exists for.
+   Built the same way Composer's tracks are built (deterministic, scripted, self-verified render
+   -- see `docs/agents/composer/log.md`'s 2026-08-04 entry for the precedent this mirrors), just
+   raw-waveform synthesis instead of notation: `docs/agents/tilesmith/scripts/synth-lightning-cast-137.py`,
+   pure `numpy` (2.5.2) + `soundfile` (0.14.0) in a scratch venv (not added to the game's own
+   dependency tree -- this is a one-off generation script, same convention Composer's `music21`
+   scripts follow), no scipy/DSP library. Two layers, mixed and soft-clipped: (1) a "crack" --
+   an FM sweep from 1900Hz down to 180Hz over the first 70ms, 1ms attack, ~90ms exponential
+   decay; (2) a "crackle" -- band-limited (800Hz-6.5kHz, simple one-pole IIR bandpass, 2 stages)
+   white noise, gated in ~6ms random-amplitude steps (fixed RNG seed 137) so it stutters instead
+   of hissing smoothly, with its own ~160ms decay envelope. Mixed 0.62/0.55, soft-clipped
+   (`tanh`) for a bit of analogue-style bite, normalized to -1dBFS peak (matching this project's
+   other trimmed cast SFX headroom convention). Rendered to
+   `docs/agents/tilesmith/scripts/previews/lightning-cast-synth-candidate-137.wav`
+   (PCM_16, 44.1kHz mono, 0.340s, 30,032 bytes, sha256
+   `6b377f62e311b2fc520b08ae27ba1e48d84aa02fa7ea64ce7c39b8c022a69785`) -- staged under this
+   agent's own docs folder, deliberately **not** under `public/assets/...`, so it can't be
+   accidentally picked up by the game's asset pipeline before any approval.
+   **Self-verification:** re-ran the synthesis function twice independently within the script's
+   own `__main__` and compared the two runs by full-array equality (not just "it ran without
+   error") -- byte-identical, confirming the fixed-seed RNG makes this genuinely reproducible,
+   same rigor as Composer's MIDI-hash-diff check. Measured (not assumed) the rendered file's own
+   properties by re-loading it: peak -1.01dBFS, RMS -13.53dBFS, spectral centroid 5034Hz (a
+   bright, noise-heavy spectrum, consistent with the crackle layer dominating overall energy
+   despite the tone layer carrying the "sweep" character). Did not attempt to judge how it
+   actually sounds to a human ear -- this sandbox has no audio output device, same standing
+   limitation the 2026-08-11 entry already disclosed for the normalization pass; describing the
+   *design* (a fast downward-sweeping crack immediately followed by a stuttering electrical
+   crackle, decaying over ~340ms) is the strongest objective proxy available without a real
+   listen, not a substitute for the developer's own audition.
+
+**Backlog:** re-grepped `docs/agents/ana/backlog.md` for #137/lightning -- still no row tracks it
+by number, same finding the 2026-08-09 entry made; not adding one myself for the same
+Layer-4-is-Ana's-artifact reason stated there.
+
+**Posted to the developer:** shortlist (candidates 1-3 above) posted as a comment on issue #137
+via `gh issue comment 137` for the developer's own audition -- issue left open, not closed,
+per its own acceptance criteria ("No file is downloaded or wired into the game until the
+developer explicitly approves one").
+
+**Sign-off status:** nothing to sign off on this pass -- no asset was downloaded, extracted, or
+referenced from `sfx.ts`. `ELEMENT_CAST_URL.lightning` is unchanged (`groundhit.wav`, the
+disclosed stand-in). This entry documents research + a synthesized candidate's generation
+script/render only; the license/fit decision is **pending the developer's explicit go/no-go**
+on one of the 3 candidates above, same gate every prior `#137` entry has deferred to.
 ## 2026-08-12 -- Issues #181/#184: muted the lightning cast placeholder, further-trimmed fire/ice's cast SFX
 
 Two developer playtests on the same day, both repeats of earlier complaints this domain had
