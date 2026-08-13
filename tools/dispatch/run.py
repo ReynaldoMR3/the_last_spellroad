@@ -63,12 +63,10 @@ def _process_issue(issue, dry_run):
     security_record = run_security_gate(
         dispatch_record["worktree_path"], verify_record["command_log"], load_policy()
     )
-    # Brief's deviation only calls for fixing the diff placeholder here;
-    # heckler_agent_md stays "" as in the original brief code (out of scope
-    # for this fix round).
     diff = diff_text(dispatch_record["worktree_path"])
+    heckler_agent_md = _read_agent_doc("heckler", "AGENT.md")
     review_record = run_heckler_review(
-        diff=diff, heckler_agent_md="", backend=_get_backend("codex")
+        diff=diff, heckler_agent_md=heckler_agent_md, backend=_get_backend("codex")
     )
 
     decision = decide_merge(verify_record, security_record, review_record)
@@ -98,7 +96,12 @@ def run(dry_run=True, run_id=None):
         if issue["in_flight"]:
             manifest["issues"].append({"number": issue["number"], "status": "skipped-in-flight"})
             continue
-        manifest["issues"].append(_process_issue(issue, dry_run))
+        try:
+            manifest["issues"].append(_process_issue(issue, dry_run))
+        except Exception as exc:
+            manifest["issues"].append(
+                {"number": issue["number"], "status": "error", "error": str(exc)}
+            )
 
     (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
     return manifest

@@ -96,7 +96,7 @@ def test_process_issue_loads_real_agent_docs_and_diff(tmp_path, monkeypatch):
         }
 
     def fake_run_heckler_review(diff, heckler_agent_md, backend):
-        heckler_calls.append({"diff": diff})
+        heckler_calls.append({"diff": diff, "heckler_agent_md": heckler_agent_md})
         return {"backend": "codex", "ok": True, "blocking_findings": [], "minor_findings": [], "raw": ""}
 
     monkeypatch.setattr(run_module, "dispatch_issue", fake_dispatch_issue)
@@ -115,6 +115,35 @@ def test_process_issue_loads_real_agent_docs_and_diff(tmp_path, monkeypatch):
     assert dispatch_calls[0]["agent_md"] == "FIXTURE-loomwright-AGENT.md"
     assert dispatch_calls[0]["context_md"] == "FIXTURE-loomwright-CONTEXT.md"
     assert heckler_calls[0]["diff"] == "FIXTURE-DIFF"
+    assert heckler_calls[0]["heckler_agent_md"] == "FIXTURE-heckler-AGENT.md"
+
+
+def test_run_continues_and_writes_manifest_when_one_issue_errors(tmp_path, monkeypatch):
+    # One bad issue (e.g. diff_text() raising because its worktree is missing
+    # or origin/main doesn't exist) must not abort the whole run -- the
+    # manifest should still be written and cover every issue attempted.
+    monkeypatch.setattr(run_module, "RUNS_DIR", tmp_path)
+
+    issue_bad = {"number": 10, "title": "bad issue", "body": "b", "labels": [], "comments": [], "in_flight": False}
+    issue_good = {"number": 11, "title": "good issue", "body": "b", "labels": [], "comments": [], "in_flight": False}
+    monkeypatch.setattr(run_module, "scan", lambda: [issue_bad, issue_good])
+
+    def fake_process_issue(issue, dry_run):
+        if issue["number"] == 10:
+            raise RuntimeError("boom: git diff failed")
+        return {"number": issue["number"], "agent": "loomwright", "backend": "codex", "action": "would merge"}
+
+    monkeypatch.setattr(run_module, "_process_issue", fake_process_issue)
+
+    manifest = run_module.run(dry_run=True, run_id="test-run-error")
+
+    assert manifest["issues"] == [
+        {"number": 10, "status": "error", "error": "boom: git diff failed"},
+        {"number": 11, "agent": "loomwright", "backend": "codex", "action": "would merge"},
+    ]
+
+    written = json.loads((tmp_path / "test-run-error" / "manifest.json").read_text())
+    assert written == manifest
 
 
 def test_read_agent_doc_returns_empty_string_when_missing(tmp_path, monkeypatch):
