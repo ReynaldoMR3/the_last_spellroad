@@ -6,3 +6,8 @@ npm-debug.log*
 .DS_Store
 __pycache__/
 *.pyc
+
+# Issue #139 — quick-listen renders from tools/composer/render.sh. Throwaway prototypes for
+# developer review, not a checked-in deliverable; promote a chosen file into
+# public/assets/audio/music/ by hand instead of committing this directory.
+public/assets/audio/_prototypes/

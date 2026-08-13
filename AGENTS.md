@@ -51,3 +51,7 @@ For substantial specs (~100+ lines, a new system, or anything crossing two or mo
 ### Debug level skip
 
 On the Vite development server, `?debugLevel=<n>` boots straight into level `<n>`'s first wave instead of playing through every earlier level — for verifying a level-specific change without a full playthrough. Production builds ignore it. See `docs/eng-skills/debug-level-skip.md`.
+
+### Audio prototype pipeline
+
+`npm run audio:prototype -- <compose-script> <output-name>` wraps Composer's compose → fluidsynth render → ffmpeg transcode sequence into one command, dropping a playable `.ogg` under the gitignored `public/assets/audio/_prototypes/` for quick developer listening, instead of a manual shell sequence run by hand each time. See `docs/eng-skills/audio-prototype-pipeline.md`.

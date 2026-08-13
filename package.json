@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "audio:prototype": "tools/composer/render.sh"
   },
   "dependencies": {
     "phaser": "^3.90.0"
