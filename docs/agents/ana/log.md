@@ -791,3 +791,68 @@ explicit framing that this batch is for later validation, not immediate action.
 **Verification:** `npm run typecheck` and `npm test` (319/319 across 30 files) clean after
 both shipped fixes. No build/preview regression check beyond that — see the two issues
 above for what each fix touches.
+
+## 2026-08-13 (2) — Second course-peer playtest batch: 8 more findings filed, one
+corroboration comment, none dispatched
+
+A second, self-described competitive playtester gave a long, detailed pass. Same handling
+as the first batch above: recorded and filed for later validation, nothing implemented.
+Verified the more numeric claims (spell costs/damage, the vertical-slice-end message, the
+debuff-clear-on-wave-start call site) against the real code/data before filing, rather than
+transcribing unchecked.
+
+1. **No win acknowledgment at the actual end of the vertical slice** (Level 5 Wave 3) —
+   confirmed in code: `startWave` flashes "Vertical slice complete!" for 3000ms with no
+   distinct win framing once `this.waves` runs out. New backlog row **3.29**, issue **#206**.
+
+2. **Spell balance/redundancy, damage-per-mana analysis.** Checked the claimed numbers
+   against `spells.json`/`ManaSystem.WEIGHT_CLASS`: arc_lance and frost_nova both land at
+   0.6 dmg/mana (light vs. heavy, same efficiency), thunder_dome at 1.0 — heavy doesn't
+   reliably out-value standard. Also raises that every spell only varies numerically (no
+   slow/stun/status effects). New backlog row **3.30**, issue **#207**.
+
+3. **Tarrywright's debuff called "the most frustrating aspect of the game"** — ranged,
+   non-dodgable, persists until wave-clear. Cross-referenced against backlog 2.38 (#87/#105,
+   already shipped): that row fixed the *opposite* complaint (a lone Tarrywright too passive
+   to bother fighting). Flagging both together rather than treating this as contradicting
+   the earlier fix — the archetype may need its threat/counterplay looked at as a whole, not
+   just the yield mechanic 2.38 shipped. New backlog row **3.31**, issue **#208**.
+
+4. **Mana/cooldowns not resetting between waves enables a "kite one enemy to regen mana"
+   strategy** — this is the exact gap 3.24 (shipped this session, issue #204) already
+   closes; the playtester hit it on a build from before that fix merged. Added as a
+   corroborating comment on #204 rather than a new issue.
+
+5. **Hotbar spell order isn't sorted by cost/weight class** — confirmed in `spells.json`:
+   `default_loadout_slot` puts heavy `frost_nova` at slot 3 and standard `thunder_dome` at
+   slot 5, not weight-ordered. New backlog row **2.46**, issue **#209**.
+
+6. **In-game clarity gaps** (ground circle, Mastery, relic/mastery upgrades, Hexcoin) not
+   explained without reading the GDD. **Flagged explicitly as a possible lead on the still-
+   unresolved "yellow circle" from the developer's earlier feedback session (2026-08-13 (1)
+   entry, above)** — this playtester independently cites "the circle on the ground" as
+   confusing rather than unwanted, which may be the same object read two different ways.
+   Surfacing this connection for the developer to confirm before any UI work is scoped. New
+   backlog row **2.47**, issue **#210**.
+
+7. **GDD accuracy: stale mana-regen figure (5/sec, should read 8/sec per 2.34) and pacing
+   claims contradicted by the Tarrywright's drain debuff.** Doc-only, no code change. New
+   backlog row **4.13**, issue **#211**.
+
+8. **GDD clarity: MVP scope boundary hard to locate, and the no-Mastery-yet death case is
+   unspecified.** New backlog row **4.14**, issue **#212**.
+
+9. **GDD clarity: does progression survive a full game ending, or only within one
+   expedition?** — a genuine roguelite-identity question the doc's current wording doesn't
+   rule either way. New backlog row **4.15**, issue **#213**.
+
+**Not filed as issues, logged here for context only:** substantial positive feedback (combat
+flow, the spell-upgrade/Mastery concept, Side-Pocket relic/lore events, and specific praise
+for the AI Encounter Director doubling as the in-fiction antagonist) and a passing question
+about whether the multi-agent dev roster itself satisfies the course's AI-feature
+requirement alongside the Director — no action needed on either, not tracked as backlog
+rows.
+
+**Verification:** spell costs/damage numbers and the win-message call site checked directly
+against `spells.json`, `ManaSystem.ts`, and `SpellroadScene.ts` before filing; no code
+changed this entry, so no typecheck/test/build run.
