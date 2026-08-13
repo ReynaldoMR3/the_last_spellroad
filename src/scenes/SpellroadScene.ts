@@ -59,7 +59,13 @@ import {
   COMBAT_CUE_KEY,
   COMBAT_CUE_URL,
   COMBAT_CUE_VOLUME,
-  shouldPlayCombatCueForWave
+  EXPLORATION_LOOP_KEYS,
+  EXPLORATION_LOOP_URLS,
+  EXPLORATION_LOOP_VOLUME,
+  pickExplorationTrack,
+  shouldPlayCombatCueForWave,
+  shouldPlayExplorationLoopBetweenWaves,
+  type ExplorationLoopKey
 } from "../systems/bgm";
 import {
   OPENING_VFX_CAST_ANIM_KEY,
@@ -629,6 +635,17 @@ export class SpellroadScene extends Phaser.Scene {
    * short mid-phrase when a wave clears early") and set the 20-35s loop length for it, so the
    * cut is a designed behavior, not an artifact of this wiring. */
   private combatCueSound?: Phaser.Sound.BaseSound;
+  /** Issue #188 — the currently-playing non-combat interlude loop, or `undefined` if none is
+   * active. Tracked for the same reason as the two above. Its lifetime is the exact inverse of
+   * `combatCueSound`'s: it starts when a wave clears and stops on the next wave's first enemy
+   * spawn, which is the same instant the combat cue starts, so the two hand off with no gap and
+   * are never both audible. */
+  private explorationLoopSound?: Phaser.Sound.BaseSound;
+  /** Issue #188 — which of the three interlude variants played last, so the next interlude can
+   * pick a different one (`pickExplorationTrack`). Survives across waves and levels within a run
+   * (that is the whole point — the repetition the developer noticed is across a session, not
+   * within one gap), and is cleared on a scene restart alongside the sounds themselves. */
+  private lastExplorationTrackKey?: ExplorationLoopKey;
   /** backlog 2.35 / issue #78 — one-time onboarding hint explaining hotbar targeting (1-6
    * arms a spell, press/click again to confirm-fire, or Esc/right-click to cancel). Shown once
    * per run; dismissed the first time the player actually arms a spell (`handleHotbarPress`,
@@ -722,6 +739,15 @@ export class SpellroadScene extends Phaser.Scene {
     // enemy of nearly every wave in the game, so a lazy load would put a network fetch on the
     // exact frame combat starts.
     this.load.audio(COMBAT_CUE_KEY, COMBAT_CUE_URL);
+
+    // Issue #188 — the three non-combat interlude variants, same eager-preload convention. All
+    // three are loaded up front rather than the one that happens to be picked first: the pick
+    // happens at the instant a wave clears (`updateEnemies`), and a lazy load there would put a
+    // ~600KB network fetch on the frame the road goes quiet, which is the exact silence this
+    // ticket exists to remove.
+    for (const key of EXPLORATION_LOOP_KEYS) {
+      this.load.audio(key, EXPLORATION_LOOP_URLS[key]);
+    }
 
     // Issue #125 — the developer-selected CC0 Remix VFX treatment (Prototype 1, issue #128)
     // for `flame_sweep`'s fire cast/impact/trail. Same eager-preload convention as the tileset
@@ -834,6 +860,15 @@ export class SpellroadScene extends Phaser.Scene {
     // Levels 1-4, not just the one boss fight) leaves this looping otherwise.
     this.combatCueSound?.stop();
     this.combatCueSound = undefined;
+    // Issue #188 — and the interlude loop needs it for the same reason again, plus one of its
+    // own: quitting to Title from the Side-Pocket Explore/Continue prompt (or any between-waves
+    // gap) is a state the player can sit in indefinitely, so this is the track most likely to
+    // still be playing at the moment a restart happens. `lastExplorationTrackKey` is reset with
+    // it so a fresh run's first interlude is an unconstrained pick rather than one biased by
+    // whatever a previous, abandoned run happened to be playing.
+    this.explorationLoopSound?.stop();
+    this.explorationLoopSound = undefined;
+    this.lastExplorationTrackKey = undefined;
     this.bossBannerHideTimer?.remove();
     this.bossBannerHideTimer = undefined;
     // Issues #112/#113 — same class of stale-state bug this comment block already documents:
@@ -868,9 +903,11 @@ export class SpellroadScene extends Phaser.Scene {
     // Issue #142 — the combat cue rides the same safety net, for the same reason. Both stops in
     // one handler rather than two registrations: "this scene is going away, no music of its
     // survives it" is a single rule.
+    // Issue #188 — the interlude loop joins the same net, under the same single rule.
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.stopBossTheme();
       this.stopCombatCue();
+      this.stopExplorationLoop();
     });
 
     const debugStartRequested =
@@ -1667,6 +1704,12 @@ export class SpellroadScene extends Phaser.Scene {
         // cue is already stopped by the wave-clear path below; this is belt-and-braces for the
         // one path that isn't a normal wave clear (`?debugLevel=5` boots straight in).
         this.stopCombatCue();
+        // Issue #188 — same belt-and-braces for the third track. The interlude predicate
+        // (`shouldPlayExplorationLoopBetweenWaves`) already refuses to start an interlude into a
+        // boss wave, so on the normal Level 4 -> 5 path there is nothing playing to stop; this
+        // covers `?debugLevel=5` and any future path that reaches Phase 1 without a preceding
+        // ordinary wave clear.
+        this.stopExplorationLoop();
         this.playBossTheme();
         this.showBossBanner(BOSS_BANNER_INTRO_TEXT, () => {
           this.flashMessage("Director Trial — Phase 1 (HP won't reset again until you win or die)", 2400, "warning");
@@ -1709,6 +1752,13 @@ export class SpellroadScene extends Phaser.Scene {
         // moment Lorena's brief names ("the mage stops reading the road and starts reading a
         // threat in motion"). `playCombatCue` is idempotent while playing, so the second and
         // subsequent spawns of the same wave are no-ops and never restart the loop mid-phrase.
+        // Issue #188 — and the same instant is where the interlude ends. Stopped unconditionally,
+        // ahead of the cue's own boss check: whatever this wave is, an enemy now exists in the
+        // world, so the road is no longer quiet. Putting the stop here rather than at `startWave`'s
+        // top is what makes the handoff seamless — `startWave` runs up to `spawn_delay_ms` before
+        // the first monster appears, and stopping there would reintroduce a smaller version of the
+        // exact silence this ticket removes.
+        this.stopExplorationLoop();
         if (shouldPlayCombatCueForWave(wave)) {
           this.playCombatCue();
         }
@@ -2014,6 +2064,25 @@ export class SpellroadScene extends Phaser.Scene {
       const wave = this.waves[this.waveIndex];
       const next = this.waves[this.waveIndex + 1];
       const nextIndex = this.waveIndex + 1;
+      // Issue #188 — the interlude starts here, on the same line the combat cue ends, rather than
+      // when the Side-Pocket prompt appears. The developer noticed the silence at the Explore
+      // prompt ("when i finish a level and select explore i dont hear any music"), but the prompt
+      // is only one of the four things that can follow a wave clear and it appears at most four
+      // times in the whole slice — the silence itself is every non-combat gap between waves.
+      // Starting on the clear rather than on the prompt is the more general fix, needs no second
+      // trigger inside `startSidePocketChoice`, and reads as one rule ("no monsters on the road,
+      // exploration music plays") instead of a special case. This also means the branch this
+      // choice sits above — the plain 1200ms auto-advance — is scored too, which is the ordinary
+      // between-waves gap the previous comment above already noted was read "in quiet."
+      //
+      // Deliberately not restarting an interlude that's already playing (`playExplorationLoop` is
+      // a no-op while playing): back-to-back short waves would otherwise cut the same track's
+      // opening bar over and over. Because of that no-op, the rotation only advances when an
+      // interlude genuinely stopped and started again, which is exactly "each time it starts up
+      // again after having stopped" — a wave's combat is what separates two interludes.
+      if (shouldPlayExplorationLoopBetweenWaves(wave, next)) {
+        this.playExplorationLoop();
+      }
       if (wave?.is_boss && next?.is_boss && next.level === wave.level) {
         // Another phase of the same boss follows: offer the paid recovery choice instead
         // of auto-advancing — this is the phase-break, not a regular wave transition.
@@ -2553,6 +2622,11 @@ export class SpellroadScene extends Phaser.Scene {
     // "Died — ..." beat and the 1500ms respawn pause aren't scored by combat music for a fight
     // that is already over.
     this.stopCombatCue();
+    // Issue #188 — a death during an interlude is a real state, not a corner case: the player can
+    // be standing in a between-waves gap when a ranged shot already in flight lands. Stopping here
+    // means the death beat isn't scored by exploration music either, and the retry's own wave
+    // clear starts a freshly-rotated interlude rather than resuming the interrupted one.
+    this.stopExplorationLoop();
     this.hideBossBanner();
     // Issue #48 — taken first, before any state is cleared: from this line on, every callback
     // scheduled by the wave the player just died in (its remaining staggered spawn timers, a
@@ -2699,6 +2773,43 @@ export class SpellroadScene extends Phaser.Scene {
   private stopCombatCue(): void {
     this.combatCueSound?.stop();
     this.combatCueSound = undefined;
+  }
+
+  // ----- non-combat interlude loop (issue #188) -----
+
+  /** Starts a rotated interlude variant if nothing is already playing; a no-op otherwise, so the
+   * only thing that can advance the rotation is an interlude that genuinely stopped and started
+   * again. Shaped like `playBossTheme`/`playCombatCue` above for the reason `playCombatCue`'s
+   * own comment gives (three tracks with three unrelated lifecycles; the boilerplate is the
+   * uninteresting part), with the one real addition being which track to play.
+   *
+   * The pick itself lives in `pickExplorationTrack` (`systems/bgm.ts`) — this method only holds
+   * the previous choice and hands it back in, so the no-immediate-repeat rule is testable without
+   * Phaser, matching `shouldPlayCombatCueForWave`'s convention. A `undefined` pick (only possible
+   * from an empty track list) skips playback rather than throwing: a music rotation is not worth
+   * taking a level down over. */
+  private playExplorationLoop(): void {
+    if (this.explorationLoopSound?.isPlaying) {
+      return;
+    }
+    const key = pickExplorationTrack(this.lastExplorationTrackKey);
+    if (!key) {
+      return;
+    }
+    this.lastExplorationTrackKey = key;
+    this.explorationLoopSound = this.sound.add(key, {
+      loop: true,
+      volume: EXPLORATION_LOOP_VOLUME
+    });
+    this.explorationLoopSound.play();
+  }
+
+  /** Idempotent, same as `stopCombatCue` and for the same reason — called from the next wave's
+   * first enemy spawn, a boss Phase 1 entry, `handleDeath`, the scene-restart reset block, and
+   * the SHUTDOWN safety net, most of which routinely fire with nothing playing. */
+  private stopExplorationLoop(): void {
+    this.explorationLoopSound?.stop();
+    this.explorationLoopSound = undefined;
   }
 
   /** Fades in, holds, then fades back out. Issues #112/#113 — developer playtest: the intro
