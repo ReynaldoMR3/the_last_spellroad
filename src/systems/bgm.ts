@@ -159,6 +159,12 @@ export const EXPLORATION_LOOP_URLS: Record<ExplorationLoopKey, string> = {
  * 0.85 floor (`sfxVariation.ts`), per issue #97's original "shouldn't drown them out" criterion. */
 export const EXPLORATION_LOOP_VOLUME = 0.5;
 
+/** Developer feedback (2026-08-13): starting the interlude at full volume the instant a wave
+ * clears read as an unwanted "wave complete" stinger rather than a music handoff. Ramping up
+ * from silence over 2s softens that same event without changing when it starts. */
+export const EXPLORATION_LOOP_FADE_IN_START_VOLUME = 0;
+export const EXPLORATION_LOOP_FADE_IN_MS = 2000;
+
 /**
  * Whether the interlude loop owns the music in the gap between two waves.
  *

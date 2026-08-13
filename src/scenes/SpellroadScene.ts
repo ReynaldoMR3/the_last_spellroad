@@ -59,6 +59,8 @@ import {
   COMBAT_CUE_KEY,
   COMBAT_CUE_URL,
   COMBAT_CUE_VOLUME,
+  EXPLORATION_LOOP_FADE_IN_MS,
+  EXPLORATION_LOOP_FADE_IN_START_VOLUME,
   EXPLORATION_LOOP_KEYS,
   EXPLORATION_LOOP_URLS,
   EXPLORATION_LOOP_VOLUME,
@@ -1747,6 +1749,12 @@ export class SpellroadScene extends Phaser.Scene {
       // hp-template.md: "full reset to 100 at the start of every wave" — every regular wave
       // is a clean HP budget, not cumulative damage carried in from the previous one.
       this.health.reset();
+      // Developer feedback (2026-08-13): mana was previously never reset at wave start
+      // (only on death/respawn), so a low-mana finish carried into the next wave. Regular
+      // waves now mirror HP's clean-budget reset; the Director Trial deliberately keeps its
+      // no-refill carry-over (this branch is skipped for `wave.is_boss` above), preserving the
+      // resource-strategy stakes across its phases.
+      this.mana.reset();
     }
 
     this.debuff.clear();
@@ -2827,9 +2835,17 @@ export class SpellroadScene extends Phaser.Scene {
     this.lastExplorationTrackKey = key;
     this.explorationLoopSound = this.sound.add(key, {
       loop: true,
-      volume: EXPLORATION_LOOP_VOLUME
+      volume: EXPLORATION_LOOP_FADE_IN_START_VOLUME
     });
     this.explorationLoopSound.play();
+    // Developer feedback (2026-08-13): full volume the instant a wave clears read as a "wave
+    // complete" stinger, not a music handoff. Ramp up instead of snapping in.
+    this.tweens.add({
+      targets: this.explorationLoopSound,
+      volume: EXPLORATION_LOOP_VOLUME,
+      duration: EXPLORATION_LOOP_FADE_IN_MS,
+      ease: "Sine.Out"
+    });
   }
 
   /** Idempotent, same as `stopCombatCue` and for the same reason — called from the next wave's

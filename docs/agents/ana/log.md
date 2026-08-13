@@ -727,3 +727,67 @@ it was built to detect. Both are disclosed here rather than quietly fixed and fo
 
 **Status:** `in-progress-with-owner` (unchanged) — see backlog 1.6's own row for the
 up-to-date status text.
+
+## 2026-08-13 — Developer feedback session: 2 fixes shipped, 6 course-peer/developer
+findings classified and filed, none of the 6 dispatched
+
+Developer relayed two decided changes plus a batch of course-peer playtest feedback to
+validate later, rather than act on immediately. Handled the decided items directly; the
+batch was recorded, not implemented, per the developer's own framing ("record it so we can
+grill it later").
+
+**1. "I don't like the new sound when you finish a wave, lets remove it."** Traced to the
+between-wave exploration loop (#188/PR #193, shipped same week) starting at full volume the
+instant a wave clears. Initial read was "remove the feature entirely" — reverted the whole
+wiring cleanly (`git revert` on `e5fadd6`, keeping the composed assets/scripts/agent logs
+as history rather than deleting them, since #188's own motivating complaint — silence
+between waves — is real and undoing it wholesale would reopen that). Before finalizing,
+the developer clarified further: the actual objection is the abrupt full-volume snap-in
+reading as a "wave complete" stinger, and separately requested a fade-in — not full
+removal. Un-reverted, then implemented the narrower fix: `playExplorationLoop` now starts
+silent and ramps to `EXPLORATION_LOOP_VOLUME` over 2s (Sine.Out) instead of snapping in.
+Trigger point (the wave-clear moment itself) stays as-is — there's no generic "pick
+Explore" action outside the 4 Side-Pocket levels, so gating strictly on that would
+reintroduce #188's silence bug for every other wave gap; flagged that tradeoff explicitly
+rather than guessing the developer wanted the stricter reading. New backlog row **3.25**,
+GitHub issue **#203**.
+
+**2. "Lets start all the waves with 100 mana, only the trial director we can share that no
+life and mana refill."** Mana had never been reset at wave start (only on death/respawn,
+GDD line 81) — confirmed via code read before touching anything. `startWave`'s non-boss
+branch now calls `this.mana.reset()` alongside its existing `this.health.reset()`. The
+Director Trial branch is untouched by design: mana was never reset there either, so its
+carry-over-across-phases behavior is unchanged, matching HP's existing no-refill-after-
+Phase-1 asymmetry. GDD line 81 updated to document the new rule. New backlog row **3.24**,
+GitHub issue **#204**.
+
+**3. "The circle on the waves that turns yellow every time I pass by now makes no sense,
+lets remove it."** Grepped the whole codebase for a mana-pickup/charge mechanic — none
+exists. The only candidate that reacts to player proximity is the Side-Pocket Lore
+Encounter rune marker (#157), but its colors (pale blue/green/tan/purple) don't read as
+"yellow," and the developer's own clarifying answer suggested they hadn't actually noticed
+that marker in play (only its post-clear lore text). **Genuinely unresolved** — asked once,
+got a mid-answer that didn't land on a specific object; not re-guessed a second time to
+avoid ripping out the wrong feature. Needs a follow-up session with the developer actually
+pointing at the moment it happens (a screenshot or a timestamp), since this session's
+sandboxed browser pane couldn't reproduce keyboard-driven movement to hunt for it directly
+(`document.visibilityState: "hidden"`, same standing limitation as every other entry in
+this log that mentions it). **No backlog row opened yet** — not enough signal to file
+against a specific system.
+
+**4-9. Course-peer playtest feedback (a different course's students, not the developer),
+relayed by the developer for validation, not action:** onboarding overlay pacing +
+undocumented double-tap-to-fire (**3.24 in Phase 2, filed as 2.43**/#197), a repeated
+click-to-arm-from-hotbar request from two independent playtesters (**2.44**/#198),
+an ergonomic-keybinding request (E/R/F/Shift/Ctrl/Space off the number row) plus a
+scroll-wheel-cycle idea (**2.45**/#199), mana pressure through wave 3 with a "drop the pool,
+use cooldowns only" alternative floated (**3.26**/#200 — cross-referenced against 3.24
+above, since that fix may already address the specific mechanism), a jump/dash traversal-
+dimension feature idea (**3.27**/#201), and "wave 1 moves too fast" with no further detail
+yet on what "fast" means (**3.28**/#202, filed `needs-info` for that reason). All six filed
+`blocked-with-reason` / `needs-triage` — none dispatched this session, per the developer's
+explicit framing that this batch is for later validation, not immediate action.
+
+**Verification:** `npm run typecheck` and `npm test` (319/319 across 30 files) clean after
+both shipped fixes. No build/preview regression check beyond that — see the two issues
+above for what each fix touches.
