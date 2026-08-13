@@ -275,31 +275,53 @@ interface ElementalCastVfxConfig {
   scaleStart: number;
   gravityY: number;
   spreadDeg: number;
+  /** Issue #185 — additive blending so overlapping particles brighten toward white instead of
+   * staying a flat tint, the concrete fix for "too subtle and washed out." Only set for
+   * materials that plausibly emit light (ice/crystal); left off for earth's opaque debris,
+   * where a glow would read as wrong-material rather than "more visible." */
+  glow?: boolean;
+  /** Issue #185 — the impact-side burst (`spawnElementalImpactVfx`) shared one flat quantity of
+   * 6 across all 3 elements; ice/earth were the ones the developer flagged as reading as too
+   * few particles, so only those two get a bump here. Lightning is left at the implicit default
+   * (6) since the developer confirmed it already reads fine. */
+  impactQuantity?: number;
 }
 const ELEMENTAL_CAST_VFX_CONFIG: Partial<Record<Element, ElementalCastVfxConfig>> = {
-  // Icy shards drifting/falling slightly as they spread — a light gravity pull, moderate speed.
+  // Issue #185 — developer playtest: ice read as "too subtle and washed out, too few
+  // particles... not so visible like lightning or fire," and asked for "more white-blue-purple"
+  // rather than the previous pale, near-monotone cyan. Shifted the hue toward blue-purple and
+  // turned on additive glow (see `glow`'s own comment) — dense overlap among the particles
+  // brightens toward white, giving the white/blue/purple range in one animated burst instead of
+  // a flat single tint. Particle count, radius and lifespan all raised to read as a fuller burst.
   ice: {
-    color: 0x9fe8ff,
-    particleRadius: 4,
-    quantity: 14,
-    speedMin: 140,
-    speedMax: 260,
-    lifespanMs: 420,
-    scaleStart: 1,
-    gravityY: 60,
-    spreadDeg: 22
-  },
-  // Chunky, slower debris thrown up and pulled back down hard — reads as heavier than ice/lightning.
-  earth: {
-    color: 0xa9814a,
+    color: 0x7ea8ff,
     particleRadius: 5,
-    quantity: 10,
-    speedMin: 90,
-    speedMax: 180,
-    lifespanMs: 480,
-    scaleStart: 1.1,
+    quantity: 22,
+    speedMin: 150,
+    speedMax: 280,
+    lifespanMs: 460,
+    scaleStart: 1.2,
+    gravityY: 60,
+    spreadDeg: 22,
+    glow: true,
+    impactQuantity: 11
+  },
+  // Issue #185 — developer playtest: earth read as washed out with too few particles and the
+  // "wrong material," asking for "something more brown/greenish." Previous color (0xa9814a) was
+  // a flat tan with no green in it; shifted toward an olive brown-green and raised particle
+  // count/scale for a chunkier, more visible burst. No `glow` here — debris is opaque, not
+  // light-emitting, so additive blending would read as the wrong material, not just "brighter."
+  earth: {
+    color: 0x7c8f42,
+    particleRadius: 6,
+    quantity: 18,
+    speedMin: 100,
+    speedMax: 200,
+    lifespanMs: 500,
+    scaleStart: 1.3,
     gravityY: 260,
-    spreadDeg: 30
+    spreadDeg: 30,
+    impactQuantity: 11
   },
   // Fast, short-lived, near-zero gravity sparks, tightest spread — reads as a quick jolt rather
   // than a lobbed effect. Paired with `spawnLightningBoltFlicker`'s jagged bolt for the beat
@@ -2394,6 +2416,9 @@ export class SpellroadScene extends Phaser.Scene {
       emitting: false
     });
     emitter.setDepth(10);
+    if (config.glow) {
+      emitter.setBlendMode(Phaser.BlendModes.ADD);
+    }
     emitter.explode(config.quantity, this.mage.x, this.mage.y);
     this.time.delayedCall(config.lifespanMs + 60, () => emitter.destroy());
 
@@ -2458,7 +2483,10 @@ export class SpellroadScene extends Phaser.Scene {
       emitting: false
     });
     emitter.setDepth(11);
-    emitter.explode(6, x, y);
+    if (config.glow) {
+      emitter.setBlendMode(Phaser.BlendModes.ADD);
+    }
+    emitter.explode(config.impactQuantity ?? 6, x, y);
     this.time.delayedCall(260, () => emitter.destroy());
   }
 
