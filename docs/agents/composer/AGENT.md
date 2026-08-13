@@ -19,3 +19,7 @@ One job: composes a music track once Lorena has briefed its mood, tempo, and ins
 ## Context to load for a task
 
 Read `docs/agents/composer/CONTEXT.md`, `docs/agents/composer/log.md`, and `docs/agents/_reference/lore-premise.md` for Lorena's established tone. Do not read the full GDD unless a task specifically requires it.
+
+## Tooling
+
+`tools/composer/render.sh` (`npm run audio:prototype --`) wraps the compose→render→transcode sequence into one command for quick developer listening — see `docs/eng-skills/audio-prototype-pipeline.md` (issue #139). Use it for a fast preview pass; a track that's actually shipping still goes through the full compose → Heckler validation → promotion flow, same as always.
