@@ -1087,3 +1087,39 @@ both `-normalized-trimmed` files) -- same CC0 grant as the untouched files they 
 re-confirmed above, but per this agent's standing rule still not self-certified; **pending human
 developer review**. Whether the mute and the new fire/ice lengths actually resolve the two
 playtest complaints is, as always, a question only the next human playtest can answer.
+
+## 2026-08-12 (2) — Issue #191: reverted #181's lightning mute; the disliked sound was a different, shared cue
+
+Same-day follow-up. The developer clarified, right after #181/#184 shipped: "sorry my bad please
+return the lighting cast sfx that was previously, the one i meant is another sound that it can
+appear with any spell that i dont like, and sometimes can happen at the same time as the other
+sfx." Two things at once: #181's mute gets reverted (the lightning stand-in was never the
+complaint), and the *actual* disliked sound is a shared, non-element-specific cue -- one of
+`ALL_SFX_CUES` (`hit`/`impact`/`enemyDeath`/`playerDeath`), not anything in `ELEMENT_CAST_URL` --
+still unidentified, tracked separately as issue #191's own open question rather than guessed at
+here.
+
+**Reverted:** `ELEMENT_CAST_URL.lightning` in `src/systems/sfx.ts` back to
+`groundhit-normalized.wav` (#111's loudness/length-normalized file, the state the developer last
+confirmed liking). `groundhit-muted.wav` (the #181 artifact) is left in place, unreferenced, as
+provenance -- not deleted, same convention every superseded derivative in this file follows. Both
+the const's doc comment and the `lightning` entry's own inline comment updated to record the
+mute-then-revert history rather than silently erasing #181 from the file's narrative.
+
+**Not touched:** fire/ice/earth entries (issue #184's trims) -- the developer didn't object to
+those, only to lightning being muted. Issue #137 stays closed (the developer's "keep the current
+one" decision was about the *lightning* recording specifically, made before this clarification
+arrived, and is still what's shipped now that the mute is reverted).
+
+**Self-verification (Docker, per `docs/agents/_reference/docker-testing-contract.md`):**
+- `docker-compose run --rm game npm run typecheck` -- clean.
+- `docker-compose run --rm game npm test` -- 302/302 passing, 30 files, unchanged (no test
+  touches `sfx.ts`'s URL string values directly).
+- `docker-compose run --rm game npm run build` -- clean production build.
+- Confirmed by reading the file directly that `groundhit-normalized.wav` still exists on disk,
+  unmodified, at the path now referenced again.
+
+**Sign-off status:** this is a pure revert of a single string value back to an already-shipped,
+already-approved file -- no new asset, no new license question. The open item is identifying
+*which* shared SFX cue the developer actually means; not resolved here, tracked as issue #191's
+own question pending the developer's answer.

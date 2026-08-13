@@ -155,16 +155,17 @@ export function sfxUrl(cue: SfxCue): string {
  * duration/loudness table and `tools/cast-sfx-normalize/trim_fire_ice_184.py` /
  * `fine_envelope.py` for the Docker-only scripts that produced and chose them.
  *
- * **2026-08-12 (issue #181, lightning muted as a stopgap):** a developer playtest ("I continue
- * to hear the wrong sound when casting spells... it sucks, please remove it") asked for
- * lightning's disclosed placeholder stand-in gone outright rather than left in place pending
- * #137's eventual re-source pick. Lightning now points at `groundhit-muted.wav`, an all-silence
- * derivative of the same file (same format/samplerate/subtype/duration,
- * `tools/cast-sfx-normalize/mute_lightning_181.py`) -- no new sourcing, no #137 candidate pulled
- * in (still pending the developer's go/no-go there per this repo's asset-sourcing convention).
- * This is an explicit stopgap, not a resolution of #137: once the developer picks one of #137's
- * shortlisted candidates, that issue's fix should point `lightning` at the real recording
- * instead of this silent file. The other 3 elements' cast SFX are untouched by this change. */
+ * **2026-08-12 (issue #181, lightning muted as a stopgap -- since reverted, see #191):** a
+ * developer playtest ("I continue to hear the wrong sound when casting spells... it sucks,
+ * please remove it") asked for lightning's disclosed placeholder stand-in gone outright.
+ * Lightning briefly pointed at `groundhit-muted.wav`, an all-silence derivative of the same file
+ * (`tools/cast-sfx-normalize/mute_lightning_181.py`) -- no new sourcing, no #137 candidate pulled
+ * in. The developer then clarified (2026-08-12, issue #191) that the actually-disliked sound was
+ * a different, non-element-specific cue that can overlap with another SFX, not this lightning
+ * stand-in at all -- and separately confirmed keeping lightning's original recording ("i like the
+ * current one that is on the game, so no need" -- #137, closed). Reverted back to
+ * `groundhit-normalized.wav`; `groundhit-muted.wav` stays in the asset directory, unreferenced,
+ * as provenance. The other 3 elements' cast SFX were never touched by any of this. */
 const ELEMENT_CAST_URL: Record<Element, string> = {
   // 2026-08-12 (issue #184): further-trimmed past #111's 1.20s cohesion target, down to 0.830s
   // -- see this const's doc comment above and `docs/agents/tilesmith/log.md`'s 2026-08-12 entry
@@ -180,14 +181,17 @@ const ELEMENT_CAST_URL: Record<Element, string> = {
   // don't share fire/ice's issue (see this const's doc comment above).
   earth:
     "assets/third-party/opengameart-earth-element-magic-spell/earth-element-magic-spell-normalized.ogg",
-  // 2026-08-12 (issue #181): muted as an explicit stopgap -- see this const's own doc comment
-  // above for why. Issue #137 (wrong content/reads-as-placeholder) is still open, tracked in the
-  // 2026-08-09 log entry's researched-but-not-downloaded candidate list; once the developer
-  // picks one, #137's fix should replace this URL with the real recording, not just re-mute a
-  // different placeholder. `groundhit-normalized.wav` (the pre-mute file, #111's loudness/length
-  // pass) is kept alongside as provenance, same convention as every prior `-trimmed`/
-  // `-normalized` derivative in this file.
-  lightning: "assets/third-party/opengameart-electricity-game-sound-pack/groundhit-muted.wav"
+  // 2026-08-12 (issue #191): issue #181 muted this as a stopgap for what the developer then
+  // clarified (2026-08-12, same day) was actually a *different* sound entirely -- something
+  // shared across any spell, not element-specific, that can overlap with another SFX cue. The
+  // lightning stand-in itself was never the complaint; #137 was separately closed by developer
+  // decision ("i like the current one that is on the game, so no need") *before* that
+  // clarification arrived, so "the current one" the developer meant to keep is this original
+  // `groundhit-normalized.wav`, not the silent `groundhit-muted.wav` #181 had swapped in a few
+  // hours earlier. Reverted back to it. `groundhit-muted.wav` is left in the asset directory
+  // (unreferenced) as provenance rather than deleted, same convention every other superseded
+  // derivative in this file follows.
+  lightning: "assets/third-party/opengameart-electricity-game-sound-pack/groundhit-normalized.wav"
 };
 
 /** Cache key for a given element's cast one-shot -- parallel to `sfxKey`, one entry per
