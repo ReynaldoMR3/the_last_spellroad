@@ -5,7 +5,7 @@ judgment call."""
 import json
 import re
 import subprocess
-from pathlib import Path
+from pathlib import Path, PurePath
 
 _POLICY_PATH = Path(__file__).resolve().parent.parent / "security_policy.json"
 
@@ -31,10 +31,14 @@ def diff_text(cwd):
 
 
 def check_denylist(files, policy):
-    return [
-        f for f in files
-        if any(f == denied or f.startswith(denied) for denied in policy["denylist_paths"])
-    ]
+    hits = []
+    for f in files:
+        basename = PurePath(f).name
+        for denied in policy["denylist_paths"]:
+            if f == denied or f.startswith(denied) or basename.startswith(denied):
+                hits.append(f)
+                break
+    return hits
 
 
 def check_secrets(diff, policy):
@@ -42,6 +46,8 @@ def check_secrets(diff, policy):
 
 
 def check_docker_usage(command_log):
+    if not command_log:
+        return False
     return all(cmd.startswith("docker-compose") for cmd in command_log)
 
 
