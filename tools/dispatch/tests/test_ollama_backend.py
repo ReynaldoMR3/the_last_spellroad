@@ -47,3 +47,15 @@ def test_run_posts_prompt_and_returns_response_text(monkeypatch):
         "stream": False,
     }
     assert result == {"ok": True, "stdout": "generated text", "stderr": ""}
+
+
+def test_run_returns_ok_false_on_http_error(monkeypatch):
+    def fake_post(url, json, timeout):
+        return FakeResponse(500, {})
+
+    monkeypatch.setattr(requests, "post", fake_post)
+    result = OllamaBackend().run("test prompt")
+
+    assert result["ok"] is False
+    assert result["stdout"] == ""
+    assert "status 500" in result["stderr"]

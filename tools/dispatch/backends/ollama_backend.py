@@ -22,10 +22,13 @@ class OllamaBackend:
             return False
 
     def run(self, prompt, cwd=None):
-        resp = requests.post(
-            f"{self.base_url}/api/generate",
-            json={"model": self.model, "prompt": prompt, "stream": False},
-            timeout=600,
-        )
-        resp.raise_for_status()
-        return {"ok": True, "stdout": resp.json().get("response", ""), "stderr": ""}
+        try:
+            resp = requests.post(
+                f"{self.base_url}/api/generate",
+                json={"model": self.model, "prompt": prompt, "stream": False},
+                timeout=600,
+            )
+            resp.raise_for_status()
+            return {"ok": True, "stdout": resp.json().get("response", ""), "stderr": ""}
+        except requests.exceptions.RequestException as exc:
+            return {"ok": False, "stdout": "", "stderr": str(exc)}

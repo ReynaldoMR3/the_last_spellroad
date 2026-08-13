@@ -1,7 +1,5 @@
 import subprocess
 
-import pytest
-
 from backends.codex_backend import CodexBackend
 
 
