@@ -1704,10 +1704,11 @@ export class SpellroadScene extends Phaser.Scene {
         // cue is already stopped by the wave-clear path below; this is belt-and-braces for the
         // one path that isn't a normal wave clear (`?debugLevel=5` boots straight in).
         this.stopCombatCue();
-        // Issue #188 — same belt-and-braces for the third track. `shouldPlayExplorationLoopBetween
-        // Waves` already refuses to start an interlude into a boss wave, so on the normal Level
-        // 4 -> 5 path there is nothing playing to stop; this covers `?debugLevel=5` and any future
-        // path that reaches Phase 1 without a preceding ordinary wave clear.
+        // Issue #188 — same belt-and-braces for the third track. The interlude predicate
+        // (`shouldPlayExplorationLoopBetweenWaves`) already refuses to start an interlude into a
+        // boss wave, so on the normal Level 4 -> 5 path there is nothing playing to stop; this
+        // covers `?debugLevel=5` and any future path that reaches Phase 1 without a preceding
+        // ordinary wave clear.
         this.stopExplorationLoop();
         this.playBossTheme();
         this.showBossBanner(BOSS_BANNER_INTRO_TEXT, () => {
