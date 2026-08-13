@@ -9,7 +9,7 @@ def decide(verify_result, security_result, review_result):
         return {"action": "block", "reason": f"verification failed: {verify_result}"}
     if not security_result["passed"]:
         return {"action": "block", "reason": f"security gate failed: {security_result['violations']}"}
-    if review_result.get("ok") is False:
+    if review_result.get("ok") is not True:
         return {"action": "block", "reason": f"Heckler review did not complete: {review_result}"}
     if review_result["blocking_findings"]:
         joined = "; ".join(review_result["blocking_findings"])

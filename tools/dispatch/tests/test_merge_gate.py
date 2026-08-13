@@ -40,6 +40,16 @@ def test_decide_blocks_when_heckler_backend_never_ran():
     assert "did not complete" in decision["reason"]
 
 
+def test_decide_blocks_when_heckler_review_missing_ok_key():
+    # If review_result is missing the "ok" key entirely (rather than explicit ok: False),
+    # decide() must block — this is the fail-open gap fix. The gate blocks unless
+    # "ok" is explicitly True.
+    review_result_no_ok = {"blocking_findings": [], "minor_findings": []}
+    decision = decide(_OK_VERIFY, _OK_SECURITY, review_result_no_ok)
+    assert decision["action"] == "block"
+    assert "did not complete" in decision["reason"]
+
+
 def test_apply_dry_run_never_calls_gh(monkeypatch):
     calls = []
     monkeypatch.setattr(subprocess, "run", lambda cmd, **kwargs: calls.append(cmd))
