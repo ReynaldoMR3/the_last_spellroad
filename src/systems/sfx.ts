@@ -59,15 +59,19 @@ const SFX_URL: Record<SfxCue, string> = {
   // hit you" without implying a specific weapon (melee/ranged/debuffer archetypes all trigger
   // this same cue via `HealthSystem`'s `onDamage`).
   hit: "assets/third-party/kenney-impact-sounds/Audio/impactSoft_heavy_002.ogg",
-  // Kenney "Impact Sounds" (CC0) -- a quick, generic (non-material-specific) light impact for
-  // a spell landing on an enemy; short enough (~0.1s) to not smear when an AoE cast lands the
-  // same instant on multiple enemies (`confirmCast`'s per-enemy loop). Distinguished per-element
-  // only by `computeSpellSfxVariation`'s pitch base (`sfxVariation.ts`), not a distinct
-  // recording -- unlike the cast cue below, no re-source pass has replaced this one yet.
-  impact: "assets/third-party/kenney-impact-sounds/Audio/impactGeneric_light_001.ogg",
-  // Kenney "Digital Audio" (CC0) -- a short descending zap ("power-down") for an enemy's
-  // `takeDamage` returning killed; frequent event (every enemy kill), kept brief.
-  enemyDeath: "assets/third-party/kenney-digital-audio/Audio/phaserDown1.ogg",
+  // 2026-08-12 (issue #191): muted as an explicit, developer-requested stopgap so the next
+  // playtest pass can isolate feedback without this cue in the mix ("i dont like the sound of
+  // the enemy getting hitted, so i think we should mute those 2 so i can playtest and share more
+  // feedback"). Points at an all-silence derivative of the same file
+  // (`tools/cast-sfx-normalize/mute_impact_enemydeath_191.py`), same identical-format/duration
+  // convention as #181's lightning mute -- no recording was deleted, `impactGeneric_light_001.ogg`
+  // still exists unmodified alongside it. Un-mute by pointing this back at the original file, or
+  // swap in a re-sourced replacement, once the next playtest gives a clearer direction.
+  impact: "assets/third-party/kenney-impact-sounds/Audio/impactGeneric_light_001-muted.ogg",
+  // 2026-08-12 (issue #191): muted for the same reason and via the same mechanism as `impact`
+  // above -- see that entry's comment. `phaserDown1.ogg` (the original "enemy dies" zap) is
+  // unmodified alongside the new `-muted.ogg` sibling.
+  enemyDeath: "assets/third-party/kenney-digital-audio/Audio/phaserDown1-muted.ogg",
   // Kenney "Impact Sounds" (CC0) -- a heavy bell/gong strike for the player's own death
   // (`handleDeath`), deliberately more weighty/ominous than the enemy-death cue since this is
   // the rarer, run-ending event already paired with the existing "Died --..." flash message.

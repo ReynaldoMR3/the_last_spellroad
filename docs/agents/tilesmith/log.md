@@ -1123,3 +1123,40 @@ arrived, and is still what's shipped now that the mute is reverted).
 already-approved file -- no new asset, no new license question. The open item is identifying
 *which* shared SFX cue the developer actually means; not resolved here, tracked as issue #191's
 own question pending the developer's answer.
+
+## 2026-08-12 (3) — Issue #191: muted `impact` and `enemyDeath` shared SFX cues (stopgap, playtest isolation)
+
+Developer follow-up to #190's revert, same day: "191: it happens when an enemy dies, also i dont
+like the sound of the enemy getting hitted, so i think we should mute those 2 so i can playtest
+and share more feedback." Identifies the two disliked cues precisely: `enemyDeath`
+(`phaserDown1.ogg`, "an enemy dies") and `impact` (`impactGeneric_light_001.ogg`, "the enemy
+getting hitted") -- both shared, non-element-specific `sfx.ts` cues, confirming the earlier guess
+in issue #191's own body. Explicitly a temporary mute for isolating the next playtest pass, not a
+verdict that these recordings are wrong forever.
+
+**Muted:** `tools/cast-sfx-normalize/mute_impact_enemydeath_191.py` (Docker-only, reuses the
+existing `cast-sfx-tools` image, same pattern as #181's `mute_lightning_181.py`) writes
+all-silence siblings of identical format/samplerate/subtype/duration for both files:
+
+| Cue | File (before) | Duration | Peak/RMS (dBFS) | File (after) | Duration | Peak/RMS (dBFS) |
+| --- | --- | --- | --- | --- | --- | --- |
+| `impact` | `impactGeneric_light_001.ogg` | 0.118s | -1.00 / -20.10 | `impactGeneric_light_001-muted.ogg` | 0.118s | -inf / -inf |
+| `enemyDeath` | `phaserDown1.ogg` | 0.470s | -1.04 / -15.00 | `phaserDown1-muted.ogg` | 0.470s | -inf / -inf |
+
+`src/systems/sfx.ts`'s `SFX_URL.impact`/`.enemyDeath` now point at the `-muted` siblings. Neither
+original file was touched or deleted -- both still exist unmodified, so un-muting later (or
+wiring in a re-sourced replacement per whatever the next playtest reveals) is a one-line revert,
+same as #190 was for lightning. `hit` and `playerDeath` are untouched -- not named in this
+complaint.
+
+**Self-verification (Docker, per `docs/agents/_reference/docker-testing-contract.md`):**
+- `docker-compose run --rm game npm run typecheck` -- clean.
+- `docker-compose run --rm game npm test` -- 302/302 passing, 30 files, unchanged.
+- `docker-compose run --rm game npm run build` -- clean production build.
+- Independently re-measured both `-muted.ogg` files with a fresh `soundfile` read (not reused
+  from the generation script's own stdout): both confirmed all-zero samples, matching duration.
+
+**Sign-off status:** pure silence derivatives of already-approved CC0 files, no new sourcing, no
+new license question. Explicitly temporary per the developer's own framing -- flagged here so a
+future reader doesn't mistake this for a permanent removal decision the way #181's mute needed
+correcting for lightning.
