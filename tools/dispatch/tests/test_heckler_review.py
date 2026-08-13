@@ -43,3 +43,54 @@ def test_run_heckler_review_wires_backend_and_parses_output():
     assert result["blocking_findings"] == ["real bug here"]
     assert result["minor_findings"] == []
     assert result["raw"] == "BLOCKING: real bug here\n"
+
+
+def test_parse_findings_bulleted_finding():
+    raw = "- BLOCKING: real bug"
+    findings = parse_findings(raw)
+    assert findings == {
+        "blocking": ["real bug"],
+        "minor": [],
+    }
+
+
+def test_parse_findings_numbered_finding():
+    raw = "1. MINOR: minor nit"
+    findings = parse_findings(raw)
+    assert findings == {
+        "blocking": [],
+        "minor": ["minor nit"],
+    }
+
+
+def test_parse_findings_markdown_bold_finding():
+    raw = "**BLOCKING:** critical issue"
+    findings = parse_findings(raw)
+    assert findings == {
+        "blocking": ["critical issue"],
+        "minor": [],
+    }
+
+
+def test_parse_findings_case_and_spacing_variant():
+    raw = "blocking : lowercase and spaced"
+    findings = parse_findings(raw)
+    assert findings == {
+        "blocking": ["lowercase and spaced"],
+        "minor": [],
+    }
+
+
+def test_parse_findings_mixed_formats():
+    raw = (
+        "BLOCKING: exact format\n"
+        "- MINOR: bulleted nit\n"
+        "1. BLOCKING: numbered bug\n"
+        "**MINOR:** markdown bold\n"
+        "blocking : case variant\n"
+    )
+    findings = parse_findings(raw)
+    assert findings == {
+        "blocking": ["exact format", "numbered bug", "case variant"],
+        "minor": ["bulleted nit", "markdown bold"],
+    }
