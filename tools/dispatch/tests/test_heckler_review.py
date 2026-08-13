@@ -45,6 +45,20 @@ def test_run_heckler_review_wires_backend_and_parses_output():
     assert result["raw"] == "BLOCKING: real bug here\n"
 
 
+def test_run_heckler_review_propagates_ok_false_on_dead_backend():
+    class DeadBackend:
+        name = "codex"
+
+        def run(self, prompt, cwd):
+            return {"ok": False, "stdout": "", "stderr": "timeout"}
+
+    result = run_heckler_review("+ diff", "heckler contract", DeadBackend())
+
+    assert result["ok"] is False
+    assert result["blocking_findings"] == []
+    assert result["minor_findings"] == []
+
+
 def test_parse_findings_bulleted_finding():
     raw = "- BLOCKING: real bug"
     findings = parse_findings(raw)

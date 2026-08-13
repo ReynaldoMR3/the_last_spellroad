@@ -35,11 +35,21 @@ def parse_findings(raw_output):
 
 
 def run_heckler_review(diff, heckler_agent_md, backend):
+    """Run Heckler's adversarial review through `backend` and parse its output.
+
+    Returns a dict: {backend, ok, blocking_findings, minor_findings, raw}.
+    `ok` is propagated directly from the backend's own `run()` result -- it
+    is False whenever the backend errored, timed out, or otherwise failed
+    to produce real output, even if that leaves `blocking_findings` empty.
+    Callers (`stage07_merge.decide`) must treat `ok is False` as a review
+    that never ran, not as a clean review.
+    """
     prompt = build_heckler_prompt(diff, heckler_agent_md)
     result = backend.run(prompt, cwd=None)
     findings = parse_findings(result["stdout"])
     return {
         "backend": backend.name,
+        "ok": result["ok"],
         "blocking_findings": findings["blocking"],
         "minor_findings": findings["minor"],
         "raw": result["stdout"],
