@@ -25,3 +25,14 @@ plus the plain stdout `run.py` prints.
 **Gemini is not wired in yet** — `model_registry.json` reserves an entry;
 add a `backends/gemini_backend.py` matching the existing backend shape
 plus a live key to enable it.
+
+**Security invariant.** The `ready-for-agent` label is a human-applied
+trust boundary, not a formality. Anyone who can add that label to an
+issue (or edit an issue's body/comments after it already carries the
+label) can inject arbitrary instructions into a fully autonomous
+`codex exec --full-auto` agent running on the developer's Mac with repo
+write access. This pipeline must never auto-apply `ready-for-agent`
+without a human triage step in between. The security gate (stage04) is
+not a defense against this: it only inspects the resulting git diff and
+command log after the fact, and cannot detect or prevent prompt
+injection happening during the agent's run.

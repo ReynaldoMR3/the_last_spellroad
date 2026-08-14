@@ -9,6 +9,12 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 PLIST_SRC="$REPO_ROOT/tools/dispatch/install/com.spellroad.dispatch.plist"
 PLIST_DEST="$HOME/Library/LaunchAgents/com.spellroad.dispatch.plist"
 
+# tools/dispatch/runs/ is gitignored and won't exist on a fresh clone --
+# the plist's StandardErrorPath and the >> runs/launchd.log redirect both
+# point into it, so without this the redirect fails silently before run.py
+# even starts.
+mkdir -p "$REPO_ROOT/tools/dispatch/runs"
+
 sed "s|REPO_ROOT|$REPO_ROOT|g" "$PLIST_SRC" > "$PLIST_DEST"
 launchctl unload "$PLIST_DEST" 2>/dev/null || true
 launchctl load "$PLIST_DEST"
