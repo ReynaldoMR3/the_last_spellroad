@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.spellroad.dispatch</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>-lc</string>
+    <string>cd REPO_ROOT/tools/dispatch &amp;&amp; source .venv/bin/activate &amp;&amp; python run.py --dry-run &gt;&gt; runs/launchd.log 2&gt;&amp;1</string>
+  </array>
+  <key>StartInterval</key>
+  <integer>7200</integer>
+  <key>RunAtLoad</key>
+  <false/>
+  <key>StandardErrorPath</key>
+  <string>REPO_ROOT/tools/dispatch/runs/launchd.err.log</string>
+</dict>
+</plist>
