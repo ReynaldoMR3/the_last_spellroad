@@ -19,8 +19,16 @@ class CodexBackend:
             return False
 
     def run(self, prompt, cwd=None):
+        # The trailing `--` tells codex's own arg parser that everything
+        # after it is positional, not a flag. Without it, a prompt whose
+        # first character is "-" (every AGENT.md in this repo starts with
+        # a YAML frontmatter "---" line, so Heckler's review prompt always
+        # did) gets misread as an unknown option -- codex prints its own
+        # usage text to stderr and exits non-zero before ever seeing the
+        # prompt. Confirmed live: this silently broke every Heckler review
+        # this pipeline ever ran.
         result = subprocess.run(
-            ["codex", "exec", "--full-auto", prompt],
+            ["codex", "exec", "--full-auto", "--", prompt],
             cwd=cwd,
             capture_output=True,
             text=True,
