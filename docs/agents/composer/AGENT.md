@@ -23,3 +23,7 @@ Read `docs/agents/composer/CONTEXT.md`, `docs/agents/composer/log.md`, and `docs
 ## Tooling
 
 `tools/composer/render.sh` (`npm run audio:prototype --`) wraps the compose→render→transcode sequence into one command for quick developer listening — see `docs/eng-skills/audio-prototype-pipeline.md` (issue #139). Use it for a fast preview pass; a track that's actually shipping still goes through the full compose → Heckler validation → promotion flow, same as always.
+
+## Brief exceptions
+
+**Boss/combat tracks are an explicit exception to the general "avoid genre-standard 'epic orchestral boss' bombast" instruction** (Lorena's original brief tone, `docs/agents/lorena/log.md`). Brass and percussion presence — and, per issue #222, staccato/aggressive brass phrasing specifically — are wanted for combat encounter music. Codified after two rounds of developer listening-pass feedback on the boss-1 theme (#139, then #222) both asking for more of exactly what the general brief says to avoid. Exploration/ambient tracks keep the original no-bombast rule; this exception is scoped to boss/combat encounter music only.

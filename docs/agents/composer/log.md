@@ -273,3 +273,70 @@ All three now sit inside the same ~3 dB band as the two tracks the developer alr
 **Status:** generated and self-verified against Lorena's brief with an independent reload toolchain, same rigor as the entries above. Handed to Heckler for issue #188's validation stage — see `docs/agents/heckler/log.md`, 2026-08-12. **What self-verification structurally cannot close, and I am not claiming it does:** every number above is a measurement of structure, and the brief's own acceptance test is perceptual — "a player who has heard the original should register 'this bit sounds different' and not 'the music changed'." Nothing in this section proves the siblings land on that side of the line. That is a Heckler pass and then a developer listen, not a `mido` readback.
 
 **Not touched, per my own contract and this ticket's scope:** `compose-opening-magic-deterministic-original.py`, `docs/agents/_reference/opening-experience-brief.md`, the boss theme, the #142 combat cue, and the `assets/prototypes/opening-magic/` staging tree (which issue #125 already emptied of these files; nothing was written back into it).
+
+## 2026-08-14 -- Issue #222: staccato brass revision of the boss-1 theme
+
+**Trigger:** developer listening pass on the shipped #139 brass/percussion revision rejected it
+-- still doesn't read as "more of a battle." Not a presence problem, a phrasing problem: #139
+voiced the new brass as sustained chorale-style dyads (two half-note chords per bar). The
+developer wants short, staccato, punchier/more aggressive brass hits instead -- detached stabs,
+not held tones. Style reference named (Frieren's battle-arc OST) for phrasing/attack character
+only -- no audio or notation copied or transcribed from that source; this script generates
+original notation via the same deterministic `music21` method as every other track (ADR-0003).
+
+**Design decision, escalated to the developer per Composer's own contract** (interpretive
+creative choices are flagged, not decided unilaterally): three candidate rhythms were proposed --
+(1) straight eighth-note stabs, most aggressive but risks sounding frantic/generic; (2) a
+three-beat martial pattern, safer but risks repeating the "not enough battle" complaint that
+started this whole revision chain; (3) a syncopated four-stab pattern (beat 1, "and" of beat 2,
+beat 3, "and" of beat 4), punchy and urgent while staying measured. **Developer chose option 3.**
+
+**Change:** new script `docs/agents/composer/scripts/revise-boss-1-invigilator-trial-theme-
+staccato-brass.py`, a full re-generation of all seven parts (melody/ostinato/drone/bell/trombone/
+timpani copied verbatim from the #139 revision, unchanged) with only `build_horn_part` replaced:
+four short dyad stabs per bar at offsets 0.0/1.5/2.0/3.5 (an eighth note each, 0.5 ql, with rests
+filling the remainder of each quarter-note slot so they read as detached hits), same root+third
+dyad and one-octave-below-harmony register as #139, velocity raised to 92 (from 66/70) for a
+harder attack, constant across all four stabs and all 24 bars -- no per-cycle crescendo, matching
+every other voice's no-crescendo convention so the loop point stays clean.
+
+**Trombone/Timpani judgment call:** issue #222's acceptance criteria asked to keep whatever of the
+existing percussion/timpani pulse still fits underneath the new brass rhythm, adjusting only if
+the two now clash. They don't: the new Horn stabs land on beats 1 and 3 (coinciding with the
+existing low-brass/timpani hits, which are silent everywhere else in the bar) plus two additional
+off-beat positions at 1.5 and 3.5, where Trombone/Timpani are already silent. No pitch or rhythm
+collision at any of the four stab positions -- left both parts byte-identical to #139, a decision
+made directly rather than deferred to Heckler.
+
+**Brief exception, codified durably per the issue's acceptance criteria:** added a "Brief
+exceptions" section to `docs/agents/composer/AGENT.md` recording that boss/combat tracks are an
+explicit exception to Lorena's general no-bombast instruction, now after two rounds of developer
+feedback (#139, #222) both asking for more of exactly what the general brief says to avoid.
+Exploration/ambient tracks keep the original rule; this exception is scoped to boss/combat
+encounter music only.
+
+**Rendered** via `npm run audio:prototype -- docs/agents/composer/scripts/revise-boss-1-
+invigilator-trial-theme-staccato-brass.py boss-1-staccato-222` (issue #196's pipeline) --
+`public/assets/audio/_prototypes/boss-1-staccato-222.{mid,ogg}`, gitignored staging output, not
+yet promoted.
+
+**Self-verification (independent `mido` readback of the actual rendered `.mid`, not the script's
+own printed output):** type 1, 8 tracks (1 tempo/meta + 7 instrument), `ticks_per_beat` 10080, all
+parts at 96.0 BPM. Note-on counts, each independently recomputable from the script's own
+parameters and each matched exactly: Horn **192** (= 4 stabs x 2 dyad notes x 24 bars -- the
+number that actually distinguishes this from #139's 48 = 2 chords x 24 bars), Trombone **48** and
+Timpani **48** (both unchanged from #139, confirming the no-adjustment call above held at the
+rendered-file level, not just in the unmodified source), Harp **192**, Pad **48**, Bell **3**,
+Cello **59** -- all consistent with the unmodified parts' known counts from the #139/original
+entries. Rendered length 60.625s against a 60.0s notated length -- the same small end-of-track
+padding artifact already documented on every prior track in this file, not a new issue.
+
+**Status:** generated and self-verified, staged for the developer's listening pass per issue
+#196's pipeline and #222's own acceptance criteria ("rendered ... and sent to the developer for a
+listening pass before promotion"). Not yet handed to Heckler and not yet promoted to
+`public/assets/audio/music/` -- both gated on the developer confirming this reads as "more of a
+battle" before any further step, per the acceptance criteria's explicit "if accepted, promoted
+... through the normal compose → Heckler validation → promotion flow."
+
+**Not touched, per this ticket's scope:** the #139 script itself (left as historical record, not
+deleted), the original `compose-boss-1-invigilator-trial-theme.py`, and every other shipped track.
