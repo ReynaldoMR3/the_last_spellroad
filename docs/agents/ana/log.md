@@ -727,3 +727,132 @@ it was built to detect. Both are disclosed here rather than quietly fixed and fo
 
 **Status:** `in-progress-with-owner` (unchanged) — see backlog 1.6's own row for the
 up-to-date status text.
+
+## 2026-08-13 — Developer feedback session: 2 fixes shipped, 6 course-peer/developer
+findings classified and filed, none of the 6 dispatched
+
+Developer relayed two decided changes plus a batch of course-peer playtest feedback to
+validate later, rather than act on immediately. Handled the decided items directly; the
+batch was recorded, not implemented, per the developer's own framing ("record it so we can
+grill it later").
+
+**1. "I don't like the new sound when you finish a wave, lets remove it."** Traced to the
+between-wave exploration loop (#188/PR #193, shipped same week) starting at full volume the
+instant a wave clears. Initial read was "remove the feature entirely" — reverted the whole
+wiring cleanly (`git revert` on `e5fadd6`, keeping the composed assets/scripts/agent logs
+as history rather than deleting them, since #188's own motivating complaint — silence
+between waves — is real and undoing it wholesale would reopen that). Before finalizing,
+the developer clarified further: the actual objection is the abrupt full-volume snap-in
+reading as a "wave complete" stinger, and separately requested a fade-in — not full
+removal. Un-reverted, then implemented the narrower fix: `playExplorationLoop` now starts
+silent and ramps to `EXPLORATION_LOOP_VOLUME` over 2s (Sine.Out) instead of snapping in.
+Trigger point (the wave-clear moment itself) stays as-is — there's no generic "pick
+Explore" action outside the 4 Side-Pocket levels, so gating strictly on that would
+reintroduce #188's silence bug for every other wave gap; flagged that tradeoff explicitly
+rather than guessing the developer wanted the stricter reading. New backlog row **3.25**,
+GitHub issue **#203**.
+
+**2. "Lets start all the waves with 100 mana, only the trial director we can share that no
+life and mana refill."** Mana had never been reset at wave start (only on death/respawn,
+GDD line 81) — confirmed via code read before touching anything. `startWave`'s non-boss
+branch now calls `this.mana.reset()` alongside its existing `this.health.reset()`. The
+Director Trial branch is untouched by design: mana was never reset there either, so its
+carry-over-across-phases behavior is unchanged, matching HP's existing no-refill-after-
+Phase-1 asymmetry. GDD line 81 updated to document the new rule. New backlog row **3.24**,
+GitHub issue **#204**.
+
+**3. "The circle on the waves that turns yellow every time I pass by now makes no sense,
+lets remove it."** Grepped the whole codebase for a mana-pickup/charge mechanic — none
+exists. The only candidate that reacts to player proximity is the Side-Pocket Lore
+Encounter rune marker (#157), but its colors (pale blue/green/tan/purple) don't read as
+"yellow," and the developer's own clarifying answer suggested they hadn't actually noticed
+that marker in play (only its post-clear lore text). **Genuinely unresolved** — asked once,
+got a mid-answer that didn't land on a specific object; not re-guessed a second time to
+avoid ripping out the wrong feature. Needs a follow-up session with the developer actually
+pointing at the moment it happens (a screenshot or a timestamp), since this session's
+sandboxed browser pane couldn't reproduce keyboard-driven movement to hunt for it directly
+(`document.visibilityState: "hidden"`, same standing limitation as every other entry in
+this log that mentions it). **No backlog row opened yet** — not enough signal to file
+against a specific system.
+
+**4-9. Course-peer playtest feedback (a different course's students, not the developer),
+relayed by the developer for validation, not action:** onboarding overlay pacing +
+undocumented double-tap-to-fire (**3.24 in Phase 2, filed as 2.43**/#197), a repeated
+click-to-arm-from-hotbar request from two independent playtesters (**2.44**/#198),
+an ergonomic-keybinding request (E/R/F/Shift/Ctrl/Space off the number row) plus a
+scroll-wheel-cycle idea (**2.45**/#199), mana pressure through wave 3 with a "drop the pool,
+use cooldowns only" alternative floated (**3.26**/#200 — cross-referenced against 3.24
+above, since that fix may already address the specific mechanism), a jump/dash traversal-
+dimension feature idea (**3.27**/#201), and "wave 1 moves too fast" with no further detail
+yet on what "fast" means (**3.28**/#202, filed `needs-info` for that reason). All six filed
+`blocked-with-reason` / `needs-triage` — none dispatched this session, per the developer's
+explicit framing that this batch is for later validation, not immediate action.
+
+**Verification:** `npm run typecheck` and `npm test` (319/319 across 30 files) clean after
+both shipped fixes. No build/preview regression check beyond that — see the two issues
+above for what each fix touches.
+
+## 2026-08-13 (2) — Second course-peer playtest batch: 8 more findings filed, one
+corroboration comment, none dispatched
+
+A second, self-described competitive playtester gave a long, detailed pass. Same handling
+as the first batch above: recorded and filed for later validation, nothing implemented.
+Verified the more numeric claims (spell costs/damage, the vertical-slice-end message, the
+debuff-clear-on-wave-start call site) against the real code/data before filing, rather than
+transcribing unchecked.
+
+1. **No win acknowledgment at the actual end of the vertical slice** (Level 5 Wave 3) —
+   confirmed in code: `startWave` flashes "Vertical slice complete!" for 3000ms with no
+   distinct win framing once `this.waves` runs out. New backlog row **3.29**, issue **#206**.
+
+2. **Spell balance/redundancy, damage-per-mana analysis.** Checked the claimed numbers
+   against `spells.json`/`ManaSystem.WEIGHT_CLASS`: arc_lance and frost_nova both land at
+   0.6 dmg/mana (light vs. heavy, same efficiency), thunder_dome at 1.0 — heavy doesn't
+   reliably out-value standard. Also raises that every spell only varies numerically (no
+   slow/stun/status effects). New backlog row **3.30**, issue **#207**.
+
+3. **Tarrywright's debuff called "the most frustrating aspect of the game"** — ranged,
+   non-dodgable, persists until wave-clear. Cross-referenced against backlog 2.38 (#87/#105,
+   already shipped): that row fixed the *opposite* complaint (a lone Tarrywright too passive
+   to bother fighting). Flagging both together rather than treating this as contradicting
+   the earlier fix — the archetype may need its threat/counterplay looked at as a whole, not
+   just the yield mechanic 2.38 shipped. New backlog row **3.31**, issue **#208**.
+
+4. **Mana/cooldowns not resetting between waves enables a "kite one enemy to regen mana"
+   strategy** — this is the exact gap 3.24 (shipped this session, issue #204) already
+   closes; the playtester hit it on a build from before that fix merged. Added as a
+   corroborating comment on #204 rather than a new issue.
+
+5. **Hotbar spell order isn't sorted by cost/weight class** — confirmed in `spells.json`:
+   `default_loadout_slot` puts heavy `frost_nova` at slot 3 and standard `thunder_dome` at
+   slot 5, not weight-ordered. New backlog row **2.46**, issue **#209**.
+
+6. **In-game clarity gaps** (ground circle, Mastery, relic/mastery upgrades, Hexcoin) not
+   explained without reading the GDD. **Flagged explicitly as a possible lead on the still-
+   unresolved "yellow circle" from the developer's earlier feedback session (2026-08-13 (1)
+   entry, above)** — this playtester independently cites "the circle on the ground" as
+   confusing rather than unwanted, which may be the same object read two different ways.
+   Surfacing this connection for the developer to confirm before any UI work is scoped. New
+   backlog row **2.47**, issue **#210**.
+
+7. **GDD accuracy: stale mana-regen figure (5/sec, should read 8/sec per 2.34) and pacing
+   claims contradicted by the Tarrywright's drain debuff.** Doc-only, no code change. New
+   backlog row **4.13**, issue **#211**.
+
+8. **GDD clarity: MVP scope boundary hard to locate, and the no-Mastery-yet death case is
+   unspecified.** New backlog row **4.14**, issue **#212**.
+
+9. **GDD clarity: does progression survive a full game ending, or only within one
+   expedition?** — a genuine roguelite-identity question the doc's current wording doesn't
+   rule either way. New backlog row **4.15**, issue **#213**.
+
+**Not filed as issues, logged here for context only:** substantial positive feedback (combat
+flow, the spell-upgrade/Mastery concept, Side-Pocket relic/lore events, and specific praise
+for the AI Encounter Director doubling as the in-fiction antagonist) and a passing question
+about whether the multi-agent dev roster itself satisfies the course's AI-feature
+requirement alongside the Director — no action needed on either, not tracked as backlog
+rows.
+
+**Verification:** spell costs/damage numbers and the win-message call site checked directly
+against `spells.json`, `ManaSystem.ts`, and `SpellroadScene.ts` before filing; no code
+changed this entry, so no typecheck/test/build run.
