@@ -17,6 +17,7 @@ def test_build_prompt_includes_issue_and_agent_context():
     assert "Ana orchestrates." in prompt
     assert "Ana's contract." in prompt
     assert "docker-compose.yml" in prompt  # denylist warning must be in every prompt
+    assert "Closes #195" in prompt  # scan()'s in-flight check depends on this landing in the commit
 
 
 def test_create_worktree_runs_expected_git_commands(monkeypatch, tmp_path):

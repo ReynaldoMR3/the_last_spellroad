@@ -23,7 +23,12 @@ def build_prompt(issue, agent, agent_md, context_md):
         f"Issue #{issue['number']}: {issue['title']}\n\n{issue['body']}\n\n"
         "Implement this issue end to end on the current branch, following "
         "your agent contract's constraints. Self-verify with the Docker "
-        "testing contract before finishing.\n\n"
+        "testing contract before finishing. Your final commit message body "
+        f"must include the line \"Closes #{issue['number']}\" -- the merge "
+        "step opens the PR from this branch's commits via `gh pr create "
+        "--fill`, and that line is what links the PR to this issue and "
+        "lets future dispatch runs recognize this issue as already "
+        "in-flight.\n\n"
         f"{_DENYLIST_WARNING}"
     )
 
