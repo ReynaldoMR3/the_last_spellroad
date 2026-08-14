@@ -1072,3 +1072,95 @@ The scene holds `lastExplorationTrackKey` and hands it back in. Because `playExp
 - **Not verified, and it is the actual gate:** whether the interlude is audible and pleasant in play, whether the handoff to and from combat sounds seamless, and whether the three variations read as variations. Driving the hotbar through the browser automation did not register keypresses, so no wave was actually cleared under observation. Per ADR-0001 and this agent's own success criterion that is the developer's playtest anyway, not something a compile-and-serve check substitutes for.
 
 **Status:** ready for developer playtest. Worth knowing before playing: Heckler's pass caught a BLOCKING loudness defect in the first render (all three tracks ~27 dB below the two already-shipped tracks — the fix for "i dont hear any music" would have been inaudible), which was fixed and re-verified before this shipped; see `heckler/log.md`, 2026-08-12 (2), finding 1.
+
+## 2026-08-13 — Click-to-arm + scroll-wheel hotbar cycling (issue #198)
+
+Two playtesters asked for mouse-preferred spell selection alongside the existing 1-6 number
+row. Developer scoped both halves together: clicking a hotbar slot arms it, and the mouse wheel
+cycles the armed slot forward/backward with wrap-around. Both route through the exact same
+`handleHotbarPress(index)` the number-key handler (`createInput`) already calls — no second
+"arm spell" path exists anywhere in this change.
+
+**Pure logic first, TDD, same seam convention as every other module in this file**
+(`src/systems/hotbarLayout.ts` + `.test.ts`, 28 tests total, 15 new):
+- `hotbarSlotIndexAtPoint(rects, x, y)` — point-in-rect hit test against the same
+  `HotbarSlotRect[]` `computeHotbarSlotRects` already produces for rendering, so the click
+  target and the rendered slot boundary can never drift apart. Returns `null` (not `-1`) for a
+  miss, so a caller can't mistake "no slot" for "slot 0" via truthiness.
+- `nextHotbarIndex(currentIndex, slotCount, direction)` — wraps at both ends; `currentIndex < 0`
+  ("nothing currently armed") is handled as an explicit branch rather than folded into the
+  modulo arithmetic, since encoding "none" as a sentinel and wrapping through it lands one slot
+  short of the true last index (confirmed by hand before writing the test, not guessed past).
+
+**`SpellroadScene.ts` wiring:**
+- The existing `pointerdown` handler (`createInput`) now hit-tests `pointer.x`/`pointer.y`
+  against `this.hotbarSlotRects` *before* its `leftButtonDown`/`rightButtonDown` branches. A hit
+  calls `handleHotbarPress(index)` and returns — it never falls through to `confirmCast`. This
+  is a small correctness improvement beyond the ticket's own ask: before this change, any
+  left-click anywhere (hotbar included) called `confirmCast(pointer.worldX, pointer.worldY)`, so
+  clicking the hotbar while a spell was already previewed would have fired a cast aimed at the
+  HUD's own screen position instead of arming/confirming the slot that was actually clicked.
+  Used `pointer.x`/`pointer.y` (screen space, already scale-corrected by Phaser for `Scale.FIT`)
+  rather than `pointer.worldX`/`worldY` — deliberate, since `hotbarSlotRects` is laid out in the
+  same screen space the HUD's `Text`/`Graphics` objects use, not a world space affected by
+  camera scroll (this scene never scrolls its camera, so the two are numerically identical
+  today, but screen space is the *correct* one to test against here regardless).
+- A new `wheel` listener (`this.input.on("wheel", ...)`, also in `createInput`) finds the
+  currently-previewed spell's index in `equippedSpells` (`-1` if none), computes
+  `nextHotbarIndex` against `hotbarSlotRects.length` (the full rendered 1-6 row, not
+  `equippedSpells.length` — a trailing empty slot is a valid, no-op stop in the cycle, exactly
+  like clicking or number-keying an empty slot already is a no-op), and calls
+  `handleHotbarPress(nextIndex)`. Scroll-down (`deltaY > 0`) moves forward, scroll-up moves
+  backward — an arbitrary but internally consistent choice; neither the issue nor any existing
+  convention in this codebase specifies a direction.
+
+**Self-verify:** `docker-compose run --rm game npm run typecheck`, `npm run build`, and
+`npm test` all clean — 332/332 across 30 files (up from 319; `hotbarLayout.test.ts` goes 13 → 28
+tests). Docker was available and used throughout; no host fallback needed. Dev server smoke
+check not performed live this entry — port 5173 was already bound by another running session's
+container at self-verify time (same recurring caveat as several earlier entries in this file);
+did not reuse that other session's container since it wouldn't reflect this branch's code.
+
+**Judgment calls made, flagged rather than silently decided:**
+- **Wrap-around direction and scroll-direction mapping** are arbitrary (see above) — the issue
+  only requires wrapping at both ends and cycling, not a specific up/down-to-forward/backward
+  mapping. Easy to flip (`direction: 1 | -1 = deltaY > 0 ? 1 : -1` is the one line to invert) if
+  a developer playtest finds it backwards from expectation.
+- **Currently-armed highlight state:** already existed before this ticket — `updateHotbar`
+  already draws a distinct border (`isArmed` check) for whichever slot's spell equals
+  `previewSpellId`. Click-to-arm and scroll-cycling both set `previewSpellId` through the same
+  `handleHotbarPress` call the number-key path already used, so the existing highlight updates
+  for all three input methods with no separate code needed — not a new decision, just confirmed
+  it falls out of the existing highlight logic for free.
+- **Scrolling while a spell is already mid-preview:** `handleHotbarPress(nextIndex)` does not
+  auto-confirm or auto-cancel the *previous* preview before arming the new one — it just
+  overwrites `previewSpellId`, exactly like pressing a different number key mid-preview already
+  did before this ticket (e.g. hotkey `1` then, without confirming, hotkey `2`). Scroll-cycling
+  reuses that pre-existing behavior rather than inventing a different one for the mouse-wheel
+  path specifically.
+- **No debounce/threshold on wheel events:** a single native mouse-wheel detent normally fires
+  one `wheel` event, but a trackpad's continuous scroll can fire many in quick succession, each
+  advancing the cycle by one slot — this could feel like it's spinning past several spells for
+  what was meant as "nudge it over by one." Not addressed here since the issue is scoped to
+  mouse-wheel ergonomics specifically and the ticket didn't ask for trackpad-specific tuning;
+  flagging it as a real possible follow-up rather than guessing at a debounce window unasked.
+
+**Not yet developer-confirmed:** whether click-to-arm and scroll-cycling actually feel good in
+play, whether the scroll direction matches instinct, and whether trackpad over-cycling (above)
+is actually a problem in practice or a non-issue for a mouse-focused feature. Same distinction
+as every other entry in this log between self-verify (compile/build/test correctness) and the
+human playtest gate this agent's own success criterion requires.
+
+**Status:** `in-progress-with-owner` — self-verified only, awaiting developer playtest.
+
+## 2026-08-14 — Live frame-pump verification of click-to-arm/scroll-cycle (issue #198)
+
+Ana ran a live check in a fresh dev-server container against this branch (the browser pane's own sandbox, not a genuine focused developer tab). Same standing environment limitation this log has disclosed since 2026-07-23: `document.visibilityState` stays `"hidden"`, freezing Phaser's `requestAnimationFrame` loop. Worked around with the same temporary `disableVisibilityChange: true` + `window.__game` exposure documented in the 2026-08-01/08-03 entries, manually stepping `game.loop.step()`; both fully reverted afterward (`git diff --stat` on `main.ts` confirms zero diff post-revert).
+
+**Confirmed live, screenshot-verified:**
+- Clicking hotbar slot 3 (`frost_nova`) armed it — slot gained the existing `isArmed` highlight border and the circle AoE preview rendered on the field, identical to pressing `3`.
+- Scrolling the mouse wheel over the canvas advanced the armed spell from slot 3 to slot 4 (`stone_spike`) — highlight and the line-shaped preview updated correctly. Confirms scroll-down maps to "forward" per this entry's own arbitrary-but-documented choice above.
+
+Did not additionally verify wrap-around at the hotbar's ends or scroll-up (backward) in this pass — the two checks above already exercise the shared `handleHotbarPress`/`nextHotbarIndex` codepath the unit tests cover exhaustively; the remaining gap is real developer feel (does the direction match instinct, does trackpad over-cycling matter), not further mechanical confirmation.
+
+**Status: still `in-progress-with-owner`**, not upgraded to `shipped-and-validated` — this narrows the risk (the wiring genuinely fires in a real Phaser input pipeline, not just in isolated unit tests) but is not the "real developer session, an actually-focused visible tab" gate this agent's own success criterion requires, per the same distinction every entry above draws.
