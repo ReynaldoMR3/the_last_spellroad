@@ -11,11 +11,18 @@ import subprocess
 # merely *discusses* issue #222 as an example) must not count -- that
 # false positive would mark the issue in-flight forever, since a merged
 # PR never ages out of search.
-_CLOSING_KEYWORDS = r"close[sd]?|fix(?:e[sd])?|resolve[sd]?"
+#
+# Includes the present-continuous forms ("closing #198") -- confirmed live
+# against this repo's real merged PR #221 ("...closing #198.") -- alongside
+# GitHub's own recognized keyword set. A negative lookbehind excludes "not
+# close #N"/"not fix #N"/etc (this repo's PRs use exactly this phrasing --
+# "Related to (does not close) #191" -- to link a *related but unresolved*
+# issue without claiming to implement it).
+_CLOSING_KEYWORDS = r"close[sd]?|closing|fix(?:e[sd])?|fixing|resolve[sd]?|resolving"
 
 
 def _closes_issue(body, issue_number):
-    pattern = rf"\b(?:{_CLOSING_KEYWORDS})\s+#{issue_number}\b"
+    pattern = rf"\b(?<!not\s)(?:{_CLOSING_KEYWORDS})\s+#{issue_number}\b"
     return re.search(pattern, body or "", re.IGNORECASE) is not None
 
 
