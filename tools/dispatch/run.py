@@ -30,6 +30,17 @@ RUNS_DIR = Path(__file__).resolve().parent / "runs"
 _BACKEND_CLASSES = {"codex": CodexBackend, "ollama": OllamaBackend}
 
 
+def _format_violations(violations):
+    """Format a violations list as human-readable text for a merge reason."""
+    parts = []
+    for v in violations:
+        if v["type"] == "denylist_path":
+            parts.append(f"denylist paths: {', '.join(v['files'])}")
+        elif v["type"] == "secret_pattern":
+            parts.append(f"detected {len(v['patterns'])} secret pattern(s)")
+    return "; ".join(parts) if parts else "unknown violations"
+
+
 def _get_backend(name):
     return _BACKEND_CLASSES[name]()
 
@@ -135,7 +146,7 @@ def _process_issue(issue, dry_run):
             violations.append({"type": "secret_pattern", "patterns": early_secret_hits})
         return _blocked_outcome(
             issue, agent, backend_name, dispatch_record,
-            reason=f"pre-verification security check failed: {violations}",
+            reason=f"pre-verification security check failed: {_format_violations(violations)}",
             dry_run=dry_run,
             security_record={"passed": False, "violations": violations},
         )

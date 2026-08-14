@@ -8,10 +8,11 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 WORKTREE_ROOT = _REPO_ROOT / ".worktrees"
 
 _DENYLIST_WARNING = (
-    "Do not modify docker-compose.yml, any Dockerfile, package.json, "
-    "package-lock.json, .env files, or .github/workflows -- if the fix "
-    "genuinely requires one of those, stop and describe why instead of "
-    "editing it; a security gate will hard-block the merge otherwise."
+    "Do not modify any docker-compose variant files (docker-compose.yml, "
+    "docker-compose.override.yml, etc.), any Dockerfile, package.json, "
+    "package-lock.json, .env files, .github/workflows, .claude/, or .codex/ "
+    "-- if the fix genuinely requires one of those, stop and describe why "
+    "instead of editing it; a security gate will hard-block the merge otherwise."
 )
 
 
