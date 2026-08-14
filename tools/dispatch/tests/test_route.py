@@ -24,6 +24,36 @@ def test_classify_agent_falls_back_to_ana_when_ambiguous():
     assert classify_agent(_issue(title="Something about the game")) == "ana"
 
 
+def test_classify_agent_title_keyword_outranks_generic_body_word():
+    # Regression: a music issue whose title says "theme" (composer) must not
+    # get outranked by "frieren"/"spell" merely because the body's prose
+    # mentions "spell" in passing -- title intent wins over incidental body
+    # vocabulary.
+    issue = _issue(
+        title="Boss theme revision: staccato brass hits instead of sustained dyads",
+        body=(
+            "Developer named Frieren's battle-arc OST as a style reference "
+            "for the staccato brass character; no spell content changes here."
+        ),
+    )
+    assert classify_agent(issue) == "composer"
+
+
+def test_classify_agent_title_keyword_outranks_unrelated_body_keyword():
+    # Regression: an art/level issue must not get outranked by "warden" just
+    # because the body happens to mention "wave" in passing.
+    issue = _issue(
+        title="Level 1 feels too plain -- needs castle-appropriate art pass",
+        body="Reported via playtest, Level 1 Wave 3.",
+    )
+    assert classify_agent(issue) == "tilesmith"
+
+
+def test_classify_agent_falls_back_to_body_when_title_is_ambiguous():
+    issue = _issue(title="Something about the game", body="the encounter wave design needs work")
+    assert classify_agent(issue) == "warden"
+
+
 def test_task_type_for_maps_agents_correctly():
     assert task_type_for("loomwright") == "engine"
     assert task_type_for("frieren") == "content"
