@@ -126,3 +126,43 @@ const WEIGHT_ABBREVIATIONS: Record<Weight, string> = {
 export function formatShapeWeightTag(shape: AoEShape, weight: Weight): string {
   return `[${SHAPE_ABBREVIATIONS[shape]}/${WEIGHT_ABBREVIATIONS[weight]}]`;
 }
+
+/** Issue #198 — click-to-arm: which hotbar slot (if any) a click/pointer landed inside, given
+ * the same rects `computeHotbarSlotRects` already produced for rendering. Pure hit-test so
+ * `SpellroadScene`'s pointerdown handler can route a click through the exact same
+ * `handleHotbarPress(index)` call the number-key handler already uses, instead of forking a
+ * second "arm spell" path. Returns `null` (not -1) for "no slot" so a caller can't
+ * accidentally treat a miss as a valid index via truthiness/falsiness confusion with slot 0. */
+export function hotbarSlotIndexAtPoint(rects: HotbarSlotRect[], x: number, y: number): number | null {
+  for (const rect of rects) {
+    if (x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height) {
+      return rect.index;
+    }
+  }
+  return null;
+}
+
+/** Issue #198 — scroll-wheel cycling: given the currently-armed slot index (`-1` if none is
+ * armed) and a direction (+1 = next, -1 = previous), returns the next slot index to arm,
+ * wrapping around at both ends. `slotCount` is the full rendered hotbar width (matches
+ * `HOTBAR_KEYS.length`/`hotbarSlotRects.length` in `SpellroadScene.ts`, not
+ * `equippedSpells.length`), so cycling lands on the same slot indices a number-key press or a
+ * hotbar click would — including a currently-empty trailing slot, which is a no-op stop in the
+ * cycle exactly like clicking an empty slot is a no-op, rather than being silently skipped over
+ * (skipping would require this pure function to know which slots are "empty", entangling it
+ * with `equippedSpells` data it otherwise doesn't need to see).
+ *
+ * `currentIndex < 0` (no spell currently armed) is handled explicitly rather than folded into
+ * the modulo arithmetic: encoding "none" as a sentinel one-before-slot-0 and letting a
+ * backward step wrap through the usual `(i + slotCount) % slotCount` formula lands one slot
+ * short of the actual last slot (off-by-one), so the "nothing armed yet" case picks its
+ * starting slot directly instead (slot 0 going forward, the last slot going backward). */
+export function nextHotbarIndex(currentIndex: number, slotCount: number, direction: 1 | -1): number {
+  if (slotCount <= 0) {
+    return -1;
+  }
+  if (currentIndex < 0) {
+    return direction === 1 ? 0 : slotCount - 1;
+  }
+  return (currentIndex + direction + slotCount) % slotCount;
+}

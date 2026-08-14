@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { computeCooldownDisplay, computeHotbarSlotRects, formatShapeWeightTag } from "./hotbarLayout";
+import {
+  computeCooldownDisplay,
+  computeHotbarSlotRects,
+  formatShapeWeightTag,
+  hotbarSlotIndexAtPoint,
+  nextHotbarIndex
+} from "./hotbarLayout";
 import type { AoEShape, Weight } from "../data/types";
 
 describe("computeHotbarSlotRects", () => {
@@ -114,5 +120,77 @@ describe("formatShapeWeightTag", () => {
   it("never produces two different combinations with the same abbreviation (no ambiguity introduced by shortening)", () => {
     const tags = ALL_COMBINATIONS.map(([shape, weight]) => formatShapeWeightTag(shape, weight));
     expect(new Set(tags).size).toBe(tags.length);
+  });
+});
+
+describe("hotbarSlotIndexAtPoint", () => {
+  // Issue #198 — click-to-arm. Same rects `SpellroadScene.ts` renders from, so this test's
+  // fixture doubles as a regression guard for the real 6-slot row layout.
+  const rects = computeHotbarSlotRects({ canvasWidth: 960, top: 424, slotHeight: 96, slotCount: 6, gapPx: 8 });
+
+  it("returns the index of the slot a point falls inside", () => {
+    const slot2 = rects[2];
+    const midX = slot2.x + slot2.width / 2;
+    const midY = slot2.y + slot2.height / 2;
+    expect(hotbarSlotIndexAtPoint(rects, midX, midY)).toBe(2);
+  });
+
+  it("is inclusive at a slot's exact edges", () => {
+    const slot0 = rects[0];
+    expect(hotbarSlotIndexAtPoint(rects, slot0.x, slot0.y)).toBe(0);
+    expect(hotbarSlotIndexAtPoint(rects, slot0.x + slot0.width, slot0.y + slot0.height)).toBe(0);
+  });
+
+  it("returns null for a point in the inter-slot gap", () => {
+    const slot0 = rects[0];
+    const gapMidX = slot0.x + slot0.width + 4; // gapPx is 8, so +4 lands mid-gap
+    expect(hotbarSlotIndexAtPoint(rects, gapMidX, slot0.y + 10)).toBeNull();
+  });
+
+  it("returns null for a point above or below the row entirely", () => {
+    expect(hotbarSlotIndexAtPoint(rects, 100, 0)).toBeNull();
+    expect(hotbarSlotIndexAtPoint(rects, 100, 1000)).toBeNull();
+  });
+
+  it("returns null for an empty rects array instead of throwing", () => {
+    expect(hotbarSlotIndexAtPoint([], 100, 100)).toBeNull();
+  });
+});
+
+describe("nextHotbarIndex", () => {
+  it("steps forward by one within bounds", () => {
+    expect(nextHotbarIndex(0, 6, 1)).toBe(1);
+    expect(nextHotbarIndex(4, 6, 1)).toBe(5);
+  });
+
+  it("steps backward by one within bounds", () => {
+    expect(nextHotbarIndex(5, 6, -1)).toBe(4);
+    expect(nextHotbarIndex(1, 6, -1)).toBe(0);
+  });
+
+  it("wraps forward from the last slot to the first", () => {
+    expect(nextHotbarIndex(5, 6, 1)).toBe(0);
+  });
+
+  it("wraps backward from the first slot to the last", () => {
+    expect(nextHotbarIndex(0, 6, -1)).toBe(5);
+  });
+
+  it("starts at slot 0 going forward when nothing is currently armed", () => {
+    expect(nextHotbarIndex(-1, 6, 1)).toBe(0);
+  });
+
+  it("starts at the last slot going backward when nothing is currently armed", () => {
+    expect(nextHotbarIndex(-1, 6, -1)).toBe(5);
+  });
+
+  it("returns -1 for a non-positive slot count instead of dividing by it", () => {
+    expect(nextHotbarIndex(0, 0, 1)).toBe(-1);
+    expect(nextHotbarIndex(-1, -1, -1)).toBe(-1);
+  });
+
+  it("is a no-op cycle of one when there is exactly one slot", () => {
+    expect(nextHotbarIndex(0, 1, 1)).toBe(0);
+    expect(nextHotbarIndex(0, 1, -1)).toBe(0);
   });
 });

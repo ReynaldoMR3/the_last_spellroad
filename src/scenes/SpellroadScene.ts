@@ -30,6 +30,8 @@ import {
   computeCooldownDisplay,
   computeHotbarSlotRects,
   formatShapeWeightTag,
+  hotbarSlotIndexAtPoint,
+  nextHotbarIndex,
   type HotbarSlotRect
 } from "../systems/hotbarLayout";
 import {
@@ -1382,6 +1384,22 @@ export class SpellroadScene extends Phaser.Scene {
         this.hideBossBanner();
         return;
       }
+      // Issue #198 — click-to-arm: a click landing inside a rendered hotbar slot arms (or
+      // re-confirms) that slot's spell through the exact same `handleHotbarPress(index)` call
+      // the number-key handler already uses, instead of falling through to `confirmCast`/
+      // `cancelPreview` below. This also means clicking the hotbar itself can never be
+      // misread as "confirm-cast aimed at the HUD" — before this change, any left-click
+      // (hotbar or not) always called `confirmCast(pointer.worldX, pointer.worldY)`. The HUD
+      // has no camera scroll applied (`SpellroadScene` never moves its camera), so the
+      // pointer's screen coordinates line up with the same coordinate space
+      // `hotbarSlotRects` was laid out in.
+      const hotbarIndex = hotbarSlotIndexAtPoint(this.hotbarSlotRects, pointer.x, pointer.y);
+      if (hotbarIndex !== null) {
+        if (pointer.leftButtonDown()) {
+          this.handleHotbarPress(hotbarIndex);
+        }
+        return;
+      }
       if (pointer.leftButtonDown()) {
         this.lastPointerActivityAt = this.time.now;
         this.confirmCast(pointer.worldX, pointer.worldY);
@@ -1389,6 +1407,30 @@ export class SpellroadScene extends Phaser.Scene {
         this.cancelPreview();
       }
     });
+
+    // Issue #198 — scroll-wheel cycling: an additional input path onto the same
+    // `handleHotbarPress(index)` call the number-key and hotbar-click handlers already use, so
+    // preview/confirm/cancel behavior is identical regardless of which of the three armed the
+    // spell. Cycles across every rendered hotbar slot (`hotbarSlotRects.length`, i.e. the full
+    // 1-6 row), not just occupied ones — landing on an empty trailing slot is a no-op stop in
+    // the cycle, the same as clicking or number-keying an empty slot already is; skipping empty
+    // slots here would need this handler to know which slots are occupied, when
+    // `handleHotbarPress` already handles that itself. Scroll direction: wheel-down (natural
+    // "scroll down the list", positive `deltaY`) moves to the next slot; wheel-up moves to the
+    // previous slot — an arbitrary but internally consistent choice, since neither the issue
+    // nor `hotbarLayout.ts`'s existing conventions specify one.
+    this.input.on(
+      "wheel",
+      (_pointer: Phaser.Input.Pointer, _gameObjects: unknown, _deltaX: number, deltaY: number) => {
+        if (this.hotbarSlotRects.length === 0) {
+          return;
+        }
+        const direction: 1 | -1 = deltaY > 0 ? 1 : -1;
+        const currentIndex = this.equippedSpells.findIndex((spell) => spell.id === this.previewSpellId);
+        const nextIndex = nextHotbarIndex(currentIndex, this.hotbarSlotRects.length, direction);
+        this.handleHotbarPress(nextIndex);
+      }
+    );
 
     // Issues #112/#113 — same dismiss-early contract for the keyboard: any keypress ends the
     // boss banner's display rather than waiting out its reading-speed-scaled auto-hide. Phaser fires
