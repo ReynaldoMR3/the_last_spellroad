@@ -30,12 +30,21 @@ _TASK_TYPES = {
 _REGISTRY_PATH = Path(__file__).resolve().parent.parent / "model_registry.json"
 
 
-def classify_agent(issue):
-    haystack = f"{issue.get('title', '')} {issue.get('body', '')}".lower()
-    for agent, keywords in _KEYWORDS.items():
-        if any(keyword in haystack for keyword in keywords):
+def _first_match(text, keyword_map):
+    for agent, keywords in keyword_map.items():
+        if any(keyword in text for keyword in keywords):
             return agent
-    return "ana"
+    return None
+
+
+def classify_agent(issue):
+    # The title is the author's deliberate one-line summary; a generic word
+    # incidentally mentioned in the body (e.g. "spell" in a music issue's
+    # prose) must not outrank it. Only fall back to scanning the body when
+    # the title itself is ambiguous.
+    title = issue.get("title", "").lower()
+    body = issue.get("body", "").lower()
+    return _first_match(title, _KEYWORDS) or _first_match(body, _KEYWORDS) or "ana"
 
 
 def task_type_for(agent):
