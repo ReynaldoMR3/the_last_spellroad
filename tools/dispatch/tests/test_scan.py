@@ -83,3 +83,34 @@ def test_scan_marks_in_flight_on_fixes_and_resolves_keywords_too(monkeypatch):
         subprocess, "run", _fake_run_factory({195: [{"number": 300, "state": "OPEN", "body": "resolves #195"}]})
     )
     assert scan()[0]["in_flight"] is True
+
+
+def test_scan_marks_in_flight_on_present_continuous_closing_phrasing(monkeypatch):
+    # Regression: this repo's real merged PR #221 links #198 via
+    # "...closing #198." (present-continuous), not GitHub's "closes #N".
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        _fake_run_factory({198: [{"number": 221, "state": "MERGED", "body": "click-to-arm, closing #198."}]}),
+    )
+    assert scan()[0]["in_flight"] is True
+
+
+def test_scan_does_not_mark_in_flight_on_explicit_non_closing_reference(monkeypatch):
+    # Regression: this repo's real merged PRs #190/#192 explicitly disclaim
+    # closing #191 ("Related to (does not close) #191") while linking to
+    # it -- must not be read as an implementation.
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        _fake_run_factory(
+            {191: [{"number": 192, "state": "MERGED", "body": "Related to (does not close) #191 -- pending a decision."}]}
+        ),
+    )
+    assert scan()[0]["in_flight"] is False
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        _fake_run_factory({191: [{"number": 192, "state": "MERGED", "body": "we should not close #191 yet"}]}),
+    )
+    assert scan()[0]["in_flight"] is False
