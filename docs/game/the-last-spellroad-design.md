@@ -56,6 +56,8 @@ Trapped adventurer NPCs (step 5) are invulnerable in this MVP — AoE spells can
 
 The Last Spellroad is a persistent RPG, not a run-reset roguelite. Discovered spells, lore knowledge, and hierarchy rank all carry forward permanently between expeditions. The mage never un-learns a spell and never loses spellbook identity.
 
+**Persistence scope, clarified 2026-08-13 (issue #213):** "permanently" here means for the life of the save file, full stop — not just between expeditions within one continuous session. There is no full-game-reset mechanic anywhere in this design: reaching the vertical slice's ending (see Screen Flow And Pause) does not wipe or roll back discovered spells, lore, hierarchy rank, or Mastery any more than an ordinary death does. Death's Mastery-tier cost (below) is the *only* thing that ever moves progression backward, and even that only ever drops one tier on one spell — it never touches the spellbook, lore, or hierarchy rank, and never applies at all outside of dying mid-expedition. Reaching a game ending is strictly additive, never a reset point.
+
 Death still has to cost something, so it costs mastery instead of possession. Every known spell has a Mastery level, separate from simply knowing it, that grows with use in combat and governs how strong that spell feels: higher mastery means better damage, wider reach, or cheaper resource cost on that specific spell. This is the mechanic behind the Power pillar's promise that "old enemies become easier" — mastery growing, not the spellbook growing.
 
 Every spell uses the same three-tier Mastery template, so tuning stays simple across the whole 12-20 spell list: base stats are set once per spell, and mastery scaling is automatic and identical for all of them.
