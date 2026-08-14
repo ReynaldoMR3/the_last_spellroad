@@ -55,10 +55,17 @@ def probe_registry(registry):
 
 
 def choose_backend(task_type, probed_registry):
-    if task_type == "engine":
-        return "codex"
-    if task_type == "content":
-        if probed_registry.get("ollama", {}).get("available"):
-            return "ollama"
-        return "codex"
+    # Ollama is reserved for future use, the same "reserved, not yet
+    # enabled" status Gemini already carries in model_registry.json.
+    # OllamaBackend.run() is a plain HTTP text-completion call -- it has no
+    # filesystem access and no agentic tool loop, so it cannot actually edit
+    # files in the dispatch worktree (unlike CodexBackend, which runs
+    # `codex exec --full-auto`, a real tool loop with file access). Routing
+    # content tasks to it produced silent no-op dispatches that still
+    # cleared every downstream gate. Always return "codex" for now,
+    # regardless of task_type or Ollama's probed availability, until Ollama
+    # has a real tool loop capable of editing files. `probed_registry` is
+    # still accepted (and Ollama's availability is still probed upstream in
+    # `probe_registry`) so this signature and the probing behavior are ready
+    # to use the moment that changes.
     return "codex"

@@ -40,12 +40,14 @@ def test_choose_backend_engine_always_codex():
     assert choose_backend("engine", registry) == "codex"
 
 
-def test_choose_backend_content_prefers_ollama_when_available():
+def test_choose_backend_content_uses_codex_even_when_ollama_available():
+    # Ollama is reserved (no agentic tool loop / file-edit capability yet),
+    # so content tasks always route to codex regardless of availability.
     registry = {"codex": {"available": True}, "ollama": {"available": True}}
-    assert choose_backend("content", registry) == "ollama"
+    assert choose_backend("content", registry) == "codex"
 
 
-def test_choose_backend_content_falls_back_to_codex_when_ollama_down():
+def test_choose_backend_content_uses_codex_when_ollama_down():
     registry = {"codex": {"available": True}, "ollama": {"available": False}}
     assert choose_backend("content", registry) == "codex"
 

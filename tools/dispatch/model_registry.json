@@ -14,6 +14,7 @@
     "invoke": "http://localhost:11434/api/generate",
     "cost_tier": "free-local",
     "structured_output_reliability": "low",
-    "model": "llama3.2"
+    "model": "llama3.2",
+    "note": "Not currently routed to for dispatch tasks -- OllamaBackend is a plain HTTP text-completion call with no file-edit capability, unlike CodexBackend's `codex exec --full-auto` agentic tool loop. Reserved until it has a real tool loop that can edit files."
   }
 }

@@ -1,4 +1,5 @@
 import json
+from unittest.mock import MagicMock
 
 import run as run_module
 
@@ -45,7 +46,13 @@ def test_run_dispatches_and_merges_dry_run_issue(tmp_path, monkeypatch):
     # The mocked worktree_path above doesn't exist as a real directory, and
     # run.py now calls diff_text() for real (deviation 2) -- mock it here too
     # so this test stays focused on the merge-decision flow, not on git.
-    monkeypatch.setattr(run_module, "diff_text", lambda cwd: "")
+    # Critical 1b: an empty diff is now treated as a no-op and blocked
+    # before verification, so this diff must be non-empty to reach the
+    # merge-decision flow this test actually exercises. changed_files is
+    # also mocked (Important 4's pre-verification denylist check) since the
+    # worktree path isn't a real git repo.
+    monkeypatch.setattr(run_module, "diff_text", lambda cwd: "+ const x = 1\n")
+    monkeypatch.setattr(run_module, "changed_files", lambda cwd: ["src/scenes/Foo.ts"])
     monkeypatch.setattr(
         run_module, "run_heckler_review",
         # Deviation from brief: run_heckler_review's return dict now includes
@@ -83,6 +90,10 @@ def test_process_issue_loads_real_agent_docs_and_diff(tmp_path, monkeypatch):
         lambda agent, filename: f"FIXTURE-{agent}-{filename}",
     )
     monkeypatch.setattr(run_module, "diff_text", lambda cwd: "FIXTURE-DIFF")
+    # Important 4's pre-verification denylist check runs changed_files()
+    # against the (non-real) worktree path -- mock it clean so this test
+    # stays focused on doc/diff plumbing, not on git.
+    monkeypatch.setattr(run_module, "changed_files", lambda cwd: [])
 
     dispatch_calls = []
     heckler_calls = []
@@ -151,3 +162,151 @@ def test_read_agent_doc_returns_empty_string_when_missing(tmp_path, monkeypatch)
         run_module, "_repo_root", lambda: tmp_path
     )
     assert run_module._read_agent_doc("nonexistent-agent", "AGENT.md") == ""
+
+
+def _setup_common(tmp_path, monkeypatch, issue):
+    monkeypatch.setattr(run_module, "RUNS_DIR", tmp_path)
+    monkeypatch.setattr(run_module, "scan", lambda: [issue])
+    monkeypatch.setattr(run_module, "probe_registry", lambda registry: registry)
+    monkeypatch.setattr(run_module, "load_registry", lambda: {"codex": {}, "ollama": {}})
+
+
+# --- Critical 1b: a no-op (empty diff) dispatch must block, not merge ---
+
+
+def test_run_blocks_on_empty_diff_without_running_downstream_gates(tmp_path, monkeypatch):
+    issue = {"number": 20, "title": "Loomwright: fix cone bug", "body": "b", "labels": [], "comments": [], "in_flight": False}
+    _setup_common(tmp_path, monkeypatch, issue)
+
+    monkeypatch.setattr(
+        run_module, "dispatch_issue",
+        lambda issue, agent, agent_md, context_md, backend: {
+            "issue_number": 20, "worktree_path": str(tmp_path / "wt-20"),
+            "branch": "agent/dispatch-issue-20", "backend": backend.name,
+            "ok": True, "stdout_tail": "",
+        },
+    )
+    monkeypatch.setattr(run_module, "diff_text", lambda cwd: "")
+
+    verify_mock = MagicMock(name="run_verification")
+    security_mock = MagicMock(name="run_security_gate")
+    review_mock = MagicMock(name="run_heckler_review")
+    monkeypatch.setattr(run_module, "run_verification", verify_mock)
+    monkeypatch.setattr(run_module, "run_security_gate", security_mock)
+    monkeypatch.setattr(run_module, "run_heckler_review", review_mock)
+
+    manifest = run_module.run(dry_run=True, run_id="test-empty-diff")
+
+    entry = manifest["issues"][0]
+    assert entry["number"] == 20
+    assert "no changes" in entry["action"]
+    verify_mock.assert_not_called()
+    security_mock.assert_not_called()
+    review_mock.assert_not_called()
+
+
+# --- Critical 2: dispatch_record["ok"] is False must block, not proceed ---
+
+
+def test_run_blocks_on_dispatch_failure_without_running_downstream_gates(tmp_path, monkeypatch):
+    issue = {"number": 21, "title": "Loomwright: fix cone bug", "body": "b", "labels": [], "comments": [], "in_flight": False}
+    _setup_common(tmp_path, monkeypatch, issue)
+
+    monkeypatch.setattr(
+        run_module, "dispatch_issue",
+        lambda issue, agent, agent_md, context_md, backend: {
+            "issue_number": 21, "worktree_path": str(tmp_path / "wt-21"),
+            "branch": "agent/dispatch-issue-21", "backend": backend.name,
+            "ok": False, "stdout_tail": "rate limited",
+        },
+    )
+
+    diff_mock = MagicMock(name="diff_text")
+    verify_mock = MagicMock(name="run_verification")
+    security_mock = MagicMock(name="run_security_gate")
+    review_mock = MagicMock(name="run_heckler_review")
+    monkeypatch.setattr(run_module, "diff_text", diff_mock)
+    monkeypatch.setattr(run_module, "run_verification", verify_mock)
+    monkeypatch.setattr(run_module, "run_security_gate", security_mock)
+    monkeypatch.setattr(run_module, "run_heckler_review", review_mock)
+
+    manifest = run_module.run(dry_run=True, run_id="test-dispatch-fail")
+
+    entry = manifest["issues"][0]
+    assert entry["number"] == 21
+    assert "dispatch backend failed" in entry["action"]
+    assert "rate limited" in entry["action"]
+    diff_mock.assert_not_called()
+    verify_mock.assert_not_called()
+    security_mock.assert_not_called()
+    review_mock.assert_not_called()
+
+
+# --- Important 4: an early denylist hit must block before run_verification ---
+
+
+def test_run_blocks_early_on_denylist_violation_before_verification(tmp_path, monkeypatch):
+    issue = {"number": 22, "title": "Loomwright: fix cone bug", "body": "b", "labels": [], "comments": [], "in_flight": False}
+    _setup_common(tmp_path, monkeypatch, issue)
+
+    monkeypatch.setattr(
+        run_module, "dispatch_issue",
+        lambda issue, agent, agent_md, context_md, backend: {
+            "issue_number": 22, "worktree_path": str(tmp_path / "wt-22"),
+            "branch": "agent/dispatch-issue-22", "backend": backend.name,
+            "ok": True, "stdout_tail": "",
+        },
+    )
+    monkeypatch.setattr(run_module, "diff_text", lambda cwd: "+ real change to .claude/settings.json")
+    monkeypatch.setattr(run_module, "changed_files", lambda cwd: [".claude/settings.json"])
+    monkeypatch.setattr(run_module, "check_denylist", lambda files, policy: [".claude/settings.json"])
+
+    verify_mock = MagicMock(name="run_verification")
+    security_mock = MagicMock(name="run_security_gate")
+    review_mock = MagicMock(name="run_heckler_review")
+    monkeypatch.setattr(run_module, "run_verification", verify_mock)
+    monkeypatch.setattr(run_module, "run_security_gate", security_mock)
+    monkeypatch.setattr(run_module, "run_heckler_review", review_mock)
+
+    manifest = run_module.run(dry_run=True, run_id="test-early-denylist")
+
+    entry = manifest["issues"][0]
+    assert entry["number"] == 22
+    assert "blocked-with-reason" in entry["action"]
+    assert ".claude/settings.json" in entry["action"]
+    verify_mock.assert_not_called()
+    security_mock.assert_not_called()
+    review_mock.assert_not_called()
+
+
+# --- Important 8: full-gate manifest entries nest the stage result dicts ---
+
+
+def test_run_manifest_entry_nests_verify_security_review_records(tmp_path, monkeypatch):
+    issue = {"number": 23, "title": "Loomwright: fix cone bug", "body": "b", "labels": [], "comments": [], "in_flight": False}
+    _setup_common(tmp_path, monkeypatch, issue)
+
+    monkeypatch.setattr(
+        run_module, "dispatch_issue",
+        lambda issue, agent, agent_md, context_md, backend: {
+            "issue_number": 23, "worktree_path": str(tmp_path / "wt-23"),
+            "branch": "agent/dispatch-issue-23", "backend": backend.name,
+            "ok": True, "stdout_tail": "",
+        },
+    )
+    monkeypatch.setattr(run_module, "diff_text", lambda cwd: "+ const x = 1\n")
+    monkeypatch.setattr(run_module, "changed_files", lambda cwd: ["src/scenes/Foo.ts"])
+
+    verify_record = {"typecheck": "pass", "build": "pass", "test": "pass", "all_passed": True, "command_log": ["docker-compose run --rm game npm test"]}
+    security_record = {"passed": True, "violations": []}
+    review_record = {"backend": "codex", "ok": True, "blocking_findings": [], "minor_findings": [], "raw": ""}
+    monkeypatch.setattr(run_module, "run_verification", lambda cwd: verify_record)
+    monkeypatch.setattr(run_module, "run_security_gate", lambda cwd, command_log, policy: security_record)
+    monkeypatch.setattr(run_module, "run_heckler_review", lambda diff, heckler_agent_md, backend: review_record)
+
+    manifest = run_module.run(dry_run=True, run_id="test-manifest-nesting")
+
+    entry = manifest["issues"][0]
+    assert entry["verify"] == verify_record
+    assert entry["security"] == security_record
+    assert entry["review"] == review_record
