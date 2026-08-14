@@ -1,11 +1,13 @@
 {
   "denylist_paths": [
-    "docker-compose.yml",
+    "docker-compose",
     ".github/workflows/",
     "Dockerfile",
     "package.json",
     "package-lock.json",
-    ".env"
+    ".env",
+    ".claude",
+    ".codex"
   ],
   "secret_patterns": [
     "sk-[A-Za-z0-9]{20,}",

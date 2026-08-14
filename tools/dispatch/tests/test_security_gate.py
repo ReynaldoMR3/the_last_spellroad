@@ -27,6 +27,20 @@ _POLICY_FULL = {
     "secret_patterns": ["sk-[A-Za-z0-9]{20,}"],
 }
 
+_POLICY_SHIPPED = {
+    "denylist_paths": [
+        "docker-compose",
+        ".github/workflows/",
+        "Dockerfile",
+        "package.json",
+        "package-lock.json",
+        ".env",
+        ".claude",
+        ".codex",
+    ],
+    "secret_patterns": ["sk-[A-Za-z0-9]{20,}"],
+}
+
 
 def test_check_denylist_flags_exact_and_prefix_matches():
     files = ["src/scenes/Foo.ts", "docker-compose.yml", ".github/workflows/ci.yml"]
@@ -196,10 +210,63 @@ def test_diff_text_invokes_expected_git_command(monkeypatch):
 def test_load_policy_loads_real_shipped_policy_by_default():
     policy = load_policy()
 
-    assert "docker-compose.yml" in policy["denylist_paths"]
+    # Critical 3/Important 4: the entry is the prefix "docker-compose" (no
+    # ".yml" suffix) so it also catches docker-compose.override.yml and
+    # docker-compose.prod.yml, and ".claude"/".codex" are present.
+    assert "docker-compose" in policy["denylist_paths"]
+    assert ".claude" in policy["denylist_paths"]
+    assert ".codex" in policy["denylist_paths"]
     assert len(policy["denylist_paths"]) > 0
     assert len(policy["secret_patterns"]) > 0
     assert any(check_secrets("sk-abcdefghijklmnopqrstuvwx", policy))
+
+
+# --- Critical 3: .claude/.codex must be denylisted ---
+
+
+def test_check_denylist_flags_claude_settings_and_codex_config():
+    files = [
+        ".claude/settings.json",
+        ".codex/config.toml",
+        "src/scenes/Foo.ts",
+    ]
+    hits = check_denylist(files, _POLICY_SHIPPED)
+    assert hits == [".claude/settings.json", ".codex/config.toml"]
+
+
+def test_run_security_gate_blocks_on_claude_settings_edit(monkeypatch):
+    import stage04_security.security_gate as sg
+
+    monkeypatch.setattr(sg, "changed_files", lambda cwd: [".claude/settings.json"])
+    monkeypatch.setattr(sg, "diff_text", lambda cwd: "+ allow everything")
+
+    result = run_security_gate(
+        "/tmp/worktree", ["docker-compose run --rm game npm test"], _POLICY_SHIPPED
+    )
+    assert result["passed"] is False
+    assert result["violations"] == [
+        {"type": "denylist_path", "files": [".claude/settings.json"]}
+    ]
+
+
+# --- Important 4: docker-compose.override.yml must be caught by the prefix ---
+
+
+def test_check_denylist_flags_docker_compose_override_and_prod_variants():
+    files = [
+        "docker-compose.yml",
+        "docker-compose.override.yml",
+        "docker-compose.prod.yml",
+        "sub/dir/docker-compose.override.yml",
+        "src/scenes/Foo.ts",
+    ]
+    hits = check_denylist(files, _POLICY_SHIPPED)
+    assert hits == [
+        "docker-compose.yml",
+        "docker-compose.override.yml",
+        "docker-compose.prod.yml",
+        "sub/dir/docker-compose.override.yml",
+    ]
 
 
 # --- Important 5: secret and multi-violation paths end-to-end ---
