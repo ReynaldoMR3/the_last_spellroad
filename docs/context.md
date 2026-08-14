@@ -42,6 +42,10 @@ _Avoid_: Demo, permanent prototype, prototype archive
 The rule that a change affecting the Active Prototype's production baseline must update and re-check that prototype in the same change.
 _Avoid_: Prototype compatibility
 
+**Side-Pocket Lore Encounter**:
+An optional off-route discovery that reveals a short piece of world lore without NPC dialogue or interrupting combat.
+_Avoid_: NPC lore encounter, mandatory lore beat
+
 ## Next Actions
 
 - Define and implement the first playable Spellroad movement and spellcasting loop.
