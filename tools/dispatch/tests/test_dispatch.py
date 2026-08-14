@@ -1,7 +1,7 @@
 import subprocess
 from pathlib import Path
 
-from stage02_dispatch.dispatch import build_prompt, create_worktree, dispatch_issue
+from stage02_dispatch.dispatch import _REPO_ROOT, build_prompt, create_worktree, dispatch_issue, WORKTREE_ROOT
 
 
 def test_build_prompt_includes_issue_and_agent_context():
@@ -27,17 +27,33 @@ def test_create_worktree_runs_expected_git_commands(monkeypatch, tmp_path):
         return subprocess.CompletedProcess(cmd, 0, "", "")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
+    # Deliberately chdir somewhere unrelated to the repo: this is the
+    # regression check for the original bug (WORKTREE_ROOT resolving
+    # relative to the caller's cwd instead of the repo root).
     monkeypatch.chdir(tmp_path)
 
     path, branch = create_worktree(195)
 
+    expected_path = _REPO_ROOT / ".worktrees" / "dispatch-195"
     assert branch == "agent/dispatch-issue-195"
-    assert path == Path(".worktrees/dispatch-195")
+    assert path == expected_path
+    assert path.is_absolute()
     assert calls[0] == ["git", "fetch", "origin"]
     assert calls[1] == [
-        "git", "worktree", "add", ".worktrees/dispatch-195",
+        "git", "worktree", "add", str(expected_path),
         "-b", "agent/dispatch-issue-195", "origin/main",
     ]
+
+
+def test_worktree_root_resolves_to_repo_root():
+    """Regression test: WORKTREE_ROOT must be an absolute path anchored at
+    the repo root (a sibling of AGENTS.md and .worktrees), not a relative
+    path that depends on the invoking process's cwd. This is the exact bug
+    that made `cd tools/dispatch && python run.py` create worktrees under
+    tools/dispatch/.worktrees/ instead of the repo-root .worktrees/."""
+    assert WORKTREE_ROOT.is_absolute()
+    assert WORKTREE_ROOT == _REPO_ROOT / ".worktrees"
+    assert (_REPO_ROOT / "AGENTS.md").exists()
 
 
 def test_dispatch_issue_wires_worktree_and_backend(monkeypatch, tmp_path):
@@ -48,7 +64,7 @@ def test_dispatch_issue_wires_worktree_and_backend(monkeypatch, tmp_path):
         name = "codex"
 
         def run(self, prompt, cwd):
-            assert cwd == str(Path(".worktrees/dispatch-195"))
+            assert cwd == str(_REPO_ROOT / ".worktrees" / "dispatch-195")
             return {"ok": True, "stdout": "x" * 3000, "stderr": ""}
 
     result = dispatch_issue(

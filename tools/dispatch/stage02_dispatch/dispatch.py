@@ -3,7 +3,9 @@
 import subprocess
 from pathlib import Path
 
-WORKTREE_ROOT = Path(".worktrees")
+# stage02_dispatch/dispatch.py -> stage02_dispatch/ -> dispatch/ -> tools/ -> repo root
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+WORKTREE_ROOT = _REPO_ROOT / ".worktrees"
 
 _DENYLIST_WARNING = (
     "Do not modify docker-compose.yml, any Dockerfile, package.json, "
