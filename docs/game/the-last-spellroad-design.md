@@ -1,5 +1,7 @@
 # The Last Spellroad Design
 
+**Scope, at a glance (added 2026-08-13, issue #212):** this document describes the full design vision, but only a bounded subset is being *built* for the 7-week course vertical slice — see Seven-Week Vertical Slice for the concrete floor list, and its Minimal-Build Floor Vs. Stretch table (under Developer Time Budget And Minimal-Build Priority) for exactly what's floor (must-ship) vs. stretch (cut first if time runs short). Anything not in that floor list — including the "outwitted"/"transformed" Director endings (see Lore Premise) — is out of scope for this slice, not a lost requirement.
+
 ## Summary
 
 The Last Spellroad is a low-spec, top-down, Tibia-like magical roguelite built around short single-lane expeditions. ("Tibia-like" refers to *Tibia*, a late-1990s top-down MMORPG — the reference is to its minimalist, low-spec 2D presentation and unhurried pacing, not to any multiplayer or MMO structure, which this game does not have. "Roguelite" here means the run-based *expedition* structure only — enter, fight, retreat or advance — not run-reset progression: see Death And Mastery Loss for why nothing about a death or a completed expedition resets the mage's permanent progress.) The player controls a long-lived wandering mage who discovers an ancient Spellroad between worlds and becomes trapped inside it.
@@ -57,6 +59,8 @@ Trapped adventurer NPCs (step 5) are invulnerable in this MVP — AoE spells can
 The Last Spellroad is a persistent RPG, not a run-reset roguelite. Discovered spells, lore knowledge, and hierarchy rank all carry forward permanently between expeditions. The mage never un-learns a spell and never loses spellbook identity.
 
 Death still has to cost something, so it costs mastery instead of possession. Every known spell has a Mastery level, separate from simply knowing it, that grows with use in combat and governs how strong that spell feels: higher mastery means better damage, wider reach, or cheaper resource cost on that specific spell. This is the mechanic behind the Power pillar's promise that "old enemies become easier" — mastery growing, not the spellbook growing.
+
+**No-Mastery-yet death case, clarified 2026-08-13 (issue #212):** death drops one tier on a random equipped spell that's above Novice. If every equipped spell is still at Novice — the floor tier, nothing left to drop — death costs nothing on that attempt, by design (`MasterySystem`'s death-penalty logic returns null and skips the drop rather than pushing a spell below Novice or substituting a different penalty). This is intentional, not an unhandled edge case: early deaths, before any spell has been used enough to rank up, are free of the Mastery-loss cost.
 
 Every spell uses the same three-tier Mastery template, so tuning stays simple across the whole 12-20 spell list: base stats are set once per spell, and mastery scaling is automatic and identical for all of them.
 
