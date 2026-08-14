@@ -52,6 +52,10 @@ For substantial specs (~100+ lines, a new system, or anything crossing two or mo
 
 On the Vite development server, `?debugLevel=<n>` boots straight into level `<n>`'s first wave instead of playing through every earlier level — for verifying a level-specific change without a full playthrough. Production builds ignore it. See `docs/eng-skills/debug-level-skip.md`.
 
+### Sandboxed live playtest (frame-pump)
+
+This repo's sandboxed browser-pane tooling reports `document.visibilityState` as permanently `"hidden"`, which freezes Phaser's render loop and often blocks keyboard input from reaching the page. A documented, reusable workaround (temporarily unfreeze the loop, expose the game instance, manually step frames, bypass keyboard-gated flows, then fully revert) lets an agent actually exercise a UI/input change through Phaser's real pipeline instead of typecheck/build/test alone — still not a substitute for the developer-playtest gate itself. See `docs/eng-skills/sandboxed-playtest-frame-pump.md`.
+
 ### Automated dispatch
 
 A recurring job dispatches `ready-for-agent` issues to the agent roster,
