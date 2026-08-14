@@ -16,4 +16,4 @@ One job: the interactive movement and targeting/casting engine -- arrow-key (wit
 
 ## Context to load for a task
 
-Read `docs/agents/loomwright/CONTEXT.md`, `docs/agents/loomwright/log.md`, `docs/agents/_reference/engine-contract.md`, and `docs/agents/_reference/docker-testing-contract.md`. Do not read the full GDD unless a task specifically requires it.
+Read `docs/agents/loomwright/CONTEXT.md`, `docs/agents/loomwright/log.md`, `docs/agents/_reference/engine-contract.md`, and `docs/agents/_reference/docker-testing-contract.md`. For a UI/input-handling change specifically, also read `docs/eng-skills/sandboxed-playtest-frame-pump.md` before improvising a workaround for this repo's sandboxed-pane input limitations from scratch. Do not read the full GDD unless a task specifically requires it.

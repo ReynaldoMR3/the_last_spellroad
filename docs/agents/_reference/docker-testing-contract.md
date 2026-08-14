@@ -16,9 +16,31 @@ Source of truth: root `Dockerfile`, `docker-compose.yml`, `README.md`'s "Docker-
 - Install or update packages (always inside the container, never on the host): `docker-compose run --rm game npm install`
 - Build and run the production image (serves `dist/` via nginx on port 80): `docker build --target production -t the-last-spellroad .` then `docker run --rm -p 8080:80 the-last-spellroad`
 
+## Stale code in an already-running container (confirmed 2026-08-14)
+
+On at least this host's Docker setup, editing a file on disk after `docker-compose up`/`run -d`
+has already started does **not** reliably trigger Vite's dev server inside the container to
+pick up the change — the bind mount (`.:/app`) doesn't propagate the host filesystem event into
+the container's file watcher. Confirmed directly: edited `src/main.ts`, reloaded the page
+repeatedly, and the container's own logs never printed a Vite HMR update line at all; only a
+full `docker restart <container>` (or a fresh `docker-compose run`/`up`) made it re-read the
+file from disk.
+
+**This means "bring up the dev server and check it" is not safe to do once, reuse, and trust
+across an editing session.** If an agent already has a container running from before its most
+recent code change and then does a live smoke-check against that same container, it can pass
+cleanly while actually serving the *previous* version of the code — a false pass that looks
+identical to a real one from the outside (no error, page loads, no console warning).
+
+**Rule:** whenever a live dev-server check follows an edit made after the container was
+started, restart the container (`docker restart <name>`, or tear down and re-`up`) immediately
+before that check, every time — don't assume an already-running container reflects the latest
+edit just because no error was reported. Cheap enough (a few seconds) that skipping it to save
+time isn't worth the false-pass risk this creates.
+
 ## What each agent can self-verify with this, before its actual gate
 
-- **Loomwright** (engine code): run `typecheck` and `build` after every engine change, before reporting back to Ana. This is a mechanical correctness check Loomwright can and should run on itself — it does not replace or shortcut the human developer playtest gate in `loomwright/AGENT.md`'s success criterion, which checks interactive feel and correctness under real input, not compile success. Nothing should reach the developer-playtest stage with a failing typecheck or build.
+- **Loomwright** (engine code): run `typecheck` and `build` after every engine change, before reporting back to Ana. This is a mechanical correctness check Loomwright can and should run on itself — it does not replace or shortcut the human developer playtest gate in `loomwright/AGENT.md`'s success criterion, which checks interactive feel and correctness under real input, not compile success. Nothing should reach the developer-playtest stage with a failing typecheck or build. For a UI/input change, also see `docs/eng-skills/sandboxed-playtest-frame-pump.md` — a documented technique for actually exercising the change through Phaser's real input pipeline in this repo's sandboxed browser tooling, stronger evidence than typecheck/build/test alone (though still not a substitute for the developer-playtest gate itself).
 - **Heckler** (adversarial critique): when critiquing an actual build rather than a design doc, run `typecheck`/`build` and, where the critique concerns runtime behavior, bring the dev server up and check it actually serves without console errors, instead of critiquing from a static source read alone.
 - **Ana**: when dispatching any task that touches engine code or requests a build-based critique, point the dispatched agent at this file so it knows self-verification is available rather than only waiting on the developer to eventually run the game.
 - **Frieren, Warden, Lorena, Pato, Tilesmith**: don't need this file for their own output (data/prose that Pato or Heckler validate, not runnable code) — but should know it exists in case a task ever needs the game actually running.

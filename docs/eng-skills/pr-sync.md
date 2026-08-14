@@ -35,6 +35,27 @@ If `mergeable` is `CONFLICTING`, sync now — don't leave it for whoever reviews
 
 ## After a PR merges
 
+**Explicit rule, not a manual-noticing habit: every finished PR gets its worktree removed, its
+branch deleted, and any sibling branches resynced — every time, not just when someone happens
+to notice the pile.** Concretely, the moment a PR merges:
+
+1. `git fetch origin`
+2. Remove the worktree that built it: `git worktree remove <path>` (add `--force` only if the
+   worktree is confirmed clean — check `git -C <path> status --porcelain` first; never discard
+   uncommitted work silently).
+3. Delete its local branch: `git branch -d <branch>` (confirm first with
+   `git branch -r --merged origin/main | grep <branch>` if `-d`'s fast-forward check
+   complains — a squash/rebase merge often still leaves git unsure it's "merged" even though
+   the remote tracking branch confirms it is).
+4. Resync any other open worktree/branch known to touch the same file(s) as the just-merged PR
+   (the existing rule below).
+
+This closes a gap this repo actually hit: by 2026-08-14, 20 of 25 registered worktrees were
+sitting on already-merged, already-clean branches with nothing removing them — none of them
+individually harmful, but compounding indefinitely because no step in the pipeline ever revisits
+a worktree once its PR merges. Don't wait for a cleanup pass to notice this again; do steps 1-3
+as part of closing out the PR itself, the same session that merges it.
+
 If you know of other open branches touching the same file(s) as the PR that just merged,
 proactively sync them too instead of waiting for their own pre-merge check to catch it. This
 is the step that was skipped the one time this actually caused a conflict (2026-08-06 —
