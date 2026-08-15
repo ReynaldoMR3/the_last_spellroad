@@ -159,6 +159,28 @@ export function sfxUrl(cue: SfxCue): string {
  * duration/loudness table and `tools/cast-sfx-normalize/trim_fire_ice_184.py` /
  * `fine_envelope.py` for the Docker-only scripts that produced and chose them.
  *
+ * **2026-08-14 (issue #251, earth further trim + loudness):** a developer playtest ("earth spell
+ * VFX still not visible; earth SFX too long and too strong (loud)") reopened the length/loudness
+ * cohesion question #184 explicitly deferred for earth ("earth's complaint was never raised, and
+ * it doesn't share fire/ice's issue" -- true at the time, no longer true now). Earth now points
+ * at a further `-normalized-trimmed` derivative, the same treatment #184 gave fire/ice: a 10ms-
+ * window envelope inspection (`fine_envelope_earth_251.py`) found earth's #111 output is a
+ * sustained rumbling-rock texture with no deep silence gap the way fire/ice had, but a clear
+ * local energy dip at t=0.84-0.85s (rmsDB dipping from -18.51 to -20.12 before jumping back up to
+ * -14.14 at t=0.86s -- dipping-then-rising, same "cut in the dip, not mid-swell" rule #151/#184
+ * used). Cut at 0.85s (`trim_earth_251.py`), landing earth in the same sub-1s range as fire
+ * (0.83s)/ice (0.71s) instead of the older 1.20s cohesion target it was still sitting at. The cut
+ * only drifted whole-clip RMS by 0.34dB (-15.97 to -16.33 dBFS, before vs. after truncation) --
+ * inside the same 0.5dB re-normalize tolerance #184 used, so no further gain was needed; it
+ * stayed at -16.33 dBFS, materially unchanged from #111's -16 dBFS target. Since the "too strong
+ * (loud)" half of the complaint isn't explained by a loudness-target drift (earth was already at
+ * the same RMS target as the other elements), the actual fix for perceived loudness here is the
+ * duration cut itself -- a shorter clip simply puts less total sound energy in the player's ear
+ * per cast at the same RMS level, which is the same mechanism #184's fire/ice trim relied on.
+ * See `docs/agents/tilesmith/log.md`'s 2026-08-14 entry for the full before/after table and
+ * `tools/cast-sfx-normalize/fine_envelope_earth_251.py` / `trim_earth_251.py` for the Docker-only
+ * scripts that produced and chose the cut.
+ *
  * **2026-08-12 (issue #181, lightning muted as a stopgap -- since reverted, see #191):** a
  * developer playtest ("I continue to hear the wrong sound when casting spells... it sucks,
  * please remove it") asked for lightning's disclosed placeholder stand-in gone outright.
@@ -181,10 +203,12 @@ const ELEMENT_CAST_URL: Record<Element, string> = {
   // for the before/after duration+loudness table. `freeze-normalized.wav` (#111's un-trimmed-
   // further file) is kept alongside as provenance.
   ice: "assets/third-party/opengameart-freeze-spell/freeze-normalized-trimmed.wav",
-  // Not touched by issue #184 -- earth's complaint was never raised, and its envelope/duration
-  // don't share fire/ice's issue (see this const's doc comment above).
+  // 2026-08-14 (issue #251): further-trimmed past #111's 1.20s cohesion target, down to 0.850s
+  // -- see this const's doc comment above and `docs/agents/tilesmith/log.md`'s 2026-08-14 entry
+  // for the before/after duration+loudness table. `-normalized.ogg` (#111's un-trimmed-further
+  // file, and #184's still-1.20s reference point) is kept alongside as provenance.
   earth:
-    "assets/third-party/opengameart-earth-element-magic-spell/earth-element-magic-spell-normalized.ogg",
+    "assets/third-party/opengameart-earth-element-magic-spell/earth-element-magic-spell-normalized-trimmed.ogg",
   // 2026-08-12 (issue #191): issue #181 muted this as a stopgap for what the developer then
   // clarified (2026-08-12, same day) was actually a *different* sound entirely -- something
   // shared across any spell, not element-specific, that can overlap with another SFX cue. The

@@ -1160,3 +1160,139 @@ complaint.
 new license question. Explicitly temporary per the developer's own framing -- flagged here so a
 future reader doesn't mistake this for a permanent removal decision the way #181's mute needed
 correcting for lightning.
+
+## 2026-08-14 -- Issue #251: earth cast VFX independently re-diagnosed and fixed (real rendering
+bug, not a tuning miss); earth SFX further trimmed to match fire/ice's #184 treatment
+
+Developer playtest (2026-08-15 per the issue, filed 2026-08-14): "earth spell VFX still not
+visible; earth SFX too long and too strong (loud)." Two unrelated root causes, one each for
+VFX and SFX, both scoped to earth only.
+
+**VFX -- root cause, found via live dev-server diagnosis, not assumed from #185's own log
+entry.** #185 (2026-08-13) already changed earth's color/particle-count/scale and reasoned the
+result should read as a fuller, more visible burst. That reasoning was never actually confirmed
+against a running build (no dev-server check is logged for #185's VFX half) -- and it was wrong
+in a way a config read alone can't catch, because the actual defect was in a completely different
+layer.
+
+Diagnosis method (Docker dev server, `docs/eng-skills/sandboxed-playtest-frame-pump.md`'s
+frame-pump technique, `disableVisibilityChange` + manual `game.loop.step()` since this sandbox's
+browser pane reports `document.visibilityState` as permanently hidden): armed and fired
+`stone_spike` (earth, hotbar slot 3 per #238) through the real hotbar input path, confirmed each
+cast actually landed (mana spent, cooldown started -- ruling out "the spell just didn't fire," a
+real trap this session fell into repeatedly with a flaky synthetic keyboard-event sequence before
+switching to a real mouse click to confirm-fire), and read back both the live canvas pixels
+(`canvas.toDataURL()`) and the actual `Phaser.GameObjects.Particles.ParticleEmitter` instance's
+own `alive` array (position/alpha/tint/texture) at the moment of firing.
+
+Result: earth's emitter existed in the scene graph with fully correct data -- 18 alive particles
+at the right position, `alpha` near 1, neutral (0xffffff) tint, and a texture that, independently
+read back via `CanvasRenderingContext2D.getImageData`, baked the exact correct opaque olive color
+(124,143,66,255) -- yet the rendered canvas showed **zero** pixels of that color anywhere on
+screen, confirmed at the particles' own exact known coordinates, not just an approximate region
+scan. Ruled out, each via a live A/B in the same session: shape (arc_lance, lightning, also a
+line-shaped spell, rendered its bolt/burst fine), spawn origin (offsetting the burst's origin
+along the cast direction, after fixing a vector-normalization bug of my own that briefly sent
+particles to x=6660 off-canvas, made no difference), speed/gravity (raising speed and lowering
+gravity so the burst would clear the mage's own sprite footprint sooner made no difference), and
+blend mode (switching to additive made no difference). What **did** make a difference: replacing
+the `ParticleEmitter` with a scatter of plain `this.add.circle(...)` Arc GameObjects using the
+identical color, position, and timing -- rendered immediately and reliably, every time, in the
+same live session where the particle emitter consistently produced nothing. This isolates the
+defect to Phaser's particle-emitter rendering path for this specific case (texture/config
+combination, this Phaser 3.90 build, or some interaction between them) -- not the color, not the
+texture data, not any tunable value in `ELEMENTAL_CAST_VFX_CONFIG`. Ice and lightning's own
+particle emitters were independently re-confirmed rendering correctly (bright, on-color pixels
+at their own known particle positions) in the same session, so they're untouched.
+
+**Fix (`src/scenes/SpellroadScene.ts`):** earth's cast VFX (`spawnElementalCastVfx`) and impact
+VFX (`spawnElementalImpactVfx`) now route through a new `spawnDebrisBurst` helper that builds the
+burst from tweened `Arc` GameObjects instead of a `ParticleEmitter`, sidestepping the broken
+pipeline entirely rather than chasing its exact cause further. `spawnDebrisBurst` approximates
+the same ballistic motion (launch vector + constant `gravityY`, integrated analytically for each
+tween's end position) so the burst still looks and moves like the original particle-based design
+-- same color/radius/quantity/speed/spread/lifespan from `ELEMENTAL_CAST_VFX_CONFIG`, same
+scale-to-zero/alpha-to-zero fade. Every other element (ice, lightning, fire's own sourced sprite)
+is untouched -- still on the `ParticleEmitter` path, which is confirmed working for them.
+Also (small, applies to every element, not just earth): both cast and impact bursts now spawn
+their origin offset a few px forward along the cast direction / already correct at the impact
+point, rather than exactly on the caster's own sprite center, a minor contributing factor once
+the primary defect above was found (the burst spending its early, most-visible frames literally
+overlapping the mage's own 32x32 sprite).
+
+Also bumped earth's `speedMin`/`speedMax` (100-200 -> 170-260) and lowered `gravityY` (260 -> 150)
+in the same config entry so the (now correctly-rendering) burst reads with a bit more energy,
+closer to the "still not visible" complaint's implicit ask, without losing the heavier/slower
+"debris" character than lightning's sparks -- a tuning adjustment layered on top of the rendering
+fix, not a substitute for it.
+
+**Live re-verification after the fix (same dev-server session, same frame-pump technique):**
+armed and fired `stone_spike` again through the real hotbar+click path, confirmed the cast landed
+(mana spent, cooldown started), and this time both the raw pixel scan (191 olive-colored pixels
+found directly adjacent to the mage, versus 0 before the fix) and a plain screenshot **visually**
+show a clear olive-green debris burst next to the mage immediately after casting. This is a
+genuine live-rendered visual confirmation, not a code-level assumption -- screenshot evidence
+retained in this session's tool history.
+
+**SFX -- further trim + implicit loudness fix, following #151/#184's own precedent.**
+`src/systems/sfx.ts`'s own comments already disclosed the gap: #111 (2026-08-11) normalized all
+4 elements' cast cues to a common -16 dBFS RMS target and a common 1.20s length; #184
+(2026-08-12) then further-trimmed fire (to 0.830s) and ice (to 0.710s) past that shared cohesion
+target down to something concretely sub-1-second, explicitly leaving earth untouched because "its
+complaint was never raised" at the time. This issue is that complaint, arriving 2 days later.
+
+Ran a 10ms-window RMS envelope inspection (`tools/cast-sfx-normalize/fine_envelope_earth_251.py`,
+same method #184's own `fine_envelope.py` used for fire/ice, run in Docker per
+`docs/adr/0003-docker-only-rotating-creative-prototypes.md` -- diagnostic script deleted after
+use, not part of the shipped pipeline) over earth's current #111 output
+(`earth-element-magic-spell-normalized.ogg`, 1.20s, -16 dBFS RMS). Unlike fire/ice, earth's
+source is a sustained rumbling-rock texture with no single deep silence gap -- but a clear local
+energy dip sits at t=0.84-0.85s (rmsDB dipping from -18.51 to -20.12 before jumping back up to
+-14.14 at t=0.86s, the same "cut in the dip, not mid-swell" rule #151/#184 already established).
+
+`tools/cast-sfx-normalize/trim_earth_251.py` (same Docker toolchain, same 60ms linear fade-out
+convention as #151/#111/#184) cuts at that 0.85s dip, landing earth in the same sub-1s range as
+fire (0.83s) / ice (0.71s) instead of the older, now-inconsistent 1.20s target it had been left
+at. The cut only drifted whole-clip RMS by 0.34dB (-15.97 to -16.33 dBFS) -- inside the same
+0.5dB re-normalize tolerance #184 used, so no further gain was needed. Since earth's loudness
+*target* was already correct (same -16 dBFS as the other 3), the "too strong (loud)" half of the
+complaint isn't a levels bug -- it's the same mechanism #184 already relied on for fire/ice: a
+longer clip simply puts more total sound energy in the player's ear per cast at an identical RMS
+level, so cutting duration is itself the loudness fix here, not a separate step.
+
+Output: `earth-element-magic-spell-normalized-trimmed.ogg`, 0.850s (was 1.200s), -16.33 dBFS RMS
+(was -15.97 dBFS, effectively unchanged -- see above). Written alongside the untouched
+`-normalized.ogg`/`-trimmed.ogg`/original files as provenance, same convention every prior
+derivative in this pipeline has followed. `src/systems/sfx.ts`'s `ELEMENT_CAST_URL.earth` now
+points at it.
+
+**Self-verification (`docker-compose`, per `docs/agents/_reference/docker-testing-contract.md`):**
+- `docker-compose run --rm game npm run typecheck` -- clean.
+- `docker-compose run --rm game npm test` -- 30 files, 337 tests, all passed (no test file
+  touched by this change -- VFX is Phaser-scene wiring self-verified via the dev server per this
+  file's own established precedent, and the SFX change is a data/URL swap with no new branching
+  logic, same precedent `sfx.ts`'s prior entries already set).
+- `docker-compose run --rm game npm run build` -- clean production build; confirmed
+  `dist/assets/third-party/opengameart-earth-element-magic-spell/` includes the new
+  `-normalized-trimmed.ogg` file alongside its untouched predecessors.
+- Live dev-server VFX re-verification described above (visual + pixel-level confirmation).
+- SFX duration/loudness verified by direct measurement (`trim_earth_251.py`'s own before/after
+  printout), not re-confirmed by ear in this session -- per this file's own standing rule, "does
+  this actually sound right in an extended real playtest" is a human-playtest question this
+  agent's tooling can't answer for itself.
+
+**Verification-rationale (ADR-0001):** the VFX fix's plausible failure class was "looks fixed in
+the diff but the underlying render defect is untouched" -- ruled out by re-running the *exact*
+same live pixel-level check that caught the original bug, not just re-reading the new code. The
+SFX fix's plausible failure class was "duration matches fire/ice but loudness quietly drifted" --
+ruled out by measurement (0.34dB drift, inside tolerance) rather than assumed from the cut alone.
+
+**Sign-off status:** VFX fix is genuinely live-verified (visual + pixel-level), a stronger bar
+than this pipeline's usual "typecheck/build/screenshot" verification since it directly re-ran the
+same diagnostic that caught the original bug. SFX duration/loudness numerically verified against
+the same -16 dBFS / sub-1s targets #111/#184 established. **Pending human developer review** for
+the actual gate this issue can't self-certify: a real playtest re-confirming both that earth's
+VFX now reads as visible in the flow of real combat (not just a single isolated test cast) and
+that its SFX now feels proportionate next to fire/ice/lightning -- per this agent's own standing
+rule that a developer playtest is the only thing that can close that loop, same as every prior
+VFX/SFX row in this log.
