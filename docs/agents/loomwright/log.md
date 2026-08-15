@@ -1165,7 +1165,7 @@ Did not additionally verify wrap-around at the hotbar's ends or scroll-up (backw
 
 **Status: still `in-progress-with-owner`**, not upgraded to `shipped-and-validated` — this narrows the risk (the wiring genuinely fires in a real Phaser input pipeline, not just in isolated unit tests) but is not the "real developer session, an actually-focused visible tab" gate this agent's own success criterion requires, per the same distinction every entry above draws.
 
-## 2026-08-14 — Issue #234: secondary off-number-row hotbar bindings (Q/R/F/Shift/Ctrl/Space)
+## 2026-08-14 (2) — Issue #234: secondary off-number-row hotbar bindings (Q/R/F/Shift/Ctrl/Space)
 
 Replaces #199 (closed, full triage/decision history there). Developer decision (2026-08-13):
 bind Q/R/F/Shift/Ctrl/Space to hotbar slots 1-6, added alongside the existing 1-6 number row
@@ -1227,7 +1227,28 @@ Playtesters flagged "the circle on the ground" as confusing. Developer triage (i
 
 **Status:** `in-progress-with-owner` — self-verified only. Per this agent's own success criterion, whether the hint is actually legible/well-timed in play (does it appear early enough to explain the marker before a player gets close enough to try E, does the "clear the road ahead" phrasing read clearly against a Phase mid-combat) needs a real developer playtest; nothing here substitutes for that. Branch: `loomwright/239-side-pocket-prompt`.
 
-## 2026-08-14 (4) — Fix #233 (replaces #197): onboarding hint no longer dismisses on a hotbar press
+## 2026-08-14 (4) — Issue #237: Tarrywright (Debuffer) attack gets a wind-up tell + projectile travel time
+
+Replaces #208 (closed, full triage history there). Developer decision 2026-08-13: a competitive playtester called the Debuffer's attack "currently the most frustrating aspect of the game" — instant, non-dodgable, ranged, with a range rivaling the player's own `arc_lance` and no wind-up at all. Fix scoped to counterplay shape only: give it the same telegraph + travel-time pattern the Ranged archetype already has (issue #164/#47's `RANGED_TRAVEL_MS`), leaving range, magnitude, duration, and persistence-through-death untouched.
+
+**`src/entities/Enemy.ts`:**
+- New exported constants `DEBUFFER_TELEGRAPH_MS` and `DEBUFFER_TRAVEL_MS`, both `450` — see below for the Pato-consult reasoning.
+- New `EnemyCallbacks.onDebuffTelegraphStart` (fires once, when the wind-up begins) and `onDebuffFire` (fires once the wind-up ends and the projectile actually launches, `fromX/fromY/toX/toY` shaped exactly like `onRangedFire`) replace the old `onDebuffPulse` (which fired instantly and applied the debuff in the same frame — the thing the issue is about).
+- New `debuffTelegraphMs` state field on `Enemy`, counted down independently of `attackCooldownMs`. `attackCooldownMs` is reset to `DEBUFFER_COOLDOWN_MS` at the exact instant the tell begins (the same instant the old code fired instantly) — not when the tell ends — so the Debuffer's attack *cadence* is unchanged from before this fix; only the delay between "decision" and "the hit can actually land" moved from 0ms to ~900ms (tell + travel). A started tell always resolves and fires even if the mage moves out of band mid-tell (matches how a real wind-up reads: the enemy already committed).
+
+**`src/scenes/SpellroadScene.ts`:**
+- `onDebuffTelegraphStart` → new `spawnDebuffTelegraph`: a ring collapsing inward onto the Debuffer over `DEBUFFER_TELEGRAPH_MS`, variant-tinted, deliberately the opposite direction (shrinking, not expanding) from every other ring this file draws so a player never confuses "about to fire" with "just landed."
+- `onDebuffFire` → new `spawnDebuffProjectile` (same shape as `spawnRangedProjectile`, variant-tinted instead of `ENEMY_THREAT_COLOR`) plus a `delayedCall(DEBUFFER_TRAVEL_MS, …)` that rechecks the mage's live position against `isStillInRangedImpactZone` (the exact function issue #47 already built for the Ranged archetype's own dodge contract) before calling `this.debuff.applyStack(variant)`. A dodge now means genuinely nothing happens — no stack, no visual — instead of the debuff being unavoidable.
+- `spawnDebuffPulse` (the existing landed-debuff ring) is now only invoked from inside that impact-check branch, i.e. only on an actual hit, not unconditionally at fire time.
+- `debuff.clear()` call sites (wave-start, player-death) were not touched — persistence-through-enemy-death was never routed through the firing logic this ticket changed, so it's untouched by construction, not just by inspection.
+
+**Pato consult (owner's ask, not a live Pato agent — checked the templates directly):** `hp-template.md`'s "Debuffer Magnitudes" section fixes 12% speed-drain / 2.4 Mana-regen-drain per application, additive, hard-capped at 2 stacks (24% / 4.8 max), **with no decay until wave-clear or death**. That "no decay" detail is exactly why making the hit *dodgeable* is the right lever rather than shrinking magnitude/duration further — an undodged hit's cost compounds and never falls off mid-fight, so softening it once landed (which the issue explicitly rules out) was never on the table anyway; the only lever available was whether it lands at all. Picked 450ms for both the tell and the travel — not a new bespoke number, but literally `RANGED_TRAVEL_MS`, the 450ms reaction window a player has already learned to read for the Ranged archetype, so the whole game teaches one "450ms means dodge" rule instead of a second timing per archetype. The 900ms total (tell+travel) sits well inside the untouched `DEBUFFER_COOLDOWN_MS` (2500ms), and since the cooldown resets at tell-start (not tell-end), a stationary/careless target still eats the debuff at exactly the same cadence as before — this change only opens a dodge window for a player who reacts, it doesn't reduce the Debuffer's uptime against one who doesn't.
+
+**Self-verify:** `docker-compose run --rm game npm run typecheck` / `npm test` (332/332, no new tests — no pure/testable logic was added; `isStillInRangedImpactZone` and the cooldown/telegraph state machine are exercised the same way the Ranged path already is, through the Phaser-dependent `Enemy`/`SpellroadScene` classes this repo's test suite doesn't drive) / `npm run build` all clean.
+
+**Status:** `in-progress-with-owner` — self-verified only (typecheck/test/build), awaiting the human developer playtest gate. No live frame-pump check performed this pass (unlike the #198 entry above) since the change is enemy-attack-timing, not player input handling, and the sandboxed pane's frozen visibility state mainly blinds `document.visibilityState`/keyboard input, not enemy-side `update()` timers — a Docker dev-server visual smoke-check was judged lower-value here than for a real input-binding change; flagging this omission explicitly rather than silently skipping it.
+
+## 2026-08-14 (5) — Fix #233 (replaces #197): onboarding hint no longer dismisses on a hotbar press
 
 Root cause, confirmed by reading the code exactly as #233 named it: `handleHotbarPress` called `this.dismissOnboardingHint()` unconditionally on its very first line, before even checking whether the pressed slot held a spell — so a first-time player's first hotbar press both armed a spell *and* dismissed the hint that was trying to explain the two-press aim/confirm flow, in the same action. They never got past the hint's first line ("Press 1-6 to aim a spell") before it vanished, let alone the second line covering the double-tap-to-fire step the hint already states correctly (per the 2026-08-13 developer decision, no copy change needed).
 

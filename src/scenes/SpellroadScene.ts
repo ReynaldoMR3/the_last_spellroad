@@ -14,7 +14,7 @@ import { DebuffSystem } from "../systems/DebuffSystem";
 import { computeDebuffMagnitude, formatDebuffHudLines } from "../systems/debuffDisplay";
 import { archetypeDisplayName, computeHpBarColor, computeHpFraction } from "../systems/enemyStatusOverlay";
 import { SpellCaster, SHAPE_GEOMETRY } from "../entities/SpellCaster";
-import { Enemy, ARCHETYPE_DAMAGE } from "../entities/Enemy";
+import { Enemy, ARCHETYPE_DAMAGE, DEBUFFER_TELEGRAPH_MS, DEBUFFER_TRAVEL_MS } from "../entities/Enemy";
 import { spawnWave } from "../systems/WaveLoader";
 import { ENEMY_REGISTRY } from "../data/enemyRegistry";
 import { countSpawnableEnemies } from "../systems/waveEnemyCounts";
@@ -2230,9 +2230,28 @@ export class SpellroadScene extends Phaser.Scene {
               }
             });
           },
-          onDebuffPulse: (variant) => {
-            this.spawnDebuffPulse(enemy.x, enemy.y, variant);
-            this.debuff.applyStack(variant);
+          onDebuffTelegraphStart: (x, y, variant) => {
+            // Issue #237 — the previously-instant, unavoidable debuff pulse now starts with a
+            // visible wind-up tell instead of applying on the same frame it decides to fire.
+            this.spawnDebuffTelegraph(x, y, variant);
+          },
+          onDebuffFire: (fromX, fromY, toX, toY, variant) => {
+            // Issue #237 — mirrors `onRangedFire` exactly: a real travel-time projectile,
+            // then a live-position recheck at arrival (`isStillInRangedImpactZone`, the same
+            // dodge contract issue #47 already gave the Ranged archetype) before the debuff
+            // stack is actually applied. `toX`/`toY` are the mage's position snapshotted at
+            // the moment the wind-up ended and the shot launched, not at telegraph-start.
+            this.spawnDebuffProjectile(fromX, fromY, toX, toY, variant);
+            const fireGeneration = this.session.generation;
+            this.time.delayedCall(DEBUFFER_TRAVEL_MS, () => {
+              if (!this.mage || !this.session.isCurrent(fireGeneration)) {
+                return;
+              }
+              if (isStillInRangedImpactZone(this.mage.x, this.mage.y, toX, toY)) {
+                this.spawnDebuffPulse(toX, toY, variant);
+                this.debuff.applyStack(variant);
+              }
+            });
           }
         },
         // Issues #110/#167 — see `Enemy.update`'s own comment: lets any enemy push off any
@@ -2776,9 +2795,68 @@ export class SpellroadScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Issue #237 — the Debuffer's wind-up tell: a ring that collapses inward onto the Debuffer
+   * over `DEBUFFER_TELEGRAPH_MS`, ending exactly when the projectile actually launches
+   * (`onDebuffFire`). Deliberately the opposite direction (shrinking, not expanding) from
+   * every other ring this file draws -- the outward-expanding impact bursts and the
+   * landed-debuff pulse below -- so a player reading the battlefield never confuses "an
+   * attack is about to fire" with "an attack just landed." Same variant color convention as
+   * `spawnDebuffPulse` so the tell and its eventual (dodgeable) payoff read as one continuous
+   * visual language.
+   */
+  private spawnDebuffTelegraph(x: number, y: number, variant: DebuffVariant): void {
+    const color = variant === "speed" ? 0x6f4fa8 : 0x4fa8a3;
+    const ring = this.add.circle(x, y, 26, color, 0);
+    ring.setStrokeStyle(3, color, 0.95);
+    ring.setDepth(998);
+    this.tweens.add({
+      targets: ring,
+      radius: 8,
+      duration: DEBUFFER_TELEGRAPH_MS,
+      ease: "Cubic.In",
+      onUpdate: () => ring.setStrokeStyle(3, color, ring.alpha),
+      onComplete: () => ring.destroy()
+    });
+  }
+
+  /**
+   * Issue #237 — the Debuffer's projectile, launched once the wind-up tell above completes.
+   * Same shape as `spawnRangedProjectile` (pulsing dot tweened from the Debuffer's position to
+   * the mage's position at fire time over `DEBUFFER_TRAVEL_MS`), tinted by variant instead of
+   * `ENEMY_THREAT_COLOR` so it still reads as a Debuffer's own attack rather than a second
+   * ranged shot. The scene's delayed-call impact check (see `onDebuffFire` above) is what
+   * actually decides whether this lands -- this method is purely the visible travel time
+   * itself, the counterplay window the issue asks for.
+   */
+  private spawnDebuffProjectile(fromX: number, fromY: number, toX: number, toY: number, variant: DebuffVariant): void {
+    const color = variant === "speed" ? 0x6f4fa8 : 0x4fa8a3;
+    const dot = this.add.circle(fromX, fromY, 6, color);
+    dot.setStrokeStyle(2, 0xffffff, 0.9);
+    dot.setDepth(1000);
+    this.tweens.add({
+      targets: dot,
+      scale: { from: 0.85, to: 1.2 },
+      duration: 130,
+      yoyo: true,
+      repeat: -1
+    });
+    this.tweens.add({
+      targets: dot,
+      x: toX,
+      y: toY,
+      duration: DEBUFFER_TRAVEL_MS,
+      ease: "Linear",
+      onComplete: () => dot.destroy()
+    });
+  }
+
   /** backlog 2.13 — a Debuffer's pulse previously applied its stack with zero visible
    * signal at all (unlike melee/ranged, it has no HP consequence, so nothing else hinted a
-   * debuff had just landed). A brief expanding ring at the Debuffer, tinted by variant. */
+   * debuff had just landed). A brief expanding ring at the Debuffer, tinted by variant.
+   * Issue #237 — now only played once the projectile above actually lands (the live
+   * impact-zone recheck passed), not unconditionally at fire time; a dodge now means no ring
+   * at all, matching "nothing happened" being the correct read for a successfully dodged hit. */
   private spawnDebuffPulse(x: number, y: number, variant: DebuffVariant): void {
     const color = variant === "speed" ? 0x6f4fa8 : 0x4fa8a3;
     const ring = this.add.circle(x, y, 6, color, 0);
