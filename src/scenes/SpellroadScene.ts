@@ -394,6 +394,23 @@ const BOSS_BANNER_OUTRO_TEXT =
  * (see that constant's own comment), and this line is pure interface chrome (the same shape as
  * `startPhaseBreak`'s "[Y] Pay ... / [N] Refuse" suffix), not narration. */
 const BOSS_BANNER_OUTRO_CONFIRM_HINT = "\n\n[Y] Continue";
+/** Issue #236 (replaces #206, closed — full triage/decision history there) — the vertical
+ * slice's actual win acknowledgment. Developer decision (2026-08-13): replace the flat
+ * `flashMessage("Vertical slice complete!", 3000)` (identical to any other transient status
+ * flash, so a full clear read the same as being stuck with nothing left to fight) with a
+ * distinct, clearly-a-win banner — same visual language as the existing boss intro/outro
+ * narration (`showBossBanner`), framed as victory rather than a status readout. Placeholder
+ * victory line: Loomwright owns the scene's win/completion flow per the issue, and drafting a
+ * placeholder here doesn't require Lorena's voice (her outro narration, `BOSS_BANNER_OUTRO_TEXT`,
+ * already plays first and is untouched by this addition — see `showWinBanner`'s own comment). */
+const WIN_BANNER_TEXT =
+  "Victory\n\nYou survived the Spellroad — every trial cleared, every foe that stood in your " +
+  "way, gone. The road ahead is yours to keep walking, whenever you're ready.";
+/** Same confirm-hint shape as `BOSS_BANNER_OUTRO_CONFIRM_HINT`, kept as its own constant
+ * rather than reused: that one is scoped to the outro banner specifically by name/comment, and
+ * this one has its own acceptance criteria (no forced post-win flow) governing what dismissing
+ * it does — currently nothing beyond closing the banner. */
+const WIN_BANNER_CONFIRM_HINT = "\n\n[Y] Continue";
 /** Issue #113 — developer playtest found the outro banner (110 words) vanished on the same
  * flat timer as the intro (85 words), regardless of reading speed. Auto-hide is a fallback for
  * a player who never clicks/presses a key to dismiss (see `showBossBanner`'s own comment for
@@ -1782,7 +1799,28 @@ export class SpellroadScene extends Phaser.Scene {
       // `enemiesRemainingToSpawn = -1` sentinel still happening to be in place: nothing to
       // advance to, so the auto-advance gate must stay shut for good.
       this.session.markComplete();
-      this.flashMessage("Vertical slice complete!", 3000);
+      // Issue #236 — replaces the old flat `flashMessage("Vertical slice complete!", 3000)`.
+      // The ordinary path into this branch is 1200ms after the boss's last phase clears (the
+      // shared advance-delay `delayedCall` in `updateEnemies` calls `startWave(nextIndex)`
+      // unconditionally; `nextIndex` is out of range exactly when the boss fight just ended
+      // the vertical slice), which is the same tick the outro banner
+      // (`BOSS_BANNER_OUTRO_TEXT`, `requireConfirm: true`) is still up awaiting its own
+      // `[Y] Continue` — that narration must play first, unchanged, per this issue's
+      // acceptance criteria. Deferring via `bossBannerOnHidden` (the same "run once the
+      // current banner has fully hidden" hook issue #134 already established) means the win
+      // banner only actually appears once the player has dismissed the outro, never
+      // interrupting or racing it. If there's no boss banner in the way (`bossBannerActive`
+      // false — not reachable in this vertical slice today, but true for any future
+      // non-boss ending), it shows immediately instead of waiting on nothing.
+      if (this.bossBannerActive) {
+        const previousOnHidden = this.bossBannerOnHidden;
+        this.bossBannerOnHidden = () => {
+          previousOnHidden?.();
+          this.showWinBanner();
+        };
+      } else {
+        this.showWinBanner();
+      }
       return;
     }
     // Issue #48 — a new wave makes every callback the previous wave/life scheduled stale.
@@ -3073,6 +3111,19 @@ export class SpellroadScene extends Phaser.Scene {
         onHidden?.();
       }
     });
+  }
+
+  /** Issue #236 — the vertical slice's win acknowledgment, shown once `startWave` finds no
+   * more waves (see that call site's own comment for why it's deferred behind the Invigilator
+   * outro banner rather than called directly from there). Reuses `showBossBanner` with
+   * `requireConfirm: true` rather than a new UI element or timed flash — exactly "persists
+   * until dismissed" and "same visual language as the boss intro/outro banners," both
+   * explicit acceptance criteria, for free from the mechanism issue #183 already built.
+   * Deliberately no `onHidden` follow-up: another acceptance criterion is no forced post-win
+   * flow (no auto-return to Title, no replay prompt), so dismissing this banner does nothing
+   * beyond closing it — the player simply stays on the field, free to keep playing. */
+  private showWinBanner(): void {
+    this.showBossBanner(WIN_BANNER_TEXT + WIN_BANNER_CONFIRM_HINT, undefined, { requireConfirm: true });
   }
 
   /** @param emphasis "warning" gives the banner a distinct color + opaque background panel
