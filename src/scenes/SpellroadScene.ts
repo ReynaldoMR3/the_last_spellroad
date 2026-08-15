@@ -147,6 +147,14 @@ const RANGED_TRAVEL_MS = 450;
  * explicitly future work per the GDD ("full hotkey customization can be a later feature");
  * this fix widens the pipe and defaults it to the first 6 shipped spells, nothing more. */
 const HOTBAR_KEYS = ["ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX"] as const;
+/** Issue #234 — an off-number-row alternate binding for arming hotbar slots 1-6, added
+ * alongside (not replacing) `HOTBAR_KEYS` above, so a player can arm a spell without taking
+ * a hand off WASD to reach the number row. Developer decision (2026-08-13), corrected during
+ * 2026-08-14 re-triage: the original scheme's slot-1 key (`E`) collided with the Side-Pocket
+ * Lore Encounter's `keydown-E` Explore prompt (see `startSidePocketChoice` below) — `Q` is
+ * used for slot 1 instead. Same index-order convention as `HOTBAR_KEYS`: position N binds
+ * hotbar slot N. */
+const HOTBAR_SECONDARY_KEYS = ["Q", "R", "F", "SHIFT", "CTRL", "SPACE"] as const;
 /** backlog 2.29 / issue #55 — the hotbar used to be a "Hotbar:" header plus one 14px text
  * line per equipped spell (7 lines total) starting at `ROAD_TOP + ROAD_HEIGHT + 14` = 424 with
  * the road at its current 130/280 — 7 lines at ~18px each run to ~550px, past the 540px-tall
@@ -496,6 +504,11 @@ export class SpellroadScene extends Phaser.Scene {
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private keys?: Record<"W" | "A" | "S" | "D", Phaser.Input.Keyboard.Key>;
   private hotbarKeys: Phaser.Input.Keyboard.Key[] = [];
+  /** Issue #234 — the Q/R/F/Shift/Ctrl/Space secondary hotbar bindings, kept in their own
+   * array (rather than merged into `hotbarKeys`) so each key's `"down"` listener can still be
+   * traced back to exactly one physical key during debugging. Both arrays drive the identical
+   * `handleHotbarPress(index)` call — see `createInput`. */
+  private hotbarSecondaryKeys: Phaser.Input.Keyboard.Key[] = [];
 
   private spells: SpellDefinition[] = [];
   private equippedSpells: SpellDefinition[] = [];
@@ -1368,6 +1381,17 @@ export class SpellroadScene extends Phaser.Scene {
       this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes[key])
     );
     this.hotbarKeys.forEach((key, index) => {
+      key.on("down", () => this.handleHotbarPress(index));
+    });
+
+    // Issue #234 — secondary off-number-row bindings (Q/R/F/Shift/Ctrl/Space -> slots 1-6),
+    // added alongside the number-row keys above, not replacing them. Both call the exact same
+    // `handleHotbarPress(index)` the number row and #198's click-to-arm/wheel-cycle already
+    // use, so every input path converges on one arm-spell call with no divergent behavior.
+    this.hotbarSecondaryKeys = HOTBAR_SECONDARY_KEYS.map((key) =>
+      this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes[key])
+    );
+    this.hotbarSecondaryKeys.forEach((key, index) => {
       key.on("down", () => this.handleHotbarPress(index));
     });
 
