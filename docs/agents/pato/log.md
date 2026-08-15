@@ -405,3 +405,17 @@ Every regular wave clears its own level's scaled band; the boss's summed modifie
 ## 2026-08-14 — Recovering issue #160's Side-Pocket Lore Encounter reward derivation
 
 The 2026-08-09 candidate-value derivation behind the Side-Pocket Lore Encounter's 2-Hexcoin reward (originally issue #160) was completed but never committed — only its outcome survived, referenced in passing by the 2026-08-10 entry above ("Check 1 (reward=2/encounter): PASS") without recording where the number came from. `hexcoin-template.md` itself, this file's own source of truth, never gained the rule at all. Recovered the full derivation (1-5 Hexcoin/pocket candidate table, Fee 1/Fee 2 reachability checks against the shipped 74+19 = 93 kill-income baseline) into a new "Side-Pocket Lore Encounter Reward" section of `hexcoin-template.md`, re-verified the kill-count inputs still match current `warden`-authored wave files (Level 1-4 = 16/19/19/20, boss phases 5/7/7 — unchanged since 2026-08-12's difficulty-curve pass) before treating the old numbers as still valid. No re-derivation was needed; the 2026-08-10 entry's Check 1-7 already independently confirmed the same reward value against the shipped code, this only restores the reasoning behind the number to its authoritative reference doc.
+
+## 2026-08-14 (2) — Issue #238: Reorder hotbar default_loadout_slot
+
+Data-only change: reassigned `default_loadout_slot` values in `src/data/spells/spells.json` to match the developer's confirmed order (2026-08-13):
+- arc_lance: 1 (unchanged)
+- flame_sweep: 2 (unchanged)
+- stone_spike: 3 (changed from 4)
+- thunder_dome: 4 (changed from 5)
+- magma_lance: 5 (changed from 6)
+- frost_nova: 6 (changed from 3)
+
+No other fields touched, no numeric templates affected. This is a UI/loadout ordering reordering within the existing 6-spell default-equipped set, not an economy change.
+
+**Self-verify:** `docker-compose run --rm game npm run typecheck` (pass), `npm test` (332/332 tests pass), `npm run build` (success) all clean.
