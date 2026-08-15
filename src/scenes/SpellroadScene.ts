@@ -22,12 +22,7 @@ import { selectDefaultLoadout } from "../systems/defaultLoadout";
 import { selectAutoAimTarget } from "../systems/autoAim";
 import { isStillInRangedImpactZone } from "../systems/rangedImpact";
 import { WaveSession, canResolveEncounterChoice, canResolvePhaseChoice, shouldAutoAdvance } from "../systems/waveSession";
-import {
-  evaluateSidePocketOffer,
-  resolveSidePocketExplore,
-  shouldShowSidePocketHint,
-  SIDE_POCKET_HINT_TEXT
-} from "../systems/sidePocketEncounter";
+import { evaluateSidePocketOffer, resolveSidePocketExplore } from "../systems/sidePocketEncounter";
 import { SIDE_POCKET_ENCOUNTERS, type SidePocketEncounter } from "../data/sidePocketEncounters";
 import { allRemainingAreYieldingDebuffers } from "../systems/lastEnemyStanding";
 import { hasRecentPointerActivity } from "../systems/pointerActivity";
@@ -382,9 +377,15 @@ const ELEMENTAL_CAST_VFX_CONFIG: Partial<Record<Element, ElementalCastVfxConfig>
  * explaining hotbar targeting. Sized to the ticket's own floor (a one-time overlay/hint), not
  * a full tutorial system — see the ticket's own note that this may later fold into the
  * Boot/Title scene work (5.8) instead; kept standalone here since 5.8's own scope (scene flow,
- * not in-gameplay teaching copy) doesn't have a natural slot for combat-specific instructions. */
+ * not in-gameplay teaching copy) doesn't have a natural slot for combat-specific instructions.
+ * Issue #248 — developer playtest feedback (2026-08-14): this copy still only named the
+ * number row, so a first-time player never learned #234's Q/R/F/Shift/Ctrl/Space alternate
+ * bindings existed. Added a second clause naming them in the same index order
+ * `HOTBAR_SECONDARY_KEYS` binds (position N -> slot N, per that constant's own convention
+ * comment), a factual addition rather than a guess. Copy-only change — the dismiss triggers
+ * (click / `keydown-SPACE`) and `ONBOARDING_HINT_FALLBACK_MS` below are untouched. */
 const ONBOARDING_HINT_TEXT =
-  "Press 1-6 to aim a spell.\nPress it again (or click) to fire — Esc or right-click cancels.";
+  "Press 1-6 (or Q/R/F/Shift/Ctrl/Space) to aim a spell.\nPress it again (or click) to fire — Esc or right-click cancels.";
 // Issue #233 (replaces #197) — developer decision, 2026-08-13: the hint used to double as the
 // "spell armed" signal, so `handleHotbarPress` dismissed it the instant the player pressed a
 // hotbar key at all — before they could read past the first line. The fallback window is
@@ -410,6 +411,12 @@ const BOSS_BANNER_INTRO_TEXT =
   "a lesson feels measured, and understand, distantly, that surviving this is not escape — it " +
   "is only passing the part of the test that lets you keep walking. The Invigilator turns " +
   "toward you, unhurried, and begins.";
+/** Issue #249 — same UI-chrome-not-lore reasoning as `BOSS_BANNER_OUTRO_CONFIRM_HINT` (see its
+ * own comment): the intro banner now also gates on an explicit `[Y] Continue` (developer
+ * decision 2026-08-14 — a player already moving/attacking when the trial starts must not be
+ * able to blow past the intro on incidental input, the same fix #183 already gave the
+ * outro/win banners), so it needs the same appended confirm hint. */
+const BOSS_BANNER_INTRO_CONFIRM_HINT = "\n\n[Y] Continue";
 const BOSS_BANNER_OUTRO_TEXT =
   "The Invigilator's geometry comes apart the way frost leaves a window — not shattered, just " +
   "no longer held together, its hex-lines guttering into ordinary dark stone. For one long " +
@@ -589,13 +596,6 @@ export class SpellroadScene extends Phaser.Scene {
    * `this.add.circle` primitive the marker itself already uses — no new art asset dependency,
    * matching the ticket's "restrained... where existing approved assets suffice" bound. */
   private sidePocketDressing = new Map<number, Phaser.GameObjects.Arc[]>();
-  /** Issue #239 — a short, always-created-but-hidden HUD hint (same lifecycle pattern as
-   * `onboardingHintText`: created once in `createHud`, `setVisible` toggled every frame from
-   * `updateSidePocketMarkers`, never destroyed/recreated) so playtesters stop mistaking the
-   * reactive rune for the unrelated auto-aim highlight ring. Fixed screen position rather than
-   * following the marker: the four markers sit at different lane heights (`sidePocketEncounters.ts`),
-   * and a fixed top-of-lane anchor reads consistently regardless of which one is nearby. */
-  private sidePocketHintText?: Phaser.GameObjects.Text;
   /** backlog 0.2 — highest wave `level` number reached so far; `startWave` only calls
    * `hexcoin.markLevelStart()` the first time a level number is crossed, never on a
    * same-level death-retry, so a death can't be used to re-bank an already-recorded floor. */
@@ -686,20 +686,28 @@ export class SpellroadScene extends Phaser.Scene {
    *
    * **Issue #183 — narrowed, disclosed carve-out for the victory/outro banner specifically,
    * not a reversal of the above.** The any-keypress/click-dismisses behavior above is still
-   * exactly right for the intro banner and every other in-combat message: #112/#113 fixed a
-   * real complaint about vision/combat getting blocked, and that reasoning is untouched here.
-   * But the outro banner (`BOSS_BANNER_OUTRO_TEXT`, Lorena's ending narration — this vertical
-   * slice's only shipped ending) is a one-time, unrepeatable beat, and a leftover cast-key press
-   * or click from the fight that just ended could skip it before the player reads a single word.
-   * `bossBannerRequiresConfirm` (set only by the victory/outro call site, see `showBossBanner`'s
-   * `requireConfirm` option) swaps the any-input dismiss for an explicit `[Y] Continue` gate,
-   * reusing the same Y/N confirm pattern already established by `startPhaseBreak`/
-   * `startSidePocketChoice` (this scene) and `TitleScene`'s overwrite confirm/`PauseScene`'s
-   * quit confirm, rather than inventing a second mechanism. */
+   * exactly right for every other in-combat message: #112/#113 fixed a real complaint about
+   * vision/combat getting blocked, and that reasoning is untouched here. But the outro banner
+   * (`BOSS_BANNER_OUTRO_TEXT`, Lorena's ending narration — this vertical slice's only shipped
+   * ending) is a one-time, unrepeatable beat, and a leftover cast-key press or click from the
+   * fight that just ended could skip it before the player reads a single word.
+   * `bossBannerRequiresConfirm` (set by the victory/outro call site, and — issue #249 — also the
+   * trial intro call site, see `showBossBanner`'s `requireConfirm` option) swaps the any-input
+   * dismiss for an explicit `[Y] Continue` gate, reusing the same Y/N confirm pattern already
+   * established by `startPhaseBreak`/`startSidePocketChoice` (this scene) and `TitleScene`'s
+   * overwrite confirm/`PauseScene`'s quit confirm, rather than inventing a second mechanism.
+   *
+   * **Issue #249 — the intro banner joined this carve-out too.** A player already
+   * moving/attacking/dodging when the trial starts could otherwise blow straight past the
+   * intro narration on incidental input, never actually reading it — the same failure mode
+   * #183 fixed for the outro, just triggered by combat input instead of a leftover cast-key
+   * press. Enemy movement/attacks stay frozen for the banner's full display exactly as before
+   * (`bossBannerActive` still gates `updateEnemies`); only the *dismiss* path changed, from
+   * any-input to the explicit `[Y]` gate. */
   private bossBannerActive = false;
   /** Issue #183 — see `bossBannerActive`'s own comment above for the full carve-out reasoning.
-   * Set only by `showBossBanner`'s `requireConfirm` option (currently only the victory/outro
-   * call site passes it); every other banner display leaves this false. */
+   * Set by `showBossBanner`'s `requireConfirm` option — the victory/outro call site, and (issue
+   * #249) the trial intro call site; every other banner display leaves this false. */
   private bossBannerRequiresConfirm = false;
   /** The armed `keydown-Y` listener for the current `bossBannerRequiresConfirm` display, or
    * `null` if none is pending — same hoisted-out-of-the-closure reasoning as
@@ -1166,11 +1174,6 @@ export class SpellroadScene extends Phaser.Scene {
       return;
     }
     const currentLevel = this.waves[this.waveIndex]?.level;
-    // Issue #239 — recomputed fresh every frame below for whichever encounter matches
-    // `currentLevel` (there's only ever one visible marker at a time); defaults to hidden so a
-    // level with no catalog entry (Level 5) or a mid-transition frame never leaves a stale hint
-    // on screen.
-    let showHint = false;
     for (const [level, marker] of this.sidePocketMarkers) {
       const dressing = this.sidePocketDressing.get(level) ?? [];
       if (level !== currentLevel) {
@@ -1207,9 +1210,7 @@ export class SpellroadScene extends Phaser.Scene {
       // story 5's "atmospheric, not distracting" requirement. Dim and static otherwise.
       const pulse = inRange ? 0.75 + 0.25 * Math.sin(this.time.now / 150) : 0.6;
       marker.setFillStyle(encounter.presentation.runeColor, pulse);
-      showHint = shouldShowSidePocketHint(inRange, discovered, this.session.phase);
     }
-    this.sidePocketHintText?.setVisible(showHint);
   }
 
   private createMage(): void {
@@ -1407,24 +1408,6 @@ export class SpellroadScene extends Phaser.Scene {
     this.onboardingHintActive = true;
     this.time.delayedCall(ONBOARDING_HINT_FALLBACK_MS, () => this.dismissOnboardingHint());
 
-    // Issue #239 — proximity hint for the Side-Pocket Lore Encounter's reactive marker.
-    // Positioned directly below `onboardingHintText`'s row (rather than the same row) so the
-    // rare case both are visible at once (an unusually fast player reaching a marker before the
-    // 9s onboarding fallback fires) stacks instead of overlapping. Created hidden; only
-    // `updateSidePocketMarkers` toggles visibility, every frame, off the pure
-    // `shouldShowSidePocketHint` gate.
-    this.sidePocketHintText = this.add.text(CANVAS_WIDTH / 2, ROAD_TOP + 76, SIDE_POCKET_HINT_TEXT, {
-      color: "#dff2ff",
-      fontFamily: "monospace",
-      fontSize: "14px",
-      align: "center",
-      backgroundColor: "#1c1330",
-      padding: { x: 14, y: 10 }
-    });
-    this.sidePocketHintText.setOrigin(0.5, 0);
-    this.sidePocketHintText.setDepth(UI_DEPTH);
-    this.sidePocketHintText.setVisible(false);
-
     // backlog 4.10 / issue #96 — the Invigilator intro/outro banner. Centered, wider than the
     // onboarding hint (word-wrapped, since the authored narration runs several sentences), and
     // deliberately in `levelWaveText`'s serif font rather than the HUD's monospace — a
@@ -1509,9 +1492,10 @@ export class SpellroadScene extends Phaser.Scene {
       }
       // Issues #112/#113 — a click while the boss banner is showing dismisses it early
       // instead of casting/cancelling underneath it.
-      // Issue #183 — except the confirm-gated outro banner: a click is swallowed (neither
-      // dismisses the banner nor casts/cancels underneath it) rather than acting as a second,
-      // undocumented dismiss path alongside the `[Y]` gate the on-screen text actually promises.
+      // Issue #183 (and, issue #249, also the trial intro banner) — except a confirm-gated
+      // banner: a click is swallowed (neither dismisses the banner nor casts/cancels underneath
+      // it) rather than acting as a second, undocumented dismiss path alongside the `[Y]` gate
+      // the on-screen text actually promises.
       if (this.bossBannerActive) {
         if (this.bossBannerRequiresConfirm) {
           return;
@@ -1576,10 +1560,11 @@ export class SpellroadScene extends Phaser.Scene {
     // banner here would fire both on the same keypress (banner vanishes AND PauseScene
     // launches at once), a confusing combination neither #112 nor #113 asked for.
     //
-    // Issue #183 — `bossBannerRequiresConfirm` opts the outro banner out of this any-keypress
-    // path entirely: it's ended only by the dedicated `keydown-Y` listener
-    // `armBossBannerConfirmListener` arms, the same way `startPhaseBreak`'s Y/N prompt is only
-    // ended by its own specific listeners, not this generic handler.
+    // Issue #183 (and, issue #249, the trial intro banner too) — `bossBannerRequiresConfirm`
+    // opts a confirm-gated banner out of this any-keypress path entirely: it's ended only by
+    // the dedicated `keydown-Y` listener `armBossBannerConfirmListener` arms, the same way
+    // `startPhaseBreak`'s Y/N prompt is only ended by its own specific listeners, not this
+    // generic handler.
     this.input.keyboard?.on("keydown", (event: KeyboardEvent) => {
       if (this.bossBannerActive && !this.bossBannerRequiresConfirm && event.code !== "Escape") {
         this.hideBossBanner();
@@ -1949,9 +1934,13 @@ export class SpellroadScene extends Phaser.Scene {
         // ordinary wave clear.
         this.stopExplorationLoop();
         this.playBossTheme();
-        this.showBossBanner(BOSS_BANNER_INTRO_TEXT, () => {
-          this.flashMessage("Director Trial — Phase 1 (HP won't reset again until you win or die)", 2400, "warning");
-        });
+        this.showBossBanner(
+          BOSS_BANNER_INTRO_TEXT + BOSS_BANNER_INTRO_CONFIRM_HINT,
+          () => {
+            this.flashMessage("Director Trial — Phase 1 (HP won't reset again until you win or die)", 2400, "warning");
+          },
+          { requireConfirm: true }
+        );
         this.bossNameText?.setText(BOSS_NAME_TEXT).setVisible(true);
       } else {
         this.flashMessage(`Director Trial — Phase ${wave.wave_index + 1}`, 1800);
@@ -2375,9 +2364,12 @@ export class SpellroadScene extends Phaser.Scene {
         // shipped ending), so a leftover cast-key press or click from the fight that just ended
         // must not be able to skip it. `requireConfirm` swaps that for an explicit
         // `[Y] Continue` gate, reusing this file's existing Y/N confirm pattern
-        // (`startPhaseBreak`) rather than a new mechanism. The intro banner a few phases back
-        // and every other in-combat message are deliberately untouched — #112/#113's reasoning
-        // (don't block vision/combat unnecessarily) still holds for those.
+        // (`startPhaseBreak`) rather than a new mechanism. Every other in-combat message is
+        // deliberately untouched — #112/#113's reasoning (don't block vision/combat
+        // unnecessarily) still holds for those. (Issue #249 — the trial intro banner a few
+        // phases back also now uses `requireConfirm`, for the same "must actually be read"
+        // reasoning as this outro banner, not because #112/#113's general rule stopped
+        // applying to it.)
         this.showBossBanner(BOSS_BANNER_OUTRO_TEXT + BOSS_BANNER_OUTRO_CONFIRM_HINT, undefined, {
           requireConfirm: true
         });
@@ -3270,12 +3262,12 @@ export class SpellroadScene extends Phaser.Scene {
    * @param onHidden issue #134 — optional callback fired once the banner has fully hidden
    * (see `bossBannerOnHidden`'s own comment), so a caller can defer a message that would
    * otherwise render on top of/alongside the banner.
-   * @param options.requireConfirm issue #183 — the victory/outro banner's narrowed carve-out
-   * (see `bossBannerRequiresConfirm`'s own comment): when true, skips the reading-speed-scaled
-   * auto-hide timer entirely and does not respond to the generic any-keypress/click dismiss
-   * (`createInput`) — only an explicit `[Y]` press (armed by `armBossBannerConfirmListener`)
-   * ends the display. Defaults to false so every other caller (the intro banner, and any future
-   * banner call) keeps #112/#113's existing fast-dismiss behavior unchanged. */
+   * @param options.requireConfirm issue #183's carve-out (see `bossBannerRequiresConfirm`'s own
+   * comment), now also used by the trial intro banner (issue #249): when true, skips the
+   * reading-speed-scaled auto-hide timer entirely and does not respond to the generic
+   * any-keypress/click dismiss (`createInput`) — only an explicit `[Y]` press (armed by
+   * `armBossBannerConfirmListener`) ends the display. Defaults to false so any future banner
+   * call keeps #112/#113's existing fast-dismiss behavior unless it opts in. */
   private showBossBanner(text: string, onHidden?: () => void, options?: { requireConfirm?: boolean }): void {
     if (!this.bossBannerText) {
       return;
