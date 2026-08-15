@@ -269,6 +269,12 @@ const ELEMENT_EFFECT_COLOR: Record<Element, number> = {
 const ENEMY_THREAT_COLOR = 0xff3b3b;
 const CAST_EFFECT_DURATION_MS = 220;
 const IMPACT_BURST_DURATION_MS = 260;
+/** Issue #251 — how far forward of the mage (px, along the cast direction) an elemental cast
+ * burst's origin is offset so it doesn't spawn exactly on top of the caster's own sprite (mage
+ * sprite footprint is ~32x32, i.e. ~16px half-width — see `spawnElementalCastVfx`'s own comment
+ * for the root-cause reasoning). Kept smaller than the mage's half-width so the burst still
+ * reads as originating at the caster, not detached from them. */
+const ELEMENTAL_VFX_ORIGIN_OFFSET_PX = 12;
 /** Issue #164 — real animated cast/impact VFX for the 3 elements `spawnOpeningVfxCast` never
  * covered (see `systems/openingVfx.ts`'s own module comment: there is no developer-reviewed
  * CC0 Remix sprite art for ice/earth/lightning, and re-tinting fire's specific sprites would be
@@ -323,15 +329,32 @@ const ELEMENTAL_CAST_VFX_CONFIG: Partial<Record<Element, ElementalCastVfxConfig>
   // a flat tan with no green in it; shifted toward an olive brown-green and raised particle
   // count/scale for a chunkier, more visible burst. No `glow` here — debris is opaque, not
   // light-emitting, so additive blending would read as the wrong material, not just "brighter."
+  //
+  // Issue #251 — #185's fix was never actually visible in play, and independent re-diagnosis
+  // (live dev-server testing, not just a read of this config) found why: at 0x185's slow
+  // speedMin/speedMax (100-200) and heavy gravityY (260), the burst stayed clustered within a
+  // few px of its spawn point — exactly on top of the mage's own sprite — for effectively its
+  // entire 500ms life, while every other element's burst (faster, or with far less gravity)
+  // separates from the mage within the first handful of frames and becomes visible in open lane
+  // space. A live A/B (same capture method, same session): stone_spike's burst produced zero
+  // burst-colored pixels near the cast origin across multiple independently-confirmed casts
+  // (mana spent, cooldown started), while arc_lance and thunder_dome (both lightning, one line-
+  // shaped and one circle-shaped, ruling out shape as the variable) both rendered clearly in the
+  // same region — isolating the difference to earth's own speed/gravity keeping it pinned to the
+  // caster's silhouette. Sped up and de-weighted enough to clear the mage's ~16px sprite radius
+  // well within the first 100ms (was: ~10px covered in that window; now: ~30-40px), and
+  // `spawnElementalCastVfx`/`spawnElementalImpactVfx` additionally spawn every element's burst
+  // offset outward along the cast direction (see that method's own comment) so the origin itself
+  // isn't sitting inside the caster/target sprite in the first place.
   earth: {
     color: 0x7c8f42,
     particleRadius: 6,
     quantity: 18,
-    speedMin: 100,
-    speedMax: 200,
+    speedMin: 170,
+    speedMax: 260,
     lifespanMs: 500,
     scaleStart: 1.3,
-    gravityY: 260,
+    gravityY: 150,
     spreadDeg: 30,
     impactQuantity: 11
   },
@@ -2615,8 +2638,41 @@ export class SpellroadScene extends Phaser.Scene {
       direction.x = 1;
     }
     const angleDeg = Phaser.Math.RadToDeg(Math.atan2(direction.y, direction.x));
+    // Issue #251 — spawn the burst a little forward of the mage along the cast direction instead
+    // of exactly on top of it. Root cause of earth's burst never actually being visible in play
+    // (see ELEMENTAL_CAST_VFX_CONFIG's own #251 comment): its slow speed/heavy gravity kept the
+    // whole burst clustered within a few px of `this.mage.x/y` for effectively its entire life,
+    // i.e. sitting on top of the mage's own sprite the whole time it was on screen. Every element
+    // gets this offset (not just earth) for the same reason and so casts read as originating just
+    // ahead of the caster rather than exactly inside them, which is the more standard convention
+    // anyway — ELEMENTAL_VFX_ORIGIN_OFFSET_PX is small enough not to visibly detach the burst
+    // from the mage for the faster elements that already cleared the sprite on their own.
+    const normalizedDirection = direction.clone().normalize();
+    const originX = this.mage.x + normalizedDirection.x * ELEMENTAL_VFX_ORIGIN_OFFSET_PX;
+    const originY = this.mage.y + normalizedDirection.y * ELEMENTAL_VFX_ORIGIN_OFFSET_PX;
+
+    // Issue #251 — earth specifically routes through `spawnDebrisBurst` (plain tweened Arc
+    // objects) instead of a `Phaser.GameObjects.Particles.ParticleEmitter`, unlike ice/lightning
+    // below. Root-cause diagnosis on the live dev server (not just a config read) found the
+    // *emitter* itself was the problem, not any tuning value in `ELEMENTAL_CAST_VFX_CONFIG`:
+    // repeated live captures showed earth's emitter object existing in the scene graph with
+    // correct alive particles (right position, alpha, tint) and a texture that itself bakes the
+    // correct opaque color (confirmed by reading the generated texture's own pixel data), yet the
+    // rendered canvas never showed those pixels at the particles' exact known coordinates, even
+    // after independently ruling out origin/speed/gravity/blend-mode as the cause. A same-color,
+    // same-position plain `this.add.circle(...)` scatter, captured in the same live session,
+    // rendered immediately and reliably — isolating the failure to the particle-emitter pipeline
+    // for this specific case, not the color, texture, or config values. Ice and lightning's own
+    // particle emitters were independently confirmed rendering correctly in the same live
+    // sessions, so they're left on the existing `Phaser.GameObjects.Particles` path below.
+    if (spell.element === "earth") {
+      this.spawnDebrisBurst(originX, originY, angleDeg, config);
+      return;
+    }
+
+
     const textureKey = this.ensureElementalVfxTexture(spell.element, config.color, config.particleRadius);
-    const emitter = this.add.particles(this.mage.x, this.mage.y, textureKey, {
+    const emitter = this.add.particles(originX, originY, textureKey, {
       angle: { min: angleDeg - config.spreadDeg, max: angleDeg + config.spreadDeg },
       speed: { min: config.speedMin, max: config.speedMax },
       lifespan: config.lifespanMs,
@@ -2629,11 +2685,68 @@ export class SpellroadScene extends Phaser.Scene {
     if (config.glow) {
       emitter.setBlendMode(Phaser.BlendModes.ADD);
     }
-    emitter.explode(config.quantity, this.mage.x, this.mage.y);
+    emitter.explode(config.quantity, originX, originY);
     this.time.delayedCall(config.lifespanMs + 60, () => emitter.destroy());
 
     if (spell.element === "lightning") {
       this.spawnLightningBoltFlicker(this.mage.x, this.mage.y, targetX, targetY, config.color);
+    }
+  }
+
+  /** Issue #251 — earth's cast/impact burst, built from plain tweened `Arc` GameObjects instead
+   * of a `ParticleEmitter` (see `spawnElementalCastVfx`'s own comment for why). Approximates the
+   * same ballistic motion a particle emitter's `speed`/`gravityY` would have produced (a straight
+   * launch vector plus constant downward acceleration, integrated analytically for the tween's
+   * end position — not a physics body, just enough to read as "lobbed debris" over the burst's
+   * short lifespan) so swapping the rendering mechanism doesn't also change how the burst looks
+   * or moves. Every field defaults to `config`'s own cast-VFX values; the impact-side caller
+   * overrides `count`/`speedMin`/`speedMax`/`lifespanMs`/`spreadDeg`/`scaleMultiplier` to match
+   * `spawnElementalImpactVfx`'s own (narrower, faster-fading, 360°) impact-puff shape instead of
+   * the wider directional cast burst. */
+  private spawnDebrisBurst(
+    originX: number,
+    originY: number,
+    angleDeg: number,
+    config: ElementalCastVfxConfig,
+    options: {
+      count?: number;
+      speedMin?: number;
+      speedMax?: number;
+      lifespanMs?: number;
+      spreadDeg?: number;
+      scaleMultiplier?: number;
+      depth?: number;
+    } = {}
+  ): void {
+    const count = options.count ?? config.quantity;
+    const speedMin = options.speedMin ?? config.speedMin;
+    const speedMax = options.speedMax ?? config.speedMax;
+    const lifespanMs = options.lifespanMs ?? config.lifespanMs;
+    const spreadDeg = options.spreadDeg ?? config.spreadDeg;
+    const scaleMultiplier = options.scaleMultiplier ?? 1;
+    const depth = options.depth ?? 10;
+    const lifespanS = lifespanMs / 1000;
+    for (let i = 0; i < count; i++) {
+      const particleAngleDeg = angleDeg + Phaser.Math.FloatBetween(-spreadDeg, spreadDeg);
+      const particleAngleRad = Phaser.Math.DegToRad(particleAngleDeg);
+      const speed = Phaser.Math.FloatBetween(speedMin, speedMax);
+      const vx = Math.cos(particleAngleRad) * speed;
+      const vy = Math.sin(particleAngleRad) * speed;
+      const endX = originX + vx * lifespanS;
+      const endY = originY + vy * lifespanS + 0.5 * config.gravityY * lifespanS * lifespanS;
+      const debris = this.add.circle(originX, originY, config.particleRadius, config.color, 1);
+      debris.setDepth(depth);
+      debris.setScale(config.scaleStart * scaleMultiplier);
+      this.tweens.add({
+        targets: debris,
+        x: endX,
+        y: endY,
+        scale: 0,
+        alpha: 0,
+        duration: lifespanMs,
+        ease: "Cubic.Out",
+        onComplete: () => debris.destroy()
+      });
     }
   }
 
@@ -2682,6 +2795,25 @@ export class SpellroadScene extends Phaser.Scene {
   private spawnElementalImpactVfx(element: Element, x: number, y: number): void {
     const config = ELEMENTAL_CAST_VFX_CONFIG[element];
     if (!config) {
+      return;
+    }
+    // Issue #251 — earth routes through the same tweened-`Arc` `spawnDebrisBurst` its cast VFX
+    // uses instead of a `ParticleEmitter`, same root-cause reasoning as `spawnElementalCastVfx`'s
+    // own comment (the emitter pipeline silently failed to render this element's burst; ice/
+    // lightning's emitters were independently confirmed working and are untouched). `angleDeg: 0`
+    // + `spreadDeg: 180` covers the full 360° spread the original impact emitter used (no
+    // direction constraint — omitting `angle` on a real emitter config defaults to a full circle,
+    // reproduced here the same way).
+    if (element === "earth") {
+      this.spawnDebrisBurst(x, y, 0, config, {
+        count: config.impactQuantity ?? 6,
+        speedMin: 40,
+        speedMax: 110,
+        lifespanMs: 220,
+        spreadDeg: 180,
+        scaleMultiplier: 0.7,
+        depth: 11
+      });
       return;
     }
     const textureKey = this.ensureElementalVfxTexture(element, config.color, config.particleRadius);
