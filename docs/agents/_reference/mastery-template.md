@@ -44,4 +44,13 @@ The relevant bound is therefore total enemy **count** per level, not total HP: L
 
 **Action for Loomwright:** replace `LANDED_CASTS_PER_TIER = 180` with **24** in `src/systems/MasterySystem.ts`, gate `recordLandedCast`'s call site (`SpellroadScene.confirmCast`) on a kill count rather than a hit count, and update the doc comment to cite this entry instead of the superseded 180-casts/tier reasoning.
 
+**Margin re-checked, unaffected (2026-08-14, issue #235's Mana wave-3-pacing retune):** the
+retune raises `MAX_MANA` 100 → 130 and leaves `MANA_REGEN_PER_SEC`, the weight-class cost/
+cooldown table, and every wave's enemy composition/count untouched (see
+`mana-template.md`'s "Wave 3 Pacing Retune" for the full diagnosis). Since Mastery growth is
+gated purely on kills, not Mana spent or casts fired, and this retune changes neither kill
+counts nor casts-to-kill ratios, the existing 24-kills/tier margin (`48/20 = 2.4x` at Level 4,
+the binding level) is unaffected — no re-derivation needed, only this explicit confirmation
+that its inputs didn't move.
+
 Only Pato edits this file. Frieren and Warden read it; they never invent their own scaling.

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { WaveDefinition } from "../data/types";
 import { SIDE_POCKET_ENCOUNTERS } from "../data/sidePocketEncounters";
 import { HexcoinSystem } from "./HexcoinSystem";
-import { evaluateSidePocketOffer, resolveSidePocketExplore } from "./sidePocketEncounter";
+import { evaluateSidePocketOffer, resolveSidePocketExplore, shouldShowSidePocketHint } from "./sidePocketEncounter";
 // Issue #166 — the real shipped wave files, imported the same way `validateContent.test.ts`
 // already does, so the bottom suite can check the controller against the waves the game
 // actually plays rather than only against synthetic ones.
@@ -111,6 +111,28 @@ describe("resolveSidePocketExplore", () => {
   it("preserves pre-existing flags alongside the newly added one", () => {
     const result = resolveSidePocketExplore(encounter, ["met-director"]);
     expect(result.updatedLoreFlags).toEqual(["met-director", encounter.loreFlag]);
+  });
+});
+
+describe("shouldShowSidePocketHint (issue #239 — proximity hint for the confusing marker)", () => {
+  it("shows the hint when in range, undiscovered, and no other prompt is up", () => {
+    expect(shouldShowSidePocketHint(true, false, "running")).toBe(true);
+  });
+
+  it("does not show when out of range", () => {
+    expect(shouldShowSidePocketHint(false, false, "running")).toBe(false);
+  });
+
+  it("does not show once the marker's lore is already discovered (quiet state)", () => {
+    expect(shouldShowSidePocketHint(true, true, "running")).toBe(false);
+  });
+
+  it("does not show while an unrelated keyboard-choice prompt is up (boss phase-break)", () => {
+    expect(shouldShowSidePocketHint(true, false, "awaiting-phase-choice")).toBe(false);
+  });
+
+  it("does not show while this same encounter's own Explore/Continue prompt is up", () => {
+    expect(shouldShowSidePocketHint(true, false, "awaiting-encounter-choice")).toBe(false);
   });
 });
 

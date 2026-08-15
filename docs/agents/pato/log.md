@@ -419,3 +419,57 @@ Data-only change: reassigned `default_loadout_slot` values in `src/data/spells/s
 No other fields touched, no numeric templates affected. This is a UI/loadout ordering reordering within the existing 6-spell default-equipped set, not an economy change.
 
 **Self-verify:** `docker-compose run --rm game npm run typecheck` (pass), `npm test` (332/332 tests pass), `npm run build` (success) all clean.
+
+## 2026-08-14
+
+Issue #235 (replacing closed #200): "Retune Mana economy for wave 3 pacing." Root-cause
+diagnosis, independently re-derived against the shipped numbers (not assumed):
+
+1. Single-weight-class spam is not the bottleneck — mana-template.md's existing 8/sec regen
+   derivation already shows every weight class regenerates its own cost inside its own
+   cooldown (Light 1.25s<2s, Standard 2.5s<4s, Heavy 4.375s<8s), so sustained one-spell casting
+   never actually drains the pool regardless of wave length. Confirmed unchanged.
+2. The real pressure is burst *depth*: reacting to a mixed-archetype wave with 2-3 different
+   weight-class spells in quick succession (e.g. Light+Standard+Heavy = 10+20+35 = 65 Mana)
+   costs far more than the flat 8/sec regen replaces in the same window. At the old 100-point
+   pool, one such burst already leaves only 35 Mana — the player is then pool-limited (waiting
+   on regen) for the rest of the fight.
+3. Wave composition growth is what turns this into a felt problem by wave 3: modifier-scaled
+   total enemy HP across `src/data/waves/level-*.json` grows from Level 1's onboarding-scale
+   50/100/126 to Level 3's 121/142/123 — up to ~42% more total HP than Level 1's biggest wave,
+   meaning longer, more archetype-varied fights with more chances for a burst to hit zero before
+   regen catches up. Both plausible readings of "wave 3" (Level 1's own third wave, or Level 3
+   as a whole) show the same 2-Debuffer, mixed-archetype composition shape recurring and
+   intensifying, so the diagnosis doesn't hinge on resolving that ambiguity.
+4. `murmur_wisp` (mana-regen Debuffer variant) compounds this during exactly the waves it
+   appears in: 2.4 Mana/sec drain per stack (hp-template.md) cuts effective regen to 5.6/sec for
+   the whole time it's alive (no decay until wave-clear/death), worsening the post-burst
+   recovery. The GDD's own issue #211 note already documents this "Debuffer breaks the
+   cast-freely framing" gap — consistent with, not new relative to, this diagnosis.
+
+**Conclusion:** bottleneck is pool *depth*, not regen rate (already correct in steady state,
+issue #77) and not per-spell cost (would strand Mastery's `master_discount: "cost"` payoff for
+no diagnosed reason) and not wave composition (Warden's already-validated threat-budget domain,
+issue #162 — no diagnosed need to reopen it).
+
+**Retune applied:** `MAX_MANA` 100 → 130 (`src/systems/ManaSystem.ts`) — `MANA_REGEN_PER_SEC`
+and the weight-class cost/cooldown table (`WEIGHT_CLASS` in the same file) left untouched. Buys
+room for two full 3-spell (Light+Standard+Heavy) bursts back-to-back before the pool empties,
+vs. one-and-change at the old 100, while every already-validated single-spell-class regen
+margin, Mastery cost-discount, and wave threat-budget margin stays exactly as it was. Full
+derivation in `docs/agents/_reference/mana-template.md`'s new "Wave 3 Pacing Retune" section.
+
+**Mastery-margin check:** unaffected. Mastery growth is gated on kills only
+(`MasterySystem.recordLandedCast`), decoupled from Mana/casts; this retune changes neither
+wave composition nor kill counts nor casts-to-kill ratios, so the existing 24-kills/tier margin
+(48/20 = 2.4x at Level 4, the binding level) needs no re-derivation — noted explicitly in
+`mastery-template.md` rather than silently assumed.
+
+**Docs updated:** `mana-template.md` (base pool line + new "Wave 3 Pacing Retune" section),
+`mastery-template.md` (margin-check note), GDD's "Mana And Spell Costs" section
+(`docs/game/the-last-spellroad-design.md`).
+
+**Self-verify:** `docker-compose run --rm game npm run typecheck` / `npm test` / `npm run build`
+— results recorded in the PR (`pato/235-mana-retune-wave3`). **Gate pending:** developer
+playtest re-confirming wave 3 pacing feels right — this cannot be self-verified by Pato, per the
+issue's own gate.
