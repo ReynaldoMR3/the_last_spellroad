@@ -27,7 +27,7 @@
     "base_power": 7,
     "base_targets": 3,
     "master_discount": "cooldown",
-    "default_loadout_slot": 3
+    "default_loadout_slot": 6
   },
   {
     "id": "stone_spike",
@@ -37,7 +37,7 @@
     "base_power": 4,
     "base_targets": 1,
     "master_discount": "cooldown",
-    "default_loadout_slot": 4
+    "default_loadout_slot": 3
   },
   {
     "id": "flare_jab",
@@ -83,7 +83,7 @@
     "base_power": 5,
     "base_targets": 4,
     "master_discount": "cooldown",
-    "default_loadout_slot": 5
+    "default_loadout_slot": 4
   },
   {
     "id": "magma_lance",
@@ -93,7 +93,7 @@
     "base_power": 9,
     "base_targets": 1,
     "master_discount": "cost",
-    "default_loadout_slot": 6
+    "default_loadout_slot": 5
   },
   {
     "id": "frost_breath",
