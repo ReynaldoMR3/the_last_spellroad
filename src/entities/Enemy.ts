@@ -115,7 +115,30 @@ const MELEE_STRAFE_SPEED = 18;
 const RANGED_PREFERRED_RANGE = 240;
 const RANGED_COOLDOWN_MS = 1800;
 const DEBUFFER_PREFERRED_RANGE = 150;
-const DEBUFFER_COOLDOWN_MS = 2500;
+/**
+ * Issue #250 — developer playtest feedback (2026-08-15) after #237 shipped: with the debuff hit
+ * now dodgeable (tell + travel, see `DEBUFFER_TELEGRAPH_MS`/`DEBUFFER_TRAVEL_MS` below), the
+ * Debuffer's 2500ms cadence reads as too easy — it should attack more often to keep pressure up.
+ * Cadence-only retune, same narrow scope #237 used: range (`DEBUFFER_PREFERRED_RANGE`), the
+ * telegraph/travel timings, and the debuff's own magnitude/stacking-cap/floor/persistence (all
+ * fixed in `hp-template.md`'s "Debuffer Magnitudes", re-checked here per the same
+ * "consult Pato's numbers before picking a cadence number" precedent #237 set) are all untouched.
+ *
+ * 2500 -> 1800ms (28% faster; ~4 attacks/10s -> ~5.6 attacks/10s). Picked by requiring the *gap*
+ * between attacks -- not just the cooldown itself -- to stay comfortably clear of the fixed
+ * 900ms tell+travel dodge window. The cooldown resets at tell-start (#237), so the time between
+ * one attack's projectile resolving (tell-start + 900ms) and the next tell beginning
+ * (tell-start + DEBUFFER_COOLDOWN_MS) is `DEBUFFER_COOLDOWN_MS - 900`. At 2500ms that gap was
+ * 1600ms; at 1800ms it's exactly 900ms -- one full dodge-window's worth of headroom, so a player
+ * who reacts to one tell always gets a completely telegraph-free beat at least as long as the
+ * dodge window itself before the next one can even start. That rules out tells overlapping or
+ * stacking (which would need the gap to hit ~0, i.e. cooldown near 900ms) while still meaningfully
+ * shortening the old 1600ms breather. Went no lower than 1800: a 900ms floor was chosen as a
+ * clean "at least 1x headroom" rule rather than shaving it arbitrarily thinner, since the ticket
+ * only asks to increase pressure "somewhat," not to make the Debuffer's tells effectively
+ * back-to-back.
+ */
+const DEBUFFER_COOLDOWN_MS = 1800;
 /** backlog 2.10 — how close to a lane wall a kiting retreat must get before it slides
  * along the wall instead of pinning nose-first (Warden's spec, Pato-validated 2026-07-25).
  *
