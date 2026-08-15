@@ -362,7 +362,13 @@ const ELEMENTAL_CAST_VFX_CONFIG: Partial<Record<Element, ElementalCastVfxConfig>
  * not in-gameplay teaching copy) doesn't have a natural slot for combat-specific instructions. */
 const ONBOARDING_HINT_TEXT =
   "Press 1-6 to aim a spell.\nPress it again (or click) to fire — Esc or right-click cancels.";
-const ONBOARDING_HINT_FALLBACK_MS = 9000;
+// Issue #233 (replaces #197) — developer decision, 2026-08-13: the hint used to double as the
+// "spell armed" signal, so `handleHotbarPress` dismissed it the instant the player pressed a
+// hotbar key at all — before they could read past the first line. The fallback window is
+// widened from the old 9s to a full 60s now that dismissal no longer piggybacks on the first
+// hotbar press; the player reads it at their own pace (click or the designated key below) and
+// this is now genuinely a last-resort timeout, not the expected dismiss path.
+const ONBOARDING_HINT_FALLBACK_MS = 60000;
 /** backlog 4.10 / issue #96 — developer full playtest (2026-08-05): "nothing shows this is
  * the Director trial, no clear mini boss." Lorena's intro/outro narration (`lorena/log.md`,
  * 2026-07-30) was already written and Heckler-cleared, just never given a display surface.
@@ -714,14 +720,25 @@ export class SpellroadScene extends Phaser.Scene {
    * (that is the whole point — the repetition the developer noticed is across a session, not
    * within one gap), and is cleared on a scene restart alongside the sounds themselves. */
   private lastExplorationTrackKey?: ExplorationLoopKey;
-  /** backlog 2.35 / issue #78 — one-time onboarding hint explaining hotbar targeting (1-6
-   * arms a spell, press/click again to confirm-fire, or Esc/right-click to cancel). Shown once
-   * per run; dismissed the first time the player actually arms a spell (`handleHotbarPress`,
-   * the natural "I get it now" signal) or after a fixed fallback delay, whichever comes first —
-   * see `dismissOnboardingHint`'s own comment for why both triggers exist. `undefined` once
-   * dismissed (destroyed, not just hidden) so `dismissOnboardingHint` is a cheap no-op on every
-   * later hotbar press. */
+  /** backlog 2.35 / issue #78, re-decided by issue #233 (replaces #197) — one-time onboarding
+   * hint explaining hotbar targeting (1-6 arms a spell, press/click again to confirm-fire, or
+   * Esc/right-click to cancel). Shown once per run. Root cause of #233's bug: dismissing this
+   * on the first hotbar press doubled as arming a spell in the same action, so the player never
+   * got past the first line before it vanished. Per the 2026-08-13 developer decision, dismissal
+   * is now decoupled from spell-arming entirely — only an explicit acknowledgment (a click, or
+   * the designated `SPACE` key, see the `pointerdown`/`keydown-SPACE` handlers in `createInput`)
+   * or the `ONBOARDING_HINT_FALLBACK_MS` fallback timer ends it; a hotbar press (1-6) no longer
+   * dismisses it at all. `undefined` once dismissed (destroyed, not just hidden) so
+   * `dismissOnboardingHint` is a cheap no-op on every later call. */
   private onboardingHintText?: Phaser.GameObjects.Text;
+  /** Issue #233 — true for as long as `onboardingHintText` is showing. `update()` uses this to
+   * pause gameplay (freeze enemy movement/attacks) for the hint's whole duration, the same
+   * narrower-than-`scene.pause()` carve-out `bossBannerActive` already established (see its own
+   * comment) — everything else (Mana regen, cooldowns, HUD) keeps running. Kept as its own flag
+   * rather than reusing `bossBannerActive` since the two are conceptually unrelated overlays that
+   * happen never to be shown at the same time in practice, and `update()`'s gate below already
+   * combines them. */
+  private onboardingHintActive = false;
 
   // backlog 3.8 (issue #29) — the currently-rendered level's real Tiled layout, swapped at
   // every level transition (see `renderLevelArt`). `renderedLevel` starts at 0 (no level is
@@ -998,7 +1015,9 @@ export class SpellroadScene extends Phaser.Scene {
     // the intro/outro narration never costs free hits. Deliberately narrower than
     // `scene.pause()` (which also opens the Esc pause menu, PauseScene) — everything else
     // (Mana regen, cooldowns, HUD, the banner's own tween) keeps running.
-    if (!this.bossBannerActive) {
+    // Issue #233 — same carve-out while the onboarding hint is up: a first-time player reading
+    // it shouldn't be taking free hits from enemies that spawned before they finished reading.
+    if (!this.bossBannerActive && !this.onboardingHintActive) {
       this.updateEnemies(deltaMs);
     }
     // Issue #157 — proximity reactivity runs regardless of the boss-banner freeze above (it
@@ -1358,6 +1377,11 @@ export class SpellroadScene extends Phaser.Scene {
     });
     this.onboardingHintText.setOrigin(0.5, 0);
     this.onboardingHintText.setDepth(UI_DEPTH);
+    // Issue #233 — pause gameplay (see `update()`'s `onboardingHintActive` gate) for as long as
+    // this hint is visible, and only dismiss it via `dismissOnboardingHint`'s two explicit
+    // triggers (a click or the designated key — `createInput`'s `pointerdown`/`keydown-SPACE`
+    // handlers) or this fallback timer, never as a side effect of a hotbar press.
+    this.onboardingHintActive = true;
     this.time.delayedCall(ONBOARDING_HINT_FALLBACK_MS, () => this.dismissOnboardingHint());
 
     // Issue #239 — proximity hint for the Side-Pocket Lore Encounter's reactive marker.
@@ -1450,6 +1474,16 @@ export class SpellroadScene extends Phaser.Scene {
     });
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      // Issue #233 — a click while the onboarding hint is showing is exactly one of its two
+      // explicit acknowledgment triggers (the other is `keydown-SPACE` below): it dismisses the
+      // hint and is swallowed here (neither arms/confirms a hotbar slot nor casts/cancels
+      // underneath it), same "swallow the input that ended the overlay" shape as the confirm-
+      // gated boss banner below, just without needing a requireConfirm carve-out of its own
+      // since every onboarding-hint display uses this same any-click dismiss.
+      if (this.onboardingHintActive) {
+        this.dismissOnboardingHint();
+        return;
+      }
       // Issues #112/#113 — a click while the boss banner is showing dismisses it early
       // instead of casting/cancelling underneath it.
       // Issue #183 — except the confirm-gated outro banner: a click is swallowed (neither
@@ -1526,6 +1560,19 @@ export class SpellroadScene extends Phaser.Scene {
     this.input.keyboard?.on("keydown", (event: KeyboardEvent) => {
       if (this.bossBannerActive && !this.bossBannerRequiresConfirm && event.code !== "Escape") {
         this.hideBossBanner();
+      }
+    });
+
+    // Issue #233 — the onboarding hint's designated-key acknowledgment (the other trigger is
+    // the `pointerdown` handler above). `SPACE` is unbound everywhere else in this scene
+    // (hotbar is 1-6, movement is arrows/WASD, Esc has its own contextual meaning below), so it
+    // can't be misread as any other input while doubling as this dismiss. Deliberately its own
+    // narrow listener rather than folding into the generic `keydown` handler above — that one is
+    // scoped to the boss banner's any-keypress dismiss contract and explicitly excludes Escape;
+    // reusing it here would tangle two unrelated overlays' dismiss rules together.
+    this.input.keyboard?.on("keydown-SPACE", () => {
+      if (this.onboardingHintActive) {
+        this.dismissOnboardingHint();
       }
     });
 
@@ -1610,10 +1657,13 @@ export class SpellroadScene extends Phaser.Scene {
     if (!this.mage) {
       return;
     }
-    // backlog 2.35 / issue #78 — any hotbar press at all is the "the player is engaging with
-    // the hotbar" signal, whether or not that slot holds a spell; dismissing here rather than
-    // only after a successful arm covers the case of tapping toward an empty slot first.
-    this.dismissOnboardingHint();
+    // Issue #233 (replaces #197) — a hotbar press deliberately no longer dismisses the
+    // onboarding hint. The old behavior (any hotbar press, even toward an empty slot, dismissed
+    // it) was the root cause of the bug this ticket fixes: arming a spell and dismissing the
+    // hint were the same action, so a first-time player never got past the hint's first line
+    // before it vanished. Dismissal now only happens via `dismissOnboardingHint`'s explicit
+    // triggers (see its own comment) — a hotbar press here is left free to arm/preview a spell
+    // exactly as it would with no hint showing at all.
     const spell = this.equippedSpells[index];
     if (!spell) {
       return;
@@ -2976,15 +3026,17 @@ export class SpellroadScene extends Phaser.Scene {
 
   // ----- hud -----
 
-  /** backlog 2.35 / issue #78 — idempotent (checks the field, not a separate boolean) so
-   * either dismiss trigger (first hotbar press, or the fallback timer) can call this safely
-   * regardless of which one fires first. */
+  /** backlog 2.35 / issue #78, re-decided by issue #233 — idempotent (checks the field) so
+   * either dismiss trigger (an explicit click/designated-key acknowledgment, or the 60s
+   * fallback timer) can call this safely regardless of which one fires first. Also clears
+   * `onboardingHintActive` so `update()` resumes enemy movement/attacks the same frame. */
   private dismissOnboardingHint(): void {
     if (!this.onboardingHintText) {
       return;
     }
     this.onboardingHintText.destroy();
     this.onboardingHintText = undefined;
+    this.onboardingHintActive = false;
   }
 
   // ----- boss encounter (backlog 4.10/4.11, issues #96/#97) -----
