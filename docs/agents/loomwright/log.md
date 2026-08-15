@@ -2,6 +2,40 @@
 
 Append-only, dated, one entry per engine feature shipped and its playtest result.
 
+## 2026-08-14 — Issue #247: remove the Side-Pocket Lore marker's on-screen hint text (#239 follow-up)
+
+Developer playtest feedback: #239's proximity hint ("A faint rune glints underfoot. Clear the
+road ahead, then press [E] to explore.") is misleading/unhelpful in practice — there's no real
+time to read it mid-combat while attacking and dodging. Scoped revert of #239's added text prompt
+only, per the issue's explicit decision; the marker's own pulsing-circle visual and the
+`evaluateSidePocketOffer`/`resolveSidePocketExplore` reward/flag/economy logic (#218) are
+untouched.
+
+**Removed:**
+- `src/systems/sidePocketEncounter.ts`: `SIDE_POCKET_HINT_TEXT` constant and the
+  `shouldShowSidePocketHint(inRange, discovered, phase)` function, plus the now-unused
+  `WavePhase` import.
+- `src/systems/sidePocketEncounter.test.ts`: the `shouldShowSidePocketHint` describe block (5
+  tests) and its import.
+- `src/scenes/SpellroadScene.ts`: the `sidePocketHintText` HUD field, its creation in
+  `createHud` (the `this.add.text(...)` block plus origin/depth/visibility setup), and its
+  per-frame update wiring in `updateSidePocketMarkers` (the `showHint` local and the
+  `shouldShowSidePocketHint` call that fed it).
+
+**Untouched, confirmed by diff review:** `updateSidePocketMarkers`'s pulse/fill-style logic
+(`marker.setFillStyle(encounter.presentation.runeColor, pulse)`, the `inRange`/`discovered`
+proximity and quiet-state branches) and both `evaluateSidePocketOffer`/`resolveSidePocketExplore`
+in the same file — `git diff --stat` shows only deletions across the three touched files, no
+line inside those functions changed.
+
+**Self-verify:** `docker-compose run --rm game npm run typecheck`, `npm test` (332/332, all 30
+suites including `sidePocketEncounter.test.ts`'s remaining 21 tests), and `npm run build` all
+clean.
+
+**Status:** `shipped-and-validated` — pure removal of a text prompt with no new runtime-input
+behavior to gate on a developer playtest; the developer's own playtest feedback is what
+requested this change in the first place.
+
 ## 2026-08-07 (4) — Issue #127: clean resolved `roadfeel` prototype, codify Active Prototype freshness
 
 First of the opening-magic epic's (#124) ticket chain — ordered ahead of #130/#126/#128 per `docs/superpowers/specs/2026-08-07-opening-art-music-prototypes-design.md` since #128 needs an empty registry to install its own `openingmagic` entry into.
