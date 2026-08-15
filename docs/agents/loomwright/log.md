@@ -1264,3 +1264,25 @@ Root cause, confirmed by reading the code exactly as #233 named it: `handleHotba
 **Not yet developer-confirmed:** whether the hint is now actually readable end-to-end in real play (both lines, at a comfortable pace) before a click or `SPACE` press ends it, and whether pausing enemies for the hint's duration feels right rather than dead air — same distinction as every other entry in this log between self-verify (compile/build/test correctness) and the human playtest gate this agent's own success criterion requires. Related #202 (wave-1-too-fast) remains explicitly out of scope, per the ticket.
 
 **Status:** `in-progress-with-owner` — self-verified, awaiting developer playtest. Branch: `loomwright/233-onboarding-hint-fix` (off `main`).
+
+## 2026-08-14 — Issue #248: onboarding hint updated for #234's secondary keybindings
+
+Developer playtest feedback (2026-08-14): the onboarding hint (#233/#197, this same file's own text) still only said "Press 1-6 to aim a spell" — stale relative to #234's already-shipped Q/R/F/Shift/Ctrl/Space alternate bindings, so a first-time player never learned those keys existed. Copy-only fix, no dismiss/pause behavior touched.
+
+**Checked the actual mapping before writing any copy** (per the ticket's own instruction not to guess): `HOTBAR_SECONDARY_KEYS = ["Q", "R", "F", "SHIFT", "CTRL", "SPACE"]` (`SpellroadScene.ts`), same index-order convention as `HOTBAR_KEYS` — position N binds hotbar slot N, confirmed by both the array's own comment and `createInput`'s `this.hotbarSecondaryKeys.forEach((key, index) => this.handleHotbarPress(index))` wiring. So Q/R/F/Shift/Ctrl/Space really do map 1:1 onto slots 1-6 in that literal order, matching what the new copy says.
+
+**Before:**
+> Press 1-6 to aim a spell.
+> Press it again (or click) to fire — Esc or right-click cancels.
+
+**After:**
+> Press 1-6 (or Q/R/F/Shift/Ctrl/Space) to aim a spell.
+> Press it again (or click) to fire — Esc or right-click cancels.
+
+Only `ONBOARDING_HINT_TEXT`'s first line changed. Second line (fire/cancel controls), `ONBOARDING_HINT_FALLBACK_MS`, and the two dismiss triggers (`pointerdown`, `keydown-SPACE`) are untouched, per the ticket's explicit "copy-only" scope.
+
+**Flagging, not fixing (out of scope for a copy ticket):** `keydown-SPACE`'s own comment (`createInput`) still claims "`SPACE` is unbound everywhere else in this scene" — stale since #234 bound it as the secondary key for hotbar slot 6. Both listeners fire independently (the hint's `keydown-SPACE` dismiss handler and slot 6's `key.on("down", ...)` handler are separate registrations), so pressing Space while the onboarding hint is still showing dismisses the hint *and* arms whatever spell is in slot 6 in the same keystroke — not a new behavior introduced by this ticket, but a real functional collision between #233 and #234 that a copy-only change shouldn't silently paper over or fix unilaterally. Left as a follow-up for a developer/Ana call.
+
+**Self-verify:** `docker-compose run --rm game npm run typecheck`, `npm test` (337/337, no new tests — pure string literal change, no new pure-logic seam), and `npm run build` all clean.
+
+**Status:** `in-progress-with-owner` — self-verified, awaiting developer confirmation the hint reads clearly and the mentioned keys are the ones a fresh player would actually reach for. Branch: `agent/onboarding-hint-keybinds-248` (off `main`).
