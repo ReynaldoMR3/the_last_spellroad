@@ -147,6 +147,39 @@ const ATTACK_COOLDOWN_MS: Record<EnemyArchetype, number> = {
 const INITIAL_COOLDOWN_JITTER_FRACTION = 0.5;
 
 /**
+ * Issue #237 (replaces #208, closed) — developer decision 2026-08-13: a competitive playtester
+ * flagged the Debuffer's attack as "currently the most frustrating aspect of the game" -- an
+ * instant, non-dodgable, ranged debuff with zero wind-up, whose range rivals the player's own
+ * arc_lance. Fix is a visible tell before firing plus real projectile travel time, the same
+ * counterplay shape `RANGED_TRAVEL_MS` (`SpellroadScene.ts`) already gives the Ranged
+ * archetype -- explicitly NOT a change to range (`DEBUFFER_PREFERRED_RANGE`, untouched), the
+ * debuff's per-application magnitude, its stacking cap/floor, or its persistence through the
+ * enemy's own death (`DebuffSystem.clear()` still only runs at wave-start/player-death, never
+ * touched here).
+ *
+ * Consulted Pato's own templates before picking a number (owner's ask: check the wind-up
+ * timing against the debuff's current magnitude, not invent a new economy value):
+ * `hp-template.md`'s "Debuffer Magnitudes" fixes 12% speed-drain / 2.4 Mana-regen-drain per
+ * application, additive, hard-capped at 2 stacks (24% / 4.8 max), with **no decay until
+ * wave-clear or death** -- i.e. an undodged hit's cost compounds and never falls off mid-fight,
+ * which is exactly why making it reactively dodgeable (not smaller or slower to stack) is the
+ * right lever, matching the issue's explicit non-goal of softening the debuff once it lands.
+ *
+ * Chose 450ms for both the wind-up tell and the travel time -- deliberately not a new bespoke
+ * number, but the same 450ms reaction window `RANGED_TRAVEL_MS` already established and that a
+ * player has already learned to read for the Ranged archetype, so the whole game teaches one
+ * "450ms means dodge" rule instead of a second timing to relearn per archetype. The 900ms
+ * total (tell + travel) stays well inside `DEBUFFER_COOLDOWN_MS` (2500ms, untouched) and is
+ * reset at the moment the tell begins (see `update()` below), not when the projectile actually
+ * launches -- so the Debuffer's attack cadence is exactly unchanged from before this fix. A
+ * stationary or careless target still eventually eats the debuff at the same rate as before;
+ * this only opens a real dodge window for a player who reacts, it doesn't reduce uptime against
+ * one who doesn't.
+ */
+export const DEBUFFER_TELEGRAPH_MS = 450;
+export const DEBUFFER_TRAVEL_MS = 450;
+
+/**
  * Enemy-side HP. hp-template.md only fixes the player's pool and the per-hit damage the
  * player takes — it does not define a base enemy-HP number (Warden's own log flags this
  * exact gap). This is an engine-testing placeholder, not a shipped design number; flag to
@@ -173,7 +206,14 @@ let nextSeparationId = 1;
 export interface EnemyCallbacks {
   onMeleeHit?: () => void;
   onRangedFire?: (fromX: number, fromY: number, toX: number, toY: number) => void;
-  onDebuffPulse?: (variant: DebuffVariant) => void;
+  /** Issue #237 — fires once, the instant the wind-up tell begins (not when the debuff
+   * actually lands). The scene draws the visible tell at (x, y) for `DEBUFFER_TELEGRAPH_MS`. */
+  onDebuffTelegraphStart?: (x: number, y: number, variant: DebuffVariant) => void;
+  /** Issue #237 — fires once the telegraph completes and the projectile actually launches;
+   * from/to shape mirrors `onRangedFire` exactly. The debuff itself only lands after
+   * `DEBUFFER_TRAVEL_MS`, and only if the scene's live impact-zone recheck still passes --
+   * same dodge contract issue #47 already gave the Ranged archetype. */
+  onDebuffFire?: (fromX: number, fromY: number, toX: number, toY: number, variant: DebuffVariant) => void;
 }
 
 export class Enemy extends Phaser.Physics.Arcade.Sprite {
@@ -187,6 +227,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
    * `ARCHETYPE_DAMAGE` is a flat per-archetype constant read at hit time, not per-enemy state. */
   public readonly damageModifier: number;
   private attackCooldownMs = 0;
+  /** Issue #237 — non-null while the Debuffer's visible wind-up tell is counting down;
+   * `null` means no telegraph is in progress. Counting this down separately from
+   * `attackCooldownMs` (which is reset the moment the tell begins, not when it ends) is what
+   * lets the tell/travel window sit "inside" the existing cooldown instead of extending it. */
+  private debuffTelegraphMs: number | null = null;
   private readonly debuffVariant: DebuffVariant;
   /** backlog/issue #95 — which way this enemy is currently strafing while holding its
    * preferred range (ranged) or attack range (melee, issue #110); randomized per-enemy so
@@ -497,9 +542,26 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       if (this.archetype === "ranged") {
         this.attackCooldownMs = RANGED_COOLDOWN_MS;
         callbacks.onRangedFire?.(this.x, this.y, targetX, targetY);
-      } else {
+      } else if (this.debuffTelegraphMs === null) {
+        // Issue #237 — reset the cooldown here, the same instant the old code fired
+        // instantly, so the wind-up/travel added below sits inside the existing cadence
+        // rather than lengthening it (see this file's `DEBUFFER_TELEGRAPH_MS` comment).
         this.attackCooldownMs = DEBUFFER_COOLDOWN_MS;
-        callbacks.onDebuffPulse?.(this.debuffVariant);
+        this.debuffTelegraphMs = DEBUFFER_TELEGRAPH_MS;
+        callbacks.onDebuffTelegraphStart?.(this.x, this.y, this.debuffVariant);
+      }
+    }
+
+    // Issue #237 — counts down independently of `attackCooldownMs` (already reset above,
+    // the instant the tell began) so the wind-up always finishes and actually fires the
+    // projectile, even on a frame where the in-range check above no longer passes (e.g. the
+    // mage retreated out of band mid-tell) -- a started tell always resolves, matching how a
+    // real wind-up reads (the enemy already committed, it can't be aborted by moving away).
+    if (this.debuffTelegraphMs !== null) {
+      this.debuffTelegraphMs -= deltaMs;
+      if (this.debuffTelegraphMs <= 0) {
+        this.debuffTelegraphMs = null;
+        callbacks.onDebuffFire?.(this.x, this.y, targetX, targetY, this.debuffVariant);
       }
     }
   }
