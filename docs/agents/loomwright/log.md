@@ -2,6 +2,71 @@
 
 Append-only, dated, one entry per engine feature shipped and its playtest result.
 
+## 2026-08-14 (5) — Issue #249: Director trial intro banner requires explicit `[Y]` acknowledgment
+
+Developer decision (2026-08-14): the trial intro banner (`BOSS_BANNER_INTRO_TEXT`, shown via
+`showBossBanner` in `startWave`'s Phase 1 boss-wave branch) should follow the same
+explicit-acknowledgment pattern issue #183 already gave the outro/win banners
+(`requireConfirm: true`) rather than #112/#113's any-input-dismisses behavior — a player already
+moving/attacking/dodging when the trial starts could otherwise blow straight past the intro
+narration without ever reading it.
+
+**Call-site-only change, no new mechanism** (per the issue's own framing): the intro's
+`showBossBanner` call now passes `{ requireConfirm: true }`, exactly the pre-existing option
+#183 built and the outro/win banners already use — same `armBossBannerConfirmListener`/
+`hideBossBanner`/`bossBannerRequiresConfirm` plumbing, no new code path. Added a matching
+`BOSS_BANNER_INTRO_CONFIRM_HINT` constant ("\n\n[Y] Continue"), appended at the call site the
+same way `BOSS_BANNER_OUTRO_CONFIRM_HINT`/`WIN_BANNER_CONFIRM_HINT` already are — Loomwright
+doesn't edit Lorena's narration prose itself (`BOSS_BANNER_INTRO_TEXT`), only the UI-chrome hint
+concatenated onto it, same reasoning as the outro's own hint constant.
+
+**`onHidden` callback unchanged and reconfirmed still wired**: the intro's `showBossBanner` call
+still passes the same second-argument callback that fires the Phase 1 HP-won't-reset
+`flashMessage` — only the third-argument `options` changed. `showBossBanner`'s `requireConfirm`
+branch still calls `this.bossBannerOnHidden = onHidden` before either dismiss path (Y-press or
+non-confirm auto-hide), so this callback fires identically regardless of which dismiss path
+ends the display.
+
+**No change to enemy-freeze behavior**: `bossBannerActive` (which gates `updateEnemies`) is set
+the same way regardless of `requireConfirm` — only the *dismiss* path changed (any-input vs.
+explicit `[Y]`), not the freeze duration or mechanism.
+
+**Doc comments updated for accuracy, not just the code**: several nearby comments explicitly
+asserted "the intro banner keeps the any-input fast-dismiss behavior" (in `bossBannerActive`'s
+own field comment, `showBossBanner`'s `requireConfirm` JSDoc, the `pointerdown`/generic
+`keydown` handlers' comments, and the outro-banner call site's own comment) — all updated to
+reflect that the intro banner is now also a `requireConfirm` caller, so a future reader doesn't
+trust a now-false claim in an adjacent comment.
+
+**No change** to the outro (`BOSS_BANNER_OUTRO_TEXT`) or win (`WIN_BANNER_TEXT`) banner call
+sites — both already passed `requireConfirm: true` before this issue and are untouched here.
+
+**Self-verify:** `docker-compose run --rm game npm run typecheck`, `npm test` (337/337), and
+`npm run build` all clean.
+
+**Live sandboxed-pane smoke check** (frame-pump technique, `docs/eng-skills/sandboxed-playtest-frame-pump.md`),
+via `?debugLevel=5` straight into the trial's Phase 1: confirmed live that the intro banner
+renders with the new `[Y] Continue` hint, and that it does **not** dismiss on a mouse click, a
+hotbar digit-key press, or an arrow-key press — screenshots taken before and after that input
+show the identical banner still up, which is the actual behavior this issue asked for. Disclosing
+honestly what this session's live check did *not* cleanly reproduce: driving the actual `[Y]`
+dismiss itself through this sandbox's manual frame-pump (real DOM keydown events with a faked
+`keyCode`, and direct `keyboard.emit('keydown-Y', ...)` calls both against the scene's real input
+plugin) didn't land cleanly — likely an artifact of manually stepping Phaser's loop with
+synthetic timestamps interacting oddly with the banner's own fade-in tween gating
+`armBossBannerConfirmListener`, not evidence of a code defect (the listener-arming/dismiss code
+itself is unchanged, shared logic already exercised by the outro/win banners' own `requireConfirm`
+call sites, and the intro's own tween/listener wiring is identical). All temporary scaffolding
+(`main.ts`'s `disableVisibilityChange`/`__game` hook, a temporary `.claude/launch.json` port
+override) was reverted before finishing — confirmed via `git diff --stat` showing only
+`SpellroadScene.ts` changed.
+
+**Status:** `in-progress-with-owner` — self-verified (typecheck/test/build) plus a partial live
+confirmation (banner shows the hint, doesn't dismiss on incidental input); the actual `[Y]`
+keypress dismissing the intro and the Phase 1 flash message firing afterward still needs the
+developer's own playtest session (a real keyboard) to close out, per this agent's standing
+success criterion — same distinction as every other entry in this log between self-verify and
+the human playtest gate.
 ## 2026-08-14 — Issue #247: remove the Side-Pocket Lore marker's on-screen hint text (#239 follow-up)
 
 Developer playtest feedback: #239's proximity hint ("A faint rune glints underfoot. Clear the
