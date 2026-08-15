@@ -18,7 +18,6 @@
  */
 
 import type { WaveDefinition } from "../data/types";
-import type { WavePhase } from "./waveSession";
 import { SIDE_POCKET_ENCOUNTERS, type SidePocketEncounter } from "../data/sidePocketEncounters";
 
 export interface SidePocketOfferDecision {
@@ -85,36 +84,4 @@ export function resolveSidePocketExplore(
     rewardHexcoin: encounter.rewardHexcoin,
     updatedLoreFlags: [...loreFlags, encounter.loreFlag]
   };
-}
-
-/**
- * Issue #239 (replaces #210, closed) — playtesters found the reactive rune marker itself
- * ("the circle on the ground") confusing: it pulses on proximity from the very first wave of
- * its level, but the Explore/Continue prompt (`startSidePocketChoice`, above) doesn't actually
- * appear until that level's *final* wave clears — so a player who walks up to it mid-level and
- * presses E gets no response at all, with nothing on screen explaining why. Developer decision
- * (2026-08-13): add a short on-screen text hint on proximity that states the interaction in
- * plain terms, instead of leaving the marker's visual to be inferred. Deliberately narrow: this
- * governs only whether/what that hint reads — it never touches `evaluateSidePocketOffer`'s own
- * gate (still only the final wave of a level) or `resolveSidePocketExplore`'s reward/flag logic
- * (both already validated in #218), matching the ticket's explicit scope note.
- */
-export const SIDE_POCKET_HINT_TEXT =
-  "A faint rune glints underfoot. Clear the road ahead, then press [E] to explore.";
-
-/**
- * The hint only makes sense while: the mage is actually in proximity (`inRange`), the marker's
- * lore hasn't already been revealed (an undiscovered-only affordance — a `discovered` marker
- * already shows its lore permanently via `startSidePocketChoice`'s own prompt, so a duplicate
- * "press E" hint over it would be redundant/stale), and no other keyboard-choice prompt is
- * currently occupying the screen (`phase !== "running"` means a boss phase-break or this same
- * encounter's own Explore/Continue prompt is already up — layering this hint on top of either
- * would visually collide with a prompt that's already telling the player what to do).
- */
-export function shouldShowSidePocketHint(
-  inRange: boolean,
-  discovered: boolean,
-  phase: WavePhase
-): boolean {
-  return inRange && !discovered && phase === "running";
 }

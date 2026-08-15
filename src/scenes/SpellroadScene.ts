@@ -22,12 +22,7 @@ import { selectDefaultLoadout } from "../systems/defaultLoadout";
 import { selectAutoAimTarget } from "../systems/autoAim";
 import { isStillInRangedImpactZone } from "../systems/rangedImpact";
 import { WaveSession, canResolveEncounterChoice, canResolvePhaseChoice, shouldAutoAdvance } from "../systems/waveSession";
-import {
-  evaluateSidePocketOffer,
-  resolveSidePocketExplore,
-  shouldShowSidePocketHint,
-  SIDE_POCKET_HINT_TEXT
-} from "../systems/sidePocketEncounter";
+import { evaluateSidePocketOffer, resolveSidePocketExplore } from "../systems/sidePocketEncounter";
 import { SIDE_POCKET_ENCOUNTERS, type SidePocketEncounter } from "../data/sidePocketEncounters";
 import { allRemainingAreYieldingDebuffers } from "../systems/lastEnemyStanding";
 import { hasRecentPointerActivity } from "../systems/pointerActivity";
@@ -572,13 +567,6 @@ export class SpellroadScene extends Phaser.Scene {
    * `this.add.circle` primitive the marker itself already uses — no new art asset dependency,
    * matching the ticket's "restrained... where existing approved assets suffice" bound. */
   private sidePocketDressing = new Map<number, Phaser.GameObjects.Arc[]>();
-  /** Issue #239 — a short, always-created-but-hidden HUD hint (same lifecycle pattern as
-   * `onboardingHintText`: created once in `createHud`, `setVisible` toggled every frame from
-   * `updateSidePocketMarkers`, never destroyed/recreated) so playtesters stop mistaking the
-   * reactive rune for the unrelated auto-aim highlight ring. Fixed screen position rather than
-   * following the marker: the four markers sit at different lane heights (`sidePocketEncounters.ts`),
-   * and a fixed top-of-lane anchor reads consistently regardless of which one is nearby. */
-  private sidePocketHintText?: Phaser.GameObjects.Text;
   /** backlog 0.2 — highest wave `level` number reached so far; `startWave` only calls
    * `hexcoin.markLevelStart()` the first time a level number is crossed, never on a
    * same-level death-retry, so a death can't be used to re-bank an already-recorded floor. */
@@ -1149,11 +1137,6 @@ export class SpellroadScene extends Phaser.Scene {
       return;
     }
     const currentLevel = this.waves[this.waveIndex]?.level;
-    // Issue #239 — recomputed fresh every frame below for whichever encounter matches
-    // `currentLevel` (there's only ever one visible marker at a time); defaults to hidden so a
-    // level with no catalog entry (Level 5) or a mid-transition frame never leaves a stale hint
-    // on screen.
-    let showHint = false;
     for (const [level, marker] of this.sidePocketMarkers) {
       const dressing = this.sidePocketDressing.get(level) ?? [];
       if (level !== currentLevel) {
@@ -1190,9 +1173,7 @@ export class SpellroadScene extends Phaser.Scene {
       // story 5's "atmospheric, not distracting" requirement. Dim and static otherwise.
       const pulse = inRange ? 0.75 + 0.25 * Math.sin(this.time.now / 150) : 0.6;
       marker.setFillStyle(encounter.presentation.runeColor, pulse);
-      showHint = shouldShowSidePocketHint(inRange, discovered, this.session.phase);
     }
-    this.sidePocketHintText?.setVisible(showHint);
   }
 
   private createMage(): void {
@@ -1389,24 +1370,6 @@ export class SpellroadScene extends Phaser.Scene {
     // handlers) or this fallback timer, never as a side effect of a hotbar press.
     this.onboardingHintActive = true;
     this.time.delayedCall(ONBOARDING_HINT_FALLBACK_MS, () => this.dismissOnboardingHint());
-
-    // Issue #239 — proximity hint for the Side-Pocket Lore Encounter's reactive marker.
-    // Positioned directly below `onboardingHintText`'s row (rather than the same row) so the
-    // rare case both are visible at once (an unusually fast player reaching a marker before the
-    // 9s onboarding fallback fires) stacks instead of overlapping. Created hidden; only
-    // `updateSidePocketMarkers` toggles visibility, every frame, off the pure
-    // `shouldShowSidePocketHint` gate.
-    this.sidePocketHintText = this.add.text(CANVAS_WIDTH / 2, ROAD_TOP + 76, SIDE_POCKET_HINT_TEXT, {
-      color: "#dff2ff",
-      fontFamily: "monospace",
-      fontSize: "14px",
-      align: "center",
-      backgroundColor: "#1c1330",
-      padding: { x: 14, y: 10 }
-    });
-    this.sidePocketHintText.setOrigin(0.5, 0);
-    this.sidePocketHintText.setDepth(UI_DEPTH);
-    this.sidePocketHintText.setVisible(false);
 
     // backlog 4.10 / issue #96 — the Invigilator intro/outro banner. Centered, wider than the
     // onboarding hint (word-wrapped, since the authored narration runs several sentences), and
