@@ -1165,7 +1165,39 @@ Did not additionally verify wrap-around at the hotbar's ends or scroll-up (backw
 
 **Status: still `in-progress-with-owner`**, not upgraded to `shipped-and-validated` — this narrows the risk (the wiring genuinely fires in a real Phaser input pipeline, not just in isolated unit tests) but is not the "real developer session, an actually-focused visible tab" gate this agent's own success criterion requires, per the same distinction every entry above draws.
 
-## 2026-08-14 (2) — Issue #237: Tarrywright (Debuffer) attack gets a wind-up tell + projectile travel time
+## 2026-08-14 (2) — Issue #234: secondary off-number-row hotbar bindings (Q/R/F/Shift/Ctrl/Space)
+
+Replaces #199 (closed, full triage/decision history there). Developer decision (2026-08-13):
+bind Q/R/F/Shift/Ctrl/Space to hotbar slots 1-6, added alongside the existing 1-6 number row
+(not a replacement), so a player can arm a spell without leaving WASD. Corrected during
+2026-08-14 re-triage before this ticket was dispatched: the original scheme used `E` for slot
+1, but `E` is already the Side-Pocket Lore Encounter's `keydown-E` Explore binding
+(`startSidePocketChoice`) — `Q` is used for slot 1 instead, confirmed by grepping `src/` for
+any existing use of `Q`/`R`/`F`/`SHIFT`/`CTRL`/`SPACE` before adding them (none found).
+
+**Change, scoped to `createInput`/the hotbar-key wiring only** (per the ticket's own
+instruction to stay minimal given #239/#233/#236 concurrently touching the same file in
+sibling worktrees): added `HOTBAR_SECONDARY_KEYS = ["Q", "R", "F", "SHIFT", "CTRL", "SPACE"]`
+alongside the existing `HOTBAR_KEYS` constant, and a parallel `hotbarSecondaryKeys` array
+(kept separate from `hotbarKeys` rather than merged, so each key's listener stays traceable to
+one physical key). Both arrays' `"down"` listeners call the identical
+`key.on("down", () => this.handleHotbarPress(index))` — the same call the number row already
+used and #198's click-to-arm/wheel-cycle already funnel into — so every input path (1-6,
+Q/R/F/Shift/Ctrl/Space, click, wheel) converges on one arm-spell call with no divergent
+behavior, satisfying the ticket's explicit requirement. The existing 1-6 wiring is untouched.
+
+**Self-verify:** `docker-compose run --rm game npm run typecheck`, `npm test` (332/332,
+including all pre-existing hotbar/wheel/click tests), and `npm run build` all clean.
+
+**Not yet developer-confirmed:** whether Q/R/F/Shift/Ctrl/Space actually feel reachable and
+don't fight the browser's own key-repeat/modifier handling (Shift/Ctrl in particular can behave
+differently across browsers when held) in live play — same distinction as every other engine
+entry in this log between self-verify and the human playtest gate.
+
+**Status:** `in-progress-with-owner` — self-verified, awaiting developer playtest. Branch:
+`loomwright/234-secondary-keybinds`.
+
+## 2026-08-14 (3) — Issue #237: Tarrywright (Debuffer) attack gets a wind-up tell + projectile travel time
 
 Replaces #208 (closed, full triage history there). Developer decision 2026-08-13: a competitive playtester called the Debuffer's attack "currently the most frustrating aspect of the game" — instant, non-dodgable, ranged, with a range rivaling the player's own `arc_lance` and no wind-up at all. Fix scoped to counterplay shape only: give it the same telegraph + travel-time pattern the Ranged archetype already has (issue #164/#47's `RANGED_TRAVEL_MS`), leaving range, magnitude, duration, and persistence-through-death untouched.
 
