@@ -1165,7 +1165,55 @@ Did not additionally verify wrap-around at the hotbar's ends or scroll-up (backw
 
 **Status: still `in-progress-with-owner`**, not upgraded to `shipped-and-validated` — this narrows the risk (the wiring genuinely fires in a real Phaser input pipeline, not just in isolated unit tests) but is not the "real developer session, an actually-focused visible tab" gate this agent's own success criterion requires, per the same distinction every entry above draws.
 
-## 2026-08-14 (2) — Fix #233 (replaces #197): onboarding hint no longer dismisses on a hotbar press
+## 2026-08-14 — Issue #234: secondary off-number-row hotbar bindings (Q/R/F/Shift/Ctrl/Space)
+
+Replaces #199 (closed, full triage/decision history there). Developer decision (2026-08-13):
+bind Q/R/F/Shift/Ctrl/Space to hotbar slots 1-6, added alongside the existing 1-6 number row
+(not a replacement), so a player can arm a spell without leaving WASD. Corrected during
+2026-08-14 re-triage before this ticket was dispatched: the original scheme used `E` for slot
+1, but `E` is already the Side-Pocket Lore Encounter's `keydown-E` Explore binding
+(`startSidePocketChoice`) — `Q` is used for slot 1 instead, confirmed by grepping `src/` for
+any existing use of `Q`/`R`/`F`/`SHIFT`/`CTRL`/`SPACE` before adding them (none found).
+
+**Change, scoped to `createInput`/the hotbar-key wiring only** (per the ticket's own
+instruction to stay minimal given #239/#233/#236 concurrently touching the same file in
+sibling worktrees): added `HOTBAR_SECONDARY_KEYS = ["Q", "R", "F", "SHIFT", "CTRL", "SPACE"]`
+alongside the existing `HOTBAR_KEYS` constant, and a parallel `hotbarSecondaryKeys` array
+(kept separate from `hotbarKeys` rather than merged, so each key's listener stays traceable to
+one physical key). Both arrays' `"down"` listeners call the identical
+`key.on("down", () => this.handleHotbarPress(index))` — the same call the number row already
+used and #198's click-to-arm/wheel-cycle already funnel into — so every input path (1-6,
+Q/R/F/Shift/Ctrl/Space, click, wheel) converges on one arm-spell call with no divergent
+behavior, satisfying the ticket's explicit requirement. The existing 1-6 wiring is untouched.
+
+**Self-verify:** `docker-compose run --rm game npm run typecheck`, `npm test` (332/332,
+including all pre-existing hotbar/wheel/click tests), and `npm run build` all clean.
+
+**Not yet developer-confirmed:** whether Q/R/F/Shift/Ctrl/Space actually feel reachable and
+don't fight the browser's own key-repeat/modifier handling (Shift/Ctrl in particular can behave
+differently across browsers when held) in live play — same distinction as every other engine
+entry in this log between self-verify and the human playtest gate.
+
+**Status:** `in-progress-with-owner` — self-verified, awaiting developer playtest. Branch:
+`loomwright/234-secondary-keybinds`.
+
+## 2026-08-14 (2) — Distinct, dismissible win banner on vertical slice completion (issue #236, replaces #206)
+
+Developer decision (2026-08-13, recorded in #236): the flat `flashMessage("Vertical slice complete!", 3000)` `startWave` fired when `this.waves[index]` runs out read identically whether a player cleared everything or was simply stuck with nothing left to fight — same transient flash channel, same 3-second timer, no visual distinction from any other status readout.
+
+**Fix reuses the existing boss intro/outro narration banner mechanism (`showBossBanner`, issue #96/#183) rather than inventing a new UI element** — exactly what the issue asked for ("same visual language... framed as victory"): a new `WIN_BANNER_TEXT` constant (a placeholder victory line — "Victory / You survived the Spellroad..." — drafted directly per the issue's own note that Lorena's voice isn't required here, since Loomwright owns the scene's win/completion flow) plus a `WIN_BANNER_CONFIRM_HINT` (`"\n\n[Y] Continue"`, kept as its own constant rather than reusing `BOSS_BANNER_OUTRO_CONFIRM_HINT` since the two banners' acceptance criteria differ on what dismissing them does). A new `showWinBanner()` private method calls `showBossBanner(WIN_BANNER_TEXT + WIN_BANNER_CONFIRM_HINT, undefined, { requireConfirm: true })` — `requireConfirm: true` is the exact "persists until an explicit `[Y]` dismiss, not a timed flash" mechanism #183 already built for the outro banner, so this criterion falls out of existing code rather than a new one. No `onHidden` follow-up is passed: another acceptance criterion is no forced post-win flow (no auto-return to Title, no replay prompt), so dismissing this banner does nothing beyond closing it.
+
+**Sequencing against the existing outro narration (the actual tricky part of this ticket):** the boss-victory branch in `updateEnemies` already calls `showBossBanner(BOSS_BANNER_OUTRO_TEXT + BOSS_BANNER_OUTRO_CONFIRM_HINT, undefined, { requireConfirm: true })` when the Invigilator's last phase clears, then unconditionally schedules the shared 1200ms `delayedCall(() => this.startWave(nextIndex))` that would normally advance to the next wave. Since this vertical slice's boss fight is the last content, `nextIndex` is out of range 1200ms later — landing in `startWave`'s `!wave` branch at the exact moment the outro banner is still up, awaiting its own `[Y] Continue`. Calling `showWinBanner()` directly there would have stomped the still-showing outro (both banners share the one `bossBannerText` element and its single `bossBannerConfirmListener`/`bossBannerHideTimer`), directly breaking the acceptance criterion that the outro plays first, unchanged. Fixed by checking `this.bossBannerActive`: if the outro is still active, the win banner is deferred through `bossBannerOnHidden` (the same "run once the current banner has fully hidden" hook issue #134 already established for sequencing a follow-up message after a banner) — chained through any existing callback rather than overwriting it, though nothing else uses this particular call site's slot today. If `bossBannerActive` is false (not reachable in this slice today, since the only ending path is the boss fight, but true for any future non-boss ending), `showWinBanner()` fires immediately instead of waiting on a banner that was never shown.
+
+**`session.markComplete()` (issue #48's existing park-the-session call) is unchanged** and confirmed (by reading `waveSession.ts`) to only park wave-advance state — no scene transition, no Title return, nothing that could constitute a forced post-win flow on its own.
+
+**Self-verify:** `docker-compose run --rm game npm run typecheck`, `npm test` (332/332, no new tests — this is Phaser-coupled scene wiring reusing an already-tested mechanism, `showBossBanner`/`bossBannerActive`/`bossBannerOnHidden` have no dedicated Vitest seam today, same as every other `SpellroadScene.ts`-only change in this log; typecheck/build cover this change's actual compile/wiring risk), and `npm run build` all clean.
+
+**Not yet developer-confirmed:** whether the win banner actually reads as distinct/clearly-a-win in play, whether the deferred-behind-the-outro sequencing feels right rather than like an odd extra pause, and whether the placeholder victory line is good enough prose to ship or wants a pass from Lorena later — same distinction as every other entry in this log between self-verify (compile/build/test correctness) and the human playtest gate this agent's own success criterion requires.
+
+**Status:** `in-progress-with-owner` — self-verified, awaiting developer playtest. Branch: `loomwright/236-win-banner` (off `main`).
+
+## 2026-08-14 (3) — Fix #233 (replaces #197): onboarding hint no longer dismisses on a hotbar press
 
 Root cause, confirmed by reading the code exactly as #233 named it: `handleHotbarPress` called `this.dismissOnboardingHint()` unconditionally on its very first line, before even checking whether the pressed slot held a spell — so a first-time player's first hotbar press both armed a spell *and* dismissed the hint that was trying to explain the two-press aim/confirm flow, in the same action. They never got past the hint's first line ("Press 1-6 to aim a spell") before it vanished, let alone the second line covering the double-tap-to-fire step the hint already states correctly (per the 2026-08-13 developer decision, no copy change needed).
 

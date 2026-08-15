@@ -147,6 +147,14 @@ const RANGED_TRAVEL_MS = 450;
  * explicitly future work per the GDD ("full hotkey customization can be a later feature");
  * this fix widens the pipe and defaults it to the first 6 shipped spells, nothing more. */
 const HOTBAR_KEYS = ["ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX"] as const;
+/** Issue #234 — an off-number-row alternate binding for arming hotbar slots 1-6, added
+ * alongside (not replacing) `HOTBAR_KEYS` above, so a player can arm a spell without taking
+ * a hand off WASD to reach the number row. Developer decision (2026-08-13), corrected during
+ * 2026-08-14 re-triage: the original scheme's slot-1 key (`E`) collided with the Side-Pocket
+ * Lore Encounter's `keydown-E` Explore prompt (see `startSidePocketChoice` below) — `Q` is
+ * used for slot 1 instead. Same index-order convention as `HOTBAR_KEYS`: position N binds
+ * hotbar slot N. */
+const HOTBAR_SECONDARY_KEYS = ["Q", "R", "F", "SHIFT", "CTRL", "SPACE"] as const;
 /** backlog 2.29 / issue #55 — the hotbar used to be a "Hotbar:" header plus one 14px text
  * line per equipped spell (7 lines total) starting at `ROAD_TOP + ROAD_HEIGHT + 14` = 424 with
  * the road at its current 130/280 — 7 lines at ~18px each run to ~550px, past the 540px-tall
@@ -387,6 +395,23 @@ const BOSS_BANNER_OUTRO_TEXT =
  * (see that constant's own comment), and this line is pure interface chrome (the same shape as
  * `startPhaseBreak`'s "[Y] Pay ... / [N] Refuse" suffix), not narration. */
 const BOSS_BANNER_OUTRO_CONFIRM_HINT = "\n\n[Y] Continue";
+/** Issue #236 (replaces #206, closed — full triage/decision history there) — the vertical
+ * slice's actual win acknowledgment. Developer decision (2026-08-13): replace the flat
+ * `flashMessage("Vertical slice complete!", 3000)` (identical to any other transient status
+ * flash, so a full clear read the same as being stuck with nothing left to fight) with a
+ * distinct, clearly-a-win banner — same visual language as the existing boss intro/outro
+ * narration (`showBossBanner`), framed as victory rather than a status readout. Placeholder
+ * victory line: Loomwright owns the scene's win/completion flow per the issue, and drafting a
+ * placeholder here doesn't require Lorena's voice (her outro narration, `BOSS_BANNER_OUTRO_TEXT`,
+ * already plays first and is untouched by this addition — see `showWinBanner`'s own comment). */
+const WIN_BANNER_TEXT =
+  "Victory\n\nYou survived the Spellroad — every trial cleared, every foe that stood in your " +
+  "way, gone. The road ahead is yours to keep walking, whenever you're ready.";
+/** Same confirm-hint shape as `BOSS_BANNER_OUTRO_CONFIRM_HINT`, kept as its own constant
+ * rather than reused: that one is scoped to the outro banner specifically by name/comment, and
+ * this one has its own acceptance criteria (no forced post-win flow) governing what dismissing
+ * it does — currently nothing beyond closing the banner. */
+const WIN_BANNER_CONFIRM_HINT = "\n\n[Y] Continue";
 /** Issue #113 — developer playtest found the outro banner (110 words) vanished on the same
  * flat timer as the intro (85 words), regardless of reading speed. Auto-hide is a fallback for
  * a player who never clicks/presses a key to dismiss (see `showBossBanner`'s own comment for
@@ -485,6 +510,11 @@ export class SpellroadScene extends Phaser.Scene {
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private keys?: Record<"W" | "A" | "S" | "D", Phaser.Input.Keyboard.Key>;
   private hotbarKeys: Phaser.Input.Keyboard.Key[] = [];
+  /** Issue #234 — the Q/R/F/Shift/Ctrl/Space secondary hotbar bindings, kept in their own
+   * array (rather than merged into `hotbarKeys`) so each key's `"down"` listener can still be
+   * traced back to exactly one physical key during debugging. Both arrays drive the identical
+   * `handleHotbarPress(index)` call — see `createInput`. */
+  private hotbarSecondaryKeys: Phaser.Input.Keyboard.Key[] = [];
 
   private spells: SpellDefinition[] = [];
   private equippedSpells: SpellDefinition[] = [];
@@ -1378,6 +1408,17 @@ export class SpellroadScene extends Phaser.Scene {
       key.on("down", () => this.handleHotbarPress(index));
     });
 
+    // Issue #234 — secondary off-number-row bindings (Q/R/F/Shift/Ctrl/Space -> slots 1-6),
+    // added alongside the number-row keys above, not replacing them. Both call the exact same
+    // `handleHotbarPress(index)` the number row and #198's click-to-arm/wheel-cycle already
+    // use, so every input path converges on one arm-spell call with no divergent behavior.
+    this.hotbarSecondaryKeys = HOTBAR_SECONDARY_KEYS.map((key) =>
+      this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes[key])
+    );
+    this.hotbarSecondaryKeys.forEach((key, index) => {
+      key.on("down", () => this.handleHotbarPress(index));
+    });
+
     // backlog 2.10 / issue #49 — non-mouse aiming fallback tracks whether the pointer has
     // moved recently (past the jitter threshold, within `POINTER_ACTIVE_WINDOW_MS`); until
     // it has, or once that recency window lapses again, aiming defaults to last-move-
@@ -1771,7 +1812,28 @@ export class SpellroadScene extends Phaser.Scene {
       // `enemiesRemainingToSpawn = -1` sentinel still happening to be in place: nothing to
       // advance to, so the auto-advance gate must stay shut for good.
       this.session.markComplete();
-      this.flashMessage("Vertical slice complete!", 3000);
+      // Issue #236 — replaces the old flat `flashMessage("Vertical slice complete!", 3000)`.
+      // The ordinary path into this branch is 1200ms after the boss's last phase clears (the
+      // shared advance-delay `delayedCall` in `updateEnemies` calls `startWave(nextIndex)`
+      // unconditionally; `nextIndex` is out of range exactly when the boss fight just ended
+      // the vertical slice), which is the same tick the outro banner
+      // (`BOSS_BANNER_OUTRO_TEXT`, `requireConfirm: true`) is still up awaiting its own
+      // `[Y] Continue` — that narration must play first, unchanged, per this issue's
+      // acceptance criteria. Deferring via `bossBannerOnHidden` (the same "run once the
+      // current banner has fully hidden" hook issue #134 already established) means the win
+      // banner only actually appears once the player has dismissed the outro, never
+      // interrupting or racing it. If there's no boss banner in the way (`bossBannerActive`
+      // false — not reachable in this vertical slice today, but true for any future
+      // non-boss ending), it shows immediately instead of waiting on nothing.
+      if (this.bossBannerActive) {
+        const previousOnHidden = this.bossBannerOnHidden;
+        this.bossBannerOnHidden = () => {
+          previousOnHidden?.();
+          this.showWinBanner();
+        };
+      } else {
+        this.showWinBanner();
+      }
       return;
     }
     // Issue #48 — a new wave makes every callback the previous wave/life scheduled stale.
@@ -3064,6 +3126,19 @@ export class SpellroadScene extends Phaser.Scene {
         onHidden?.();
       }
     });
+  }
+
+  /** Issue #236 — the vertical slice's win acknowledgment, shown once `startWave` finds no
+   * more waves (see that call site's own comment for why it's deferred behind the Invigilator
+   * outro banner rather than called directly from there). Reuses `showBossBanner` with
+   * `requireConfirm: true` rather than a new UI element or timed flash — exactly "persists
+   * until dismissed" and "same visual language as the boss intro/outro banners," both
+   * explicit acceptance criteria, for free from the mechanism issue #183 already built.
+   * Deliberately no `onHidden` follow-up: another acceptance criterion is no forced post-win
+   * flow (no auto-return to Title, no replay prompt), so dismissing this banner does nothing
+   * beyond closing it — the player simply stays on the field, free to keep playing. */
+  private showWinBanner(): void {
+    this.showBossBanner(WIN_BANNER_TEXT + WIN_BANNER_CONFIRM_HINT, undefined, { requireConfirm: true });
   }
 
   /** @param emphasis "warning" gives the banner a distinct color + opaque background panel
