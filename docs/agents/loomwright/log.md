@@ -1165,6 +1165,38 @@ Did not additionally verify wrap-around at the hotbar's ends or scroll-up (backw
 
 **Status: still `in-progress-with-owner`**, not upgraded to `shipped-and-validated` — this narrows the risk (the wiring genuinely fires in a real Phaser input pipeline, not just in isolated unit tests) but is not the "real developer session, an actually-focused visible tab" gate this agent's own success criterion requires, per the same distinction every entry above draws.
 
+## 2026-08-14 — Issue #234: secondary off-number-row hotbar bindings (Q/R/F/Shift/Ctrl/Space)
+
+Replaces #199 (closed, full triage/decision history there). Developer decision (2026-08-13):
+bind Q/R/F/Shift/Ctrl/Space to hotbar slots 1-6, added alongside the existing 1-6 number row
+(not a replacement), so a player can arm a spell without leaving WASD. Corrected during
+2026-08-14 re-triage before this ticket was dispatched: the original scheme used `E` for slot
+1, but `E` is already the Side-Pocket Lore Encounter's `keydown-E` Explore binding
+(`startSidePocketChoice`) — `Q` is used for slot 1 instead, confirmed by grepping `src/` for
+any existing use of `Q`/`R`/`F`/`SHIFT`/`CTRL`/`SPACE` before adding them (none found).
+
+**Change, scoped to `createInput`/the hotbar-key wiring only** (per the ticket's own
+instruction to stay minimal given #239/#233/#236 concurrently touching the same file in
+sibling worktrees): added `HOTBAR_SECONDARY_KEYS = ["Q", "R", "F", "SHIFT", "CTRL", "SPACE"]`
+alongside the existing `HOTBAR_KEYS` constant, and a parallel `hotbarSecondaryKeys` array
+(kept separate from `hotbarKeys` rather than merged, so each key's listener stays traceable to
+one physical key). Both arrays' `"down"` listeners call the identical
+`key.on("down", () => this.handleHotbarPress(index))` — the same call the number row already
+used and #198's click-to-arm/wheel-cycle already funnel into — so every input path (1-6,
+Q/R/F/Shift/Ctrl/Space, click, wheel) converges on one arm-spell call with no divergent
+behavior, satisfying the ticket's explicit requirement. The existing 1-6 wiring is untouched.
+
+**Self-verify:** `docker-compose run --rm game npm run typecheck`, `npm test` (332/332,
+including all pre-existing hotbar/wheel/click tests), and `npm run build` all clean.
+
+**Not yet developer-confirmed:** whether Q/R/F/Shift/Ctrl/Space actually feel reachable and
+don't fight the browser's own key-repeat/modifier handling (Shift/Ctrl in particular can behave
+differently across browsers when held) in live play — same distinction as every other engine
+entry in this log between self-verify and the human playtest gate.
+
+**Status:** `in-progress-with-owner` — self-verified, awaiting developer playtest. Branch:
+`loomwright/234-secondary-keybinds`.
+
 ## 2026-08-14 (2) — Issue #239: on-screen prompt for the confusing Side-Pocket marker (replaces #210)
 
 Playtesters flagged "the circle on the ground" as confusing. Developer triage (in #239, replacing the closed #210) confirmed it's the Side-Pocket Lore Encounter marker (#157/#68/#70/#160) — not the auto-aim highlight ring, ruled out — and that the feature stays; only its in-the-moment legibility needed fixing. Root cause, confirmed by reading the code rather than guessed: the reactive rune (`createSidePocketMarkers`/`updateSidePocketMarkers`) pulses on proximity from the very first wave of its level, but `startSidePocketChoice`'s actual Explore ([E]) / Continue ([C]) prompt only appears once `evaluateSidePocketOffer` fires on that level's *final* wave-clear — so a player who reaches the pulsing marker mid-level and presses E gets no response at all, with nothing on screen explaining why. Scope note honored: this ticket is the marker-clarity fix only, not the separate Mastery/relic/Hexcoin-purpose complaint (#216).
