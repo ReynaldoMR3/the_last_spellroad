@@ -67,6 +67,39 @@ keypress dismissing the intro and the Phase 1 flash message firing afterward sti
 developer's own playtest session (a real keyboard) to close out, per this agent's standing
 success criterion — same distinction as every other entry in this log between self-verify and
 the human playtest gate.
+## 2026-08-14 — Issue #247: remove the Side-Pocket Lore marker's on-screen hint text (#239 follow-up)
+
+Developer playtest feedback: #239's proximity hint ("A faint rune glints underfoot. Clear the
+road ahead, then press [E] to explore.") is misleading/unhelpful in practice — there's no real
+time to read it mid-combat while attacking and dodging. Scoped revert of #239's added text prompt
+only, per the issue's explicit decision; the marker's own pulsing-circle visual and the
+`evaluateSidePocketOffer`/`resolveSidePocketExplore` reward/flag/economy logic (#218) are
+untouched.
+
+**Removed:**
+- `src/systems/sidePocketEncounter.ts`: `SIDE_POCKET_HINT_TEXT` constant and the
+  `shouldShowSidePocketHint(inRange, discovered, phase)` function, plus the now-unused
+  `WavePhase` import.
+- `src/systems/sidePocketEncounter.test.ts`: the `shouldShowSidePocketHint` describe block (5
+  tests) and its import.
+- `src/scenes/SpellroadScene.ts`: the `sidePocketHintText` HUD field, its creation in
+  `createHud` (the `this.add.text(...)` block plus origin/depth/visibility setup), and its
+  per-frame update wiring in `updateSidePocketMarkers` (the `showHint` local and the
+  `shouldShowSidePocketHint` call that fed it).
+
+**Untouched, confirmed by diff review:** `updateSidePocketMarkers`'s pulse/fill-style logic
+(`marker.setFillStyle(encounter.presentation.runeColor, pulse)`, the `inRange`/`discovered`
+proximity and quiet-state branches) and both `evaluateSidePocketOffer`/`resolveSidePocketExplore`
+in the same file — `git diff --stat` shows only deletions across the three touched files, no
+line inside those functions changed.
+
+**Self-verify:** `docker-compose run --rm game npm run typecheck`, `npm test` (332/332, all 30
+suites including `sidePocketEncounter.test.ts`'s remaining 21 tests), and `npm run build` all
+clean.
+
+**Status:** `shipped-and-validated` — pure removal of a text prompt with no new runtime-input
+behavior to gate on a developer playtest; the developer's own playtest feedback is what
+requested this change in the first place.
 
 ## 2026-08-07 (4) — Issue #127: clean resolved `roadfeel` prototype, codify Active Prototype freshness
 
@@ -1330,3 +1363,43 @@ Root cause, confirmed by reading the code exactly as #233 named it: `handleHotba
 **Not yet developer-confirmed:** whether the hint is now actually readable end-to-end in real play (both lines, at a comfortable pace) before a click or `SPACE` press ends it, and whether pausing enemies for the hint's duration feels right rather than dead air — same distinction as every other entry in this log between self-verify (compile/build/test correctness) and the human playtest gate this agent's own success criterion requires. Related #202 (wave-1-too-fast) remains explicitly out of scope, per the ticket.
 
 **Status:** `in-progress-with-owner` — self-verified, awaiting developer playtest. Branch: `loomwright/233-onboarding-hint-fix` (off `main`).
+
+## 2026-08-14 — Issue #248: onboarding hint updated for #234's secondary keybindings
+
+Developer playtest feedback (2026-08-14): the onboarding hint (#233/#197, this same file's own text) still only said "Press 1-6 to aim a spell" — stale relative to #234's already-shipped Q/R/F/Shift/Ctrl/Space alternate bindings, so a first-time player never learned those keys existed. Copy-only fix, no dismiss/pause behavior touched.
+
+**Checked the actual mapping before writing any copy** (per the ticket's own instruction not to guess): `HOTBAR_SECONDARY_KEYS = ["Q", "R", "F", "SHIFT", "CTRL", "SPACE"]` (`SpellroadScene.ts`), same index-order convention as `HOTBAR_KEYS` — position N binds hotbar slot N, confirmed by both the array's own comment and `createInput`'s `this.hotbarSecondaryKeys.forEach((key, index) => this.handleHotbarPress(index))` wiring. So Q/R/F/Shift/Ctrl/Space really do map 1:1 onto slots 1-6 in that literal order, matching what the new copy says.
+
+**Before:**
+> Press 1-6 to aim a spell.
+> Press it again (or click) to fire — Esc or right-click cancels.
+
+**After:**
+> Press 1-6 (or Q/R/F/Shift/Ctrl/Space) to aim a spell.
+> Press it again (or click) to fire — Esc or right-click cancels.
+
+Only `ONBOARDING_HINT_TEXT`'s first line changed. Second line (fire/cancel controls), `ONBOARDING_HINT_FALLBACK_MS`, and the two dismiss triggers (`pointerdown`, `keydown-SPACE`) are untouched, per the ticket's explicit "copy-only" scope.
+
+**Flagging, not fixing (out of scope for a copy ticket):** `keydown-SPACE`'s own comment (`createInput`) still claims "`SPACE` is unbound everywhere else in this scene" — stale since #234 bound it as the secondary key for hotbar slot 6. Both listeners fire independently (the hint's `keydown-SPACE` dismiss handler and slot 6's `key.on("down", ...)` handler are separate registrations), so pressing Space while the onboarding hint is still showing dismisses the hint *and* arms whatever spell is in slot 6 in the same keystroke — not a new behavior introduced by this ticket, but a real functional collision between #233 and #234 that a copy-only change shouldn't silently paper over or fix unilaterally. Left as a follow-up for a developer/Ana call.
+
+**Self-verify:** `docker-compose run --rm game npm run typecheck`, `npm test` (337/337, no new tests — pure string literal change, no new pure-logic seam), and `npm run build` all clean.
+
+**Status:** `in-progress-with-owner` — self-verified, awaiting developer confirmation the hint reads clearly and the mentioned keys are the ones a fresh player would actually reach for. Branch: `agent/onboarding-hint-keybinds-248` (off `main`).
+
+## 2026-08-14 (6) — Issue #250: Tarrywright (Debuffer) cooldown reduced 2500ms → 1800ms for difficulty
+
+Follow-up to #237 (this same log, entry (4) above): developer playtest feedback (2026-08-15) is that once the Debuffer's attack became dodgeable, it started feeling too easy — the fix there made the hit *fair*, not the encounter *harder*, and the developer's call is to add pressure back via cadence rather than touching anything #237 explicitly locked (range, magnitude, duration, persistence-through-death).
+
+**`src/entities/Enemy.ts`:** `DEBUFFER_COOLDOWN_MS` 2500 → 1800. Nothing else changed — `DEBUFFER_PREFERRED_RANGE`, `DEBUFFER_TELEGRAPH_MS`/`DEBUFFER_TRAVEL_MS` (both still 450), and every debuff-application code path (`DebuffSystem`'s magnitudes/cap/floor, `debuff.clear()`'s wave-start/death-only call sites) are untouched, verified by grep — `DEBUFFER_COOLDOWN_MS` has exactly one write site (its own declaration) and one read site (`ATTACK_COOLDOWN_MS`'s `debuffer` entry, itself only read by the existing per-archetype cooldown lookup `Enemy` already used before this change).
+
+**Pato consult (owner's ask, same precedent #237 set — checked `hp-template.md`'s "Debuffer Magnitudes" directly, no live Pato agent for this pass):** the magnitude/stacking numbers (12%/2.4-Mana-regen per application, additive, capped at 2, no decay until wave-clear/death) are exactly as #237 left them and as this ticket's own acceptance criteria require unchanged. Nothing about *this* number lives in `hp-template.md` (cadence was never Pato's number — `hp-template.md` fixes per-hit/per-application magnitudes, not attack timing, which is why #237 also resolved its own tell/travel timing by consulting the *engine's* existing `RANGED_TRAVEL_MS` convention rather than a Pato template value). The actual consult this ticket asks for is a fairness check against #237's own 450ms+450ms dodge window, reasoned below.
+
+**Why 1800, not some other value:** the cooldown resets at tell-start (#237's own design, unchanged), so the real quantity that determines fairness isn't the raw cooldown number but the *gap* between attacks — the stretch with no active tell at all, running from one attack's projectile resolving (tell-start + 900ms, the fixed tell+travel total) to the next tell beginning (tell-start + `DEBUFFER_COOLDOWN_MS`). That gap is `DEBUFFER_COOLDOWN_MS − 900`:
+- At the old 2500ms cooldown, the gap was 1600ms.
+- At the new 1800ms cooldown, the gap is exactly 900ms — one full dodge-window's worth of headroom, meaning a player who reacts to one tell is always guaranteed a completely telegraph-free beat at least as long as the dodge window itself before the next tell can even begin. Tells cannot overlap or stack at this value (that would require the gap to approach 0, i.e. a cooldown near 900ms) — there is always a clean beat between one attack fully resolving and the next one's tell starting.
+- Chose 1800 specifically as the value that keeps that gap at exactly 1x the dodge window (a legible, defensible line — "at least one full dodge-window of clear air between attacks") rather than shaving it thinner arbitrarily; the ticket asks for "somewhat" more pressure, not a cadence that pushes toward back-to-back tells.
+- Net effect: attack frequency goes from ~4/10s to ~5.6/10s (+28% faster), while the player-facing dodge mechanic itself (450ms tell + 450ms travel, live position recheck via `isStillInRangedImpactZone`) is byte-for-byte what #237 shipped. A player who reliably dodges sees the debuff land the same 0 times as before; a player who doesn't react sees it land ~39% more often over a fixed time window — exactly the "more pressure, not more unfairness" shape the developer asked for.
+
+**Self-verify:** `docker-compose run --rm game npm run typecheck` / `npm test` (337/337, no new tests — a single numeric constant change with no new branch or pure-logic seam, same class of change as #237's own cooldown-adjacent edits) / `npm run build` all clean.
+
+**Status:** `in-progress-with-owner` — self-verified only, awaiting the developer playtest gate this ticket's own acceptance criteria name explicitly (confirming the new cadence reads as harder without becoming unfair or undodgeable) — not something a static check can substitute for. Branch: `agent/debuffer-cooldown-250` (off `main`).
