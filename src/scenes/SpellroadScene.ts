@@ -354,9 +354,15 @@ const ELEMENTAL_CAST_VFX_CONFIG: Partial<Record<Element, ElementalCastVfxConfig>
  * explaining hotbar targeting. Sized to the ticket's own floor (a one-time overlay/hint), not
  * a full tutorial system — see the ticket's own note that this may later fold into the
  * Boot/Title scene work (5.8) instead; kept standalone here since 5.8's own scope (scene flow,
- * not in-gameplay teaching copy) doesn't have a natural slot for combat-specific instructions. */
+ * not in-gameplay teaching copy) doesn't have a natural slot for combat-specific instructions.
+ * Issue #248 — developer playtest feedback (2026-08-14): this copy still only named the
+ * number row, so a first-time player never learned #234's Q/R/F/Shift/Ctrl/Space alternate
+ * bindings existed. Added a second clause naming them in the same index order
+ * `HOTBAR_SECONDARY_KEYS` binds (position N -> slot N, per that constant's own convention
+ * comment), a factual addition rather than a guess. Copy-only change — the dismiss triggers
+ * (click / `keydown-SPACE`) and `ONBOARDING_HINT_FALLBACK_MS` below are untouched. */
 const ONBOARDING_HINT_TEXT =
-  "Press 1-6 to aim a spell.\nPress it again (or click) to fire — Esc or right-click cancels.";
+  "Press 1-6 (or Q/R/F/Shift/Ctrl/Space) to aim a spell.\nPress it again (or click) to fire — Esc or right-click cancels.";
 // Issue #233 (replaces #197) — developer decision, 2026-08-13: the hint used to double as the
 // "spell armed" signal, so `handleHotbarPress` dismissed it the instant the player pressed a
 // hotbar key at all — before they could read past the first line. The fallback window is
