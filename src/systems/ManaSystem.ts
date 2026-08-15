@@ -1,6 +1,31 @@
 import type { Weight } from "../data/types";
 
-export const MAX_MANA = 100;
+/**
+ * Retuned 100 -> 130 (issue #235, replacing closed #200 — full triage/decision history there).
+ * Root cause, independently re-derived against the shipped numbers (see
+ * `docs/agents/pato/log.md`, this entry's date, and `mana-template.md` for the full arithmetic):
+ * single-weight-class spam was never the problem — mana-template.md's existing 8/sec regen
+ * derivation already shows every weight class regenerates its own cost well inside its own
+ * cooldown window (Light 1.25s vs. 2s, Standard 2.5s vs. 4s, Heavy 4.375s vs. 8s), so that
+ * steady-state math needed no change. The actual pressure is a *burst-depth* problem: reacting
+ * to a mixed-archetype wave by firing 2-3 different weight-class spells in quick succession
+ * (e.g. one Light + one Standard + one Heavy = 65 Mana) drains far faster than the flat 8/sec
+ * regen replaces it, and by the wave sizes now shipped (Level 3's compositions run up to ~142
+ * modifier-scaled enemy HP, vs. Level 1's onboarding-scale 50-126), a fight can run long enough
+ * for this to happen more than once — worse still when a mana-regen-draining Debuffer
+ * (`murmur_wisp`) is alive for the whole encounter, cutting effective regen to 5.6/sec per
+ * `hp-template.md`'s Debuffer Magnitudes table (GDD's own issue #211 note already flags this
+ * exact "Debuffer breaks the cast-freely framing" exception). This pool-depth-only lever
+ * targets exactly that: it doesn't touch `MANA_REGEN_PER_SEC` (already-validated steady state,
+ * issue #77, left alone), the weight-class cost/cooldown table (Mastery's `master_discount:
+ * "cost"` payoff stays untouched), or any wave composition (Warden's already-validated
+ * threat-budget curve, issue #162, stays untouched) — it only extends how many burst reactions
+ * the pool can absorb before the (unchanged) regen has to catch up, which is the diagnosed
+ * cause. 130 buys room for two full 3-spell (Light+Standard+Heavy) bursts back-to-back before
+ * hitting empty, versus one-and-change at the old 100. Pending developer playtest to confirm
+ * wave 3 pacing feels right (this retune's own gate, not self-verifiable by Pato).
+ */
+export const MAX_MANA = 130;
 /** backlog 2.34 / issue #77 — developer full playtest of #30: "mana regen feels too slow at
  * the start, undercutting the intended learn-to-cast-fast opening rush." Tuning pass only, per
  * the ticket's own scope — the 100-pool/weight-class-cost table (mana-template.md) is
@@ -16,7 +41,10 @@ export const MAX_MANA = 100;
  * (surplus under 8s) — every weight class now regens its own cost well inside its own cooldown
  * window instead of merely breaking even, without changing any single spell's cost/cooldown/
  * power (Pato's locked template). Needs a real developer playtest to confirm the feel before
- * this counts as validated, same gate every other numeric retune in this backlog carries. */
+ * this counts as validated, same gate every other numeric retune in this backlog carries.
+ * Confirmed still correct 2026-08-14 (issue #235) — the wave-3 pacing complaint re-diagnosed
+ * as a burst-depth (pool size) problem, not a regen-rate problem, so this constant is
+ * unchanged by that retune; see `MAX_MANA`'s own comment above. */
 export const MANA_REGEN_PER_SEC = 8;
 
 export const WEIGHT_CLASS: Record<Weight, { cost: number; cooldownMs: number }> = {
