@@ -775,7 +775,7 @@ export class SpellroadScene extends Phaser.Scene {
   // every level transition (see `renderLevelArt`). `renderedLevel` starts at 0 (no level is
   // valid at 0) so the very first `startWave(0)` call unconditionally renders Level 1's art.
   private currentLevelTilemap?: Phaser.Tilemaps.Tilemap;
-  private currentLevelLayer?: Phaser.Tilemaps.TilemapLayer;
+  private currentLevelLayers: Phaser.Tilemaps.TilemapLayer[] = [];
   private renderedLevel = 0;
 
   constructor() {
@@ -937,7 +937,7 @@ export class SpellroadScene extends Phaser.Scene {
     // happened to be visible, matching the precedent the `session` reset above already set.
     this.renderedLevel = 0;
     this.currentLevelTilemap = undefined;
-    this.currentLevelLayer = undefined;
+    this.currentLevelLayers = [];
     this.enemies = [];
     this.enemiesRemainingToSpawn = 0;
     this.waveIndex = 0;
@@ -1101,7 +1101,10 @@ export class SpellroadScene extends Phaser.Scene {
     if (this.renderedLevel === level) {
       return;
     }
-    this.currentLevelLayer?.destroy();
+    for (const layer of this.currentLevelLayers) {
+      layer.destroy();
+    }
+    this.currentLevelLayers = [];
     this.currentLevelTilemap?.destroy();
 
     const map = this.make.tilemap({ key: levelMapKey(level) });
@@ -1118,11 +1121,16 @@ export class SpellroadScene extends Phaser.Scene {
       mapWidthPx: map.widthInPixels,
       mapHeightPx: map.heightInPixels
     });
-    const layer = map.createLayer("Terrain", tileset, offset.x, offset.y);
-    layer?.setDepth(TILE_LAYER_DEPTH);
+    
+    map.layers.forEach((layerData, index) => {
+      const layer = map.createLayer(layerData.name, tileset, offset.x, offset.y);
+      if (layer) {
+        layer.setDepth(TILE_LAYER_DEPTH + index * 0.01);
+        this.currentLevelLayers.push(layer);
+      }
+    });
 
     this.currentLevelTilemap = map;
-    this.currentLevelLayer = layer ?? undefined;
     this.renderedLevel = level;
   }
 
