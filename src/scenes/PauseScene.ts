@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { HOW_TO_PLAY_TEXT } from "../systems/howToPlay";
 
 const CANVAS_WIDTH = 960;
 const CANVAS_HEIGHT = 540;
@@ -41,6 +42,10 @@ export class PauseScene extends Phaser.Scene {
   private selectedIndex = 0;
   private confirmActive = false;
   private confirmText?: Phaser.GameObjects.Text;
+  private panel?: Phaser.GameObjects.Rectangle;
+  private headingText?: Phaser.GameObjects.Text;
+  private helpText?: Phaser.GameObjects.Text;
+  private showingHelp = false;
 
   constructor() {
     super("PauseScene");
@@ -50,11 +55,12 @@ export class PauseScene extends Phaser.Scene {
     this.gameplaySceneKey = data?.gameplaySceneKey ?? "SpellroadScene";
     this.confirmActive = false;
     this.selectedIndex = 0;
+    this.showingHelp = false;
 
-    const panel = this.add.rectangle(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, 340, 220, 0x1c1330, 0.94);
-    panel.setStrokeStyle(2, 0xf3e7c2, 0.6);
+    this.panel = this.add.rectangle(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, 340, 220, 0x1c1330, 0.94);
+    this.panel.setStrokeStyle(2, 0xf3e7c2, 0.6);
 
-    this.add
+    this.headingText = this.add
       .text(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60, "Paused", {
         color: "#f3e7c2",
         fontFamily: "Georgia, serif",
@@ -62,26 +68,64 @@ export class PauseScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    this.options = [
-      { label: "Resume", action: () => this.resumeGame() },
-      { label: "Quit to Title", action: () => this.promptQuitConfirm() }
-    ];
-    this.optionTexts = this.options.map((option, index) =>
-      this.createOptionText(option.label, CANVAS_HEIGHT / 2 - 5 + index * 45, index)
-    );
-    this.updateSelectionVisuals();
+    this.showPauseMenu();
 
     this.input.keyboard?.on("keydown-UP", () => this.moveSelection(-1));
     this.input.keyboard?.on("keydown-DOWN", () => this.moveSelection(1));
     this.input.keyboard?.on("keydown-ENTER", () => this.activateSelection());
-    // Contextual per the design doc: while a Y/N confirm is up, Esc has no binding here (Y/N
-    // are the only armed keys, same convention `startPhaseBreak` and `TitleScene`'s own confirm
-    // already use) — otherwise Esc resumes, mirroring the gameplay scene's own Esc-to-pause.
     this.input.keyboard?.on("keydown-ESC", () => {
-      if (!this.confirmActive) {
-        this.resumeGame();
+      if (this.confirmActive) {
+        return;
       }
+      if (this.showingHelp) {
+        this.showPauseMenu();
+        return;
+      }
+      this.resumeGame();
     });
+  }
+
+  private showPauseMenu(): void {
+    this.showingHelp = false;
+    this.panel?.setSize(340, 220);
+    this.headingText?.setText("Paused").setPosition(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60);
+    this.helpText?.destroy();
+    this.helpText = undefined;
+    this.options = [
+      { label: "Resume", action: () => this.resumeGame() },
+      { label: "How to Play", action: () => this.showHelp() },
+      { label: "Quit to Title", action: () => this.promptQuitConfirm() }
+    ];
+    this.renderOptions(CANVAS_HEIGHT / 2 - 22);
+  }
+
+  /** Issue #216 — always-available copy of the opening controls reference. Gameplay remains
+   * paused underneath this scene; Continue resumes it while Back/Esc return to this menu. */
+  private showHelp(): void {
+    this.showingHelp = true;
+    this.panel?.setSize(700, 400);
+    this.headingText?.setText("How to Play").setPosition(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 164);
+    this.helpText = this.add
+      .text(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 104, HOW_TO_PLAY_TEXT, {
+        color: "#9fb0d8",
+        fontFamily: "monospace",
+        fontSize: "15px",
+        align: "center",
+        lineSpacing: 7
+      })
+      .setOrigin(0.5, 0);
+    this.options = [
+      { label: "Continue", action: () => this.resumeGame() },
+      { label: "Back", action: () => this.showPauseMenu() }
+    ];
+    this.renderOptions(CANVAS_HEIGHT / 2 + 104);
+  }
+
+  private renderOptions(startY: number): void {
+    this.optionTexts.forEach((text) => text.destroy());
+    this.selectedIndex = 0;
+    this.optionTexts = this.options.map((option, index) => this.createOptionText(option.label, startY + index * 38, index));
+    this.updateSelectionVisuals();
   }
 
   private createOptionText(label: string, y: number, index: number): Phaser.GameObjects.Text {
@@ -135,6 +179,7 @@ export class PauseScene extends Phaser.Scene {
     if (this.confirmActive) {
       return;
     }
+    this.sound.resumeAll();
     this.scene.stop();
     this.scene.resume(this.gameplaySceneKey);
   }
@@ -166,6 +211,7 @@ export class PauseScene extends Phaser.Scene {
     };
     const onY = () => {
       cleanup();
+      this.sound.resumeAll();
       this.scene.stop(this.gameplaySceneKey);
       this.scene.stop();
       this.scene.start("TitleScene");

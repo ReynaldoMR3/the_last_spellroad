@@ -98,6 +98,7 @@ import {
 } from "../systems/gameProgress";
 import { writeSave } from "../systems/SaveSystem";
 import { resolveDebugStartWave } from "../systems/debugStart";
+import { onboardingHintText } from "../systems/howToPlay";
 
 const PLAYER_SPEED = 180;
 /** Widened 160->220 (2026-07-27, developer feedback: not enough room to evade projectiles/
@@ -378,25 +379,9 @@ const ELEMENTAL_CAST_VFX_CONFIG: Partial<Record<Element, ElementalCastVfxConfig>
     spreadDeg: 14
   }
 };
-/** backlog 2.35 / issue #78 — developer full playtest of #30: add an onboarding prompt
- * explaining hotbar targeting. Sized to the ticket's own floor (a one-time overlay/hint), not
- * a full tutorial system — see the ticket's own note that this may later fold into the
- * Boot/Title scene work (5.8) instead; kept standalone here since 5.8's own scope (scene flow,
- * not in-gameplay teaching copy) doesn't have a natural slot for combat-specific instructions.
- * Issue #248 — developer playtest feedback (2026-08-14): this copy still only named the
- * number row, so a first-time player never learned #234's Q/R/F/Shift/Ctrl/Space alternate
- * bindings existed. Added a second clause naming them in the same index order
- * `HOTBAR_SECONDARY_KEYS` binds (position N -> slot N, per that constant's own convention
- * comment), a factual addition rather than a guess. Copy-only change — the dismiss triggers
- * (click / `keydown-SPACE`) and `ONBOARDING_HINT_FALLBACK_MS` below are untouched. */
-const ONBOARDING_HINT_TEXT =
-  "Press 1-6 (or Q/R/F/Shift/Ctrl/Space) to aim a spell.\nPress it again (or click) to fire — Esc or right-click cancels.";
-// Issue #233 (replaces #197) — developer decision, 2026-08-13: the hint used to double as the
-// "spell armed" signal, so `handleHotbarPress` dismissed it the instant the player pressed a
-// hotbar key at all — before they could read past the first line. The fallback window is
-// widened from the old 9s to a full 60s now that dismissal no longer piggybacks on the first
-// hotbar press; the player reads it at their own pace (click or the designated key below) and
-// this is now genuinely a last-resort timeout, not the expected dismiss path.
+/** Issue #216 — controls copy is shared with PauseScene's persistent help, while this opening
+ * overlay adds only its click-to-begin affordance. The 60-second fallback remains a safety net
+ * if a player does not acknowledge the first-run overlay. */
 const ONBOARDING_HINT_FALLBACK_MS = 60000;
 /** backlog 4.10 / issue #96 — developer full playtest (2026-08-05): "nothing shows this is
  * the Director trial, no clear mini boss." Lorena's intro/outro narration (`lorena/log.md`,
@@ -762,10 +747,9 @@ export class SpellroadScene extends Phaser.Scene {
    * Esc/right-click to cancel). Shown once per run. Root cause of #233's bug: dismissing this
    * on the first hotbar press doubled as arming a spell in the same action, so the player never
    * got past the first line before it vanished. Per the 2026-08-13 developer decision, dismissal
-   * is now decoupled from spell-arming entirely — only an explicit acknowledgment (a click, or
-   * the designated `SPACE` key, see the `pointerdown`/`keydown-SPACE` handlers in `createInput`)
-   * or the `ONBOARDING_HINT_FALLBACK_MS` fallback timer ends it; a hotbar press (1-6) no longer
-   * dismisses it at all. `undefined` once dismissed (destroyed, not just hidden) so
+   * is now decoupled from spell-arming entirely — only an explicit click acknowledgment or the
+   * `ONBOARDING_HINT_FALLBACK_MS` fallback timer ends it; hotbar input is swallowed until then.
+   * `undefined` once dismissed (destroyed, not just hidden) so
    * `dismissOnboardingHint` is a cheap no-op on every later call. */
   private onboardingHintText?: Phaser.GameObjects.Text;
   /** Issue #233 — true for as long as `onboardingHintText` is showing. `update()` uses this to
@@ -1467,7 +1451,7 @@ export class SpellroadScene extends Phaser.Scene {
 
     // backlog 2.35 / issue #78 — centered in the upper lane, clear of the hotbar row below
     // and the top-left/top-right HUD corners, so it doesn't compete with any always-on element.
-    this.onboardingHintText = this.add.text(CANVAS_WIDTH / 2, ROAD_TOP + 40, ONBOARDING_HINT_TEXT, {
+    this.onboardingHintText = this.add.text(CANVAS_WIDTH / 2, ROAD_TOP + 40, onboardingHintText(), {
       color: "#f3e7c2",
       fontFamily: "monospace",
       fontSize: "14px",
@@ -1478,9 +1462,8 @@ export class SpellroadScene extends Phaser.Scene {
     this.onboardingHintText.setOrigin(0.5, 0);
     this.onboardingHintText.setDepth(UI_DEPTH);
     // Issue #233 — pause gameplay (see `update()`'s `onboardingHintActive` gate) for as long as
-    // this hint is visible, and only dismiss it via `dismissOnboardingHint`'s two explicit
-    // triggers (a click or the designated key — `createInput`'s `pointerdown`/`keydown-SPACE`
-    // handlers) or this fallback timer, never as a side effect of a hotbar press.
+    // this hint is visible, and dismiss it only with `dismissOnboardingHint`'s explicit click
+    // trigger or its fallback timer, never as a side effect of a hotbar press.
     this.onboardingHintActive = true;
     this.time.delayedCall(ONBOARDING_HINT_FALLBACK_MS, () => this.dismissOnboardingHint());
 
@@ -1530,7 +1513,11 @@ export class SpellroadScene extends Phaser.Scene {
       this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes[key])
     );
     this.hotbarKeys.forEach((key, index) => {
-      key.on("down", () => this.handleHotbarPress(index));
+      key.on("down", () => {
+        if (!this.onboardingHintActive) {
+          this.handleHotbarPress(index);
+        }
+      });
     });
 
     // Issue #234 — secondary off-number-row bindings (Q/R/F/Shift/Ctrl/Space -> slots 1-6),
@@ -1541,7 +1528,11 @@ export class SpellroadScene extends Phaser.Scene {
       this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes[key])
     );
     this.hotbarSecondaryKeys.forEach((key, index) => {
-      key.on("down", () => this.handleHotbarPress(index));
+      key.on("down", () => {
+        if (!this.onboardingHintActive) {
+          this.handleHotbarPress(index);
+        }
+      });
     });
 
     // backlog 2.10 / issue #49 — non-mouse aiming fallback tracks whether the pointer has
@@ -1562,12 +1553,10 @@ export class SpellroadScene extends Phaser.Scene {
     });
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-      // Issue #233 — a click while the onboarding hint is showing is exactly one of its two
-      // explicit acknowledgment triggers (the other is `keydown-SPACE` below): it dismisses the
-      // hint and is swallowed here (neither arms/confirms a hotbar slot nor casts/cancels
-      // underneath it), same "swallow the input that ended the overlay" shape as the confirm-
-      // gated boss banner below, just without needing a requireConfirm carve-out of its own
-      // since every onboarding-hint display uses this same any-click dismiss.
+      // Issue #216 — a click while the onboarding hint is showing is its sole explicit
+      // acknowledgement trigger. It dismisses the hint and is swallowed here (neither
+      // arms/confirms a hotbar slot nor casts/cancels underneath it), so Space can remain the
+      // documented sixth alternate spell key without a conflicting second meaning.
       if (this.onboardingHintActive) {
         this.dismissOnboardingHint();
         return;
@@ -1623,7 +1612,7 @@ export class SpellroadScene extends Phaser.Scene {
     this.input.on(
       "wheel",
       (_pointer: Phaser.Input.Pointer, _gameObjects: unknown, _deltaX: number, deltaY: number) => {
-        if (this.hotbarSlotRects.length === 0) {
+        if (this.onboardingHintActive || this.hotbarSlotRects.length === 0) {
           return;
         }
         const direction: 1 | -1 = deltaY > 0 ? 1 : -1;
@@ -1653,19 +1642,6 @@ export class SpellroadScene extends Phaser.Scene {
       }
     });
 
-    // Issue #233 — the onboarding hint's designated-key acknowledgment (the other trigger is
-    // the `pointerdown` handler above). `SPACE` is unbound everywhere else in this scene
-    // (hotbar is 1-6, movement is arrows/WASD, Esc has its own contextual meaning below), so it
-    // can't be misread as any other input while doubling as this dismiss. Deliberately its own
-    // narrow listener rather than folding into the generic `keydown` handler above — that one is
-    // scoped to the boss banner's any-keypress dismiss contract and explicitly excludes Escape;
-    // reusing it here would tangle two unrelated overlays' dismiss rules together.
-    this.input.keyboard?.on("keydown-SPACE", () => {
-      if (this.onboardingHintActive) {
-        this.dismissOnboardingHint();
-      }
-    });
-
     // backlog 5.8 / the 2026-08-01 boot-title-pause design spec, decision 4 — Esc is
     // contextual with the existing preview-cancel binding: an active spell preview cancels
     // first (unchanged), otherwise Esc opens the hard-pause menu. `scene.pause()` freezes this
@@ -1679,6 +1655,7 @@ export class SpellroadScene extends Phaser.Scene {
         return;
       }
       this.scene.pause();
+      this.sound.pauseAll();
       this.scene.launch("PauseScene", { gameplaySceneKey: "SpellroadScene" });
     });
   }
