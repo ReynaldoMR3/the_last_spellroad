@@ -1403,3 +1403,36 @@ Follow-up to #237 (this same log, entry (4) above): developer playtest feedback 
 **Self-verify:** `docker-compose run --rm game npm run typecheck` / `npm test` (337/337, no new tests — a single numeric constant change with no new branch or pure-logic seam, same class of change as #237's own cooldown-adjacent edits) / `npm run build` all clean.
 
 **Status:** `in-progress-with-owner` — self-verified only, awaiting the developer playtest gate this ticket's own acceptance criteria name explicitly (confirming the new cadence reads as harder without becoming unfair or undodgeable) — not something a static check can substitute for. Branch: `agent/debuffer-cooldown-250` (off `main`).
+
+## 2026-08-26 — Issue #172 Phase 1 terrain movement semantics
+
+Implemented the Loomwright-owned physics half of the approved Level 1/Level 5 castle-art
+checkpoint. `src/systems/levelArt.ts` now classifies the shipped gray wall pieces and closed
+chamber-door pieces as solid while leaving floor surfaces walkable. An explicit
+`blocksMovement` property supports future axis-aligned Tiled rectangle objects without deriving
+physics from a decoration layer name. `SpellroadScene.renderLevelArt` renders every authored tile
+layer, attaches mage-only Arcade colliders, creates explicit object blockers, and destroys all
+layers/zones/colliders on a level transition. Enemy movement, targeting, spell behavior, lane
+bounds, and combat numbers are unchanged.
+
+Docker self-verification: `docker-compose run --rm game npm test -- --run` passed 30 files / 337
+tests; `docker-compose run --rm game npm run typecheck` and `docker-compose run --rm game npm run
+build` passed. JSON map dimension/tile-count validation and `git diff --check` also passed. The
+production build retains the existing Vite large-chunk warning.
+
+Developer playtest: approved in the worktree's Docker build on 2026-08-26 after iterative wall and
+door placement changes. The developer confirmed the final Level 1 result worked, including the
+solid closed-door/wall terrain requested for this checkpoint.
+
+**Verification rationale (ADR-0001):** the plausible defects were a decorative tile silently
+opening a gap in a visual wall, a floor tile becoming solid, or stale Arcade bodies surviving a
+level transition. The pure tests exercise every wall-integrated Level 1/5 GID, representative
+walkable floor GIDs, explicit object offsets, and malformed blocker geometry; the scene wiring
+uses one tracked collection for every created layer, blocker, and collider and destroys those
+collections before rebuilding. Docker typecheck/build catch the Phaser API and asset-loading
+wiring, while the developer's live Docker playtest exercises the tile-to-collider path that pure
+tests cannot instantiate. Level 5 uses the same tested collision classifier and lifecycle, and
+its complete set of wall-integrated GIDs is included in the focused test.
+
+**Status:** `shipped-and-validated` for the Phase 1 movement contract. Branch:
+`feat/castle-art-pass`.

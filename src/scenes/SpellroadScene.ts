@@ -41,7 +41,9 @@ import {
   TILESET_NAME_IN_MAP,
   computeTilemapOffset,
   levelMapKey,
-  levelMapUrl
+  levelMapUrl,
+  movementBlockerRectFromTiledObject,
+  tileBlocksMovement
 } from "../systems/levelArt";
 import { SPELL_ICON_ELEMENTS, iconKeyForSpell, spellIconKey, spellIconUrl } from "../systems/spellIcons";
 import { ALL_ENEMY_ARCHETYPES, MAGE_SPRITE_KEY, MAGE_SPRITE_URL, enemySpriteKey, enemySpriteUrl } from "../systems/characterArt";
@@ -85,6 +87,7 @@ import {
   OPENING_VFX_TRAIL_KEY,
   OPENING_VFX_TRAIL_URL
 } from "../systems/openingVfx";
+
 import {
   buildSaveBlob,
   prepareGameProgress,
@@ -775,7 +778,9 @@ export class SpellroadScene extends Phaser.Scene {
   // every level transition (see `renderLevelArt`). `renderedLevel` starts at 0 (no level is
   // valid at 0) so the very first `startWave(0)` call unconditionally renders Level 1's art.
   private currentLevelTilemap?: Phaser.Tilemaps.Tilemap;
-  private currentLevelLayer?: Phaser.Tilemaps.TilemapLayer;
+  private currentLevelLayers: Phaser.Tilemaps.TilemapLayer[] = [];
+  private currentLevelMovementBlockers: Phaser.GameObjects.Zone[] = [];
+  private currentLevelMovementColliders: Phaser.Physics.Arcade.Collider[] = [];
   private renderedLevel = 0;
 
   constructor() {
@@ -937,7 +942,9 @@ export class SpellroadScene extends Phaser.Scene {
     // happened to be visible, matching the precedent the `session` reset above already set.
     this.renderedLevel = 0;
     this.currentLevelTilemap = undefined;
-    this.currentLevelLayer = undefined;
+    this.currentLevelLayers = [];
+    this.currentLevelMovementBlockers = [];
+    this.currentLevelMovementColliders = [];
     this.enemies = [];
     this.enemiesRemainingToSpawn = 0;
     this.waveIndex = 0;
@@ -1091,17 +1098,29 @@ export class SpellroadScene extends Phaser.Scene {
   }
 
   /** backlog 3.8 (issue #29) — swaps in the real Tiled layout for `level` (1-4 regular, 5 =
-   * boss arena), replacing whatever level's art was showing before. Idempotent per level
-   * (`renderedLevel` guard) so calling this every `startWave()` — including phase-breaks
-   * within the same boss fight, which stay on the same level — doesn't tear down and rebuild
-   * the same tilemap for no reason. Purely visual: `LANE_RECT`/`ROAD_WIDTH`/`ROAD_HEIGHT`
-   * (movement clamping, enemy spawn positioning, spell-preview clipping) are never read from
-   * or written by this method. */
+   * boss arena), replacing whatever level's art was showing before. Issue #172 adds movement
+   * collision from tile/object semantics while preserving `LANE_RECT` as the outer clamp and
+   * leaving enemies, spawning, targeting, and combat geometry on their existing behavior. */
   private renderLevelArt(level: number): void {
     if (this.renderedLevel === level) {
       return;
     }
-    this.currentLevelLayer?.destroy();
+    if (!this.mage) {
+      throw new Error("renderLevelArt requires createMage to run first");
+    }
+    const mage = this.mage;
+    for (const collider of this.currentLevelMovementColliders) {
+      collider.destroy();
+    }
+    for (const blocker of this.currentLevelMovementBlockers) {
+      blocker.destroy();
+    }
+    for (const layer of this.currentLevelLayers) {
+      layer.destroy();
+    }
+    this.currentLevelMovementColliders = [];
+    this.currentLevelMovementBlockers = [];
+    this.currentLevelLayers = [];
     this.currentLevelTilemap?.destroy();
 
     const map = this.make.tilemap({ key: levelMapKey(level) });
@@ -1118,11 +1137,35 @@ export class SpellroadScene extends Phaser.Scene {
       mapWidthPx: map.widthInPixels,
       mapHeightPx: map.heightInPixels
     });
-    const layer = map.createLayer("Terrain", tileset, offset.x, offset.y);
-    layer?.setDepth(TILE_LAYER_DEPTH);
+
+    map.layers.forEach((layerData, index) => {
+      const layer = map.createLayer(layerData.name, tileset, offset.x, offset.y);
+      if (!layer) {
+        return;
+      }
+      layer.setDepth(TILE_LAYER_DEPTH + index * 0.01);
+      layer.forEachTile((tile) => {
+        const blocksMovement = tileBlocksMovement(tile);
+        tile.setCollision(blocksMovement, blocksMovement, blocksMovement, blocksMovement);
+      });
+      this.currentLevelLayers.push(layer);
+      this.currentLevelMovementColliders.push(this.physics.add.collider(mage, layer));
+    });
+
+    for (const objectLayer of map.objects) {
+      for (const object of objectLayer.objects) {
+        const rect = movementBlockerRectFromTiledObject(object, offset);
+        if (!rect) {
+          continue;
+        }
+        const blocker = this.add.zone(rect.x + rect.width / 2, rect.y + rect.height / 2, rect.width, rect.height);
+        this.physics.add.existing(blocker, true);
+        this.currentLevelMovementBlockers.push(blocker);
+        this.currentLevelMovementColliders.push(this.physics.add.collider(mage, blocker));
+      }
+    }
 
     this.currentLevelTilemap = map;
-    this.currentLevelLayer = layer ?? undefined;
     this.renderedLevel = level;
   }
 

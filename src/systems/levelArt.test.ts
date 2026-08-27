@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { ALL_LEVELS, computeTilemapOffset, isValidLevel, levelMapKey, levelMapUrl } from "./levelArt";
+import {
+  ALL_LEVELS,
+  computeTilemapOffset,
+  isValidLevel,
+  levelMapKey,
+  levelMapUrl,
+  movementBlockerRectFromTiledObject,
+  tileBlocksMovement
+} from "./levelArt";
 
 describe("levelMapKey / levelMapUrl — level number to Tiled JSON asset identity", () => {
   it("produces a distinct cache key per level", () => {
@@ -61,5 +69,70 @@ describe("computeTilemapOffset — aligning a level's Tiled layout to the live l
       mapHeightPx: 288
     });
     expect(offset.x).toBe(80);
+  });
+});
+
+describe("Tiled movement collision contract", () => {
+  it("keeps shipped floor surfaces walkable while treating every shipped gray wall segment as blocking", () => {
+    for (const floorIndex of [1, 13, 25, 49]) {
+      expect(tileBlocksMovement({ index: floorIndex })).toBe(false);
+    }
+    for (const wallIndex of [37, 38, 39]) {
+      expect(tileBlocksMovement({ index: wallIndex })).toBe(true);
+    }
+  });
+
+  it("treats every wall-integrated relief, threshold, brazier, and door tile as solid", () => {
+    for (const wallDecorationIndex of [20, 21, 22, 23, 24, 30, 33, 34, 35, 36]) {
+      expect(tileBlocksMovement({ index: wallDecorationIndex })).toBe(true);
+    }
+  });
+
+  it("uses explicit blocksMovement metadata instead of assuming every decoration is solid", () => {
+    expect(tileBlocksMovement({ index: 64 })).toBe(false);
+    expect(tileBlocksMovement({ index: 64, properties: { blocksMovement: true } })).toBe(true);
+    expect(tileBlocksMovement({ index: 37, properties: { blocksMovement: false } })).toBe(false);
+  });
+
+  it("turns a marked Tiled rectangle into a world-space blocker using the rendered map offset", () => {
+    expect(
+      movementBlockerRectFromTiledObject(
+        {
+          id: 12,
+          name: "Closed door",
+          x: 320,
+          y: 96,
+          width: 16,
+          height: 32,
+          properties: [{ name: "blocksMovement", value: true }]
+        },
+        { x: 0, y: 126 }
+      )
+    ).toEqual({ x: 320, y: 222, width: 16, height: 32 });
+  });
+
+  it("ignores unmarked decorative objects and rejects marked shapes without rectangular physics", () => {
+    expect(
+      movementBlockerRectFromTiledObject(
+        { id: 13, name: "Banner", x: 100, y: 40, width: 16, height: 16 },
+        { x: 0, y: 126 }
+      )
+    ).toBeNull();
+
+    expect(() =>
+      movementBlockerRectFromTiledObject(
+        {
+          id: 14,
+          name: "Angled door",
+          x: 200,
+          y: 60,
+          width: 16,
+          height: 32,
+          rotation: 15,
+          properties: { blocksMovement: true }
+        },
+        { x: 0, y: 126 }
+      )
+    ).toThrow(/axis-aligned rectangle/);
   });
 });
