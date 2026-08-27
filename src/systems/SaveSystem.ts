@@ -129,6 +129,6 @@ export function writeSave(blob: SaveBlob, storage: Storage = localStorage): void
   storage.setItem(SAVE_KEY, JSON.stringify({ ...blob, schemaVersion: SAVE_SCHEMA_VERSION }));
 }
 
-export function clearSave(storage: Storage = localStorage): void {
+export function clearSave(storage: Pick<Storage, "removeItem"> = localStorage): void {
   storage.removeItem(SAVE_KEY);
 }
