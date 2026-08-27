@@ -38,6 +38,21 @@ export interface ArtBoardViewStateInput {
   reviewConfirmed: boolean;
 }
 
+export type ArtBoardFocusTarget =
+  | { kind: "asset"; assetId: string }
+  | { kind: "placement"; zone: string; anchor: string }
+  | { kind: "id"; id: string }
+  | { kind: "control"; name: string; value: string };
+
+export interface ArtBoardFocusable {
+  readonly id: string;
+  readonly dataset: Readonly<Record<string, string | undefined>>;
+  readonly name?: string;
+  readonly value?: string;
+  getAttribute?(name: string): string | null;
+  focus(): void;
+}
+
 const ART_BOARD_PANELS: readonly ArtBoardPanel[] = [
   { id: "asset-catalogue", role: "region", label: "Asset catalogue" },
   { id: "level-1-scene", role: "region", label: "Level 1 scene canvas" },
@@ -49,6 +64,48 @@ export function levelOnePlacementTargets(): Array<{ zone: LevelZone; anchor: Lev
   return LEVEL_ANCHORS.flatMap((anchor) =>
     LEVEL_ZONES.map((zone) => ({ zone, anchor }))
   );
+}
+
+/** Captures a stable control identity before the Art Board replaces its DOM tree. */
+export function captureArtBoardFocus(
+  element: ArtBoardFocusable | null
+): ArtBoardFocusTarget | null {
+  if (element === null) return null;
+  if (element.dataset.assetId) {
+    return { kind: "asset", assetId: element.dataset.assetId };
+  }
+  if (element.dataset.zone && element.dataset.anchor) {
+    return {
+      kind: "placement",
+      zone: element.dataset.zone,
+      anchor: element.dataset.anchor
+    };
+  }
+  if (element.id) return { kind: "id", id: element.id };
+  const name = element.getAttribute?.("name") ?? element.name ?? "";
+  const value = element.getAttribute?.("value") ?? element.value ?? "";
+  return name && value ? { kind: "control", name, value } : null;
+}
+
+/** Focuses the replacement node that represents the same logical Art Board control. */
+export function restoreArtBoardFocus(
+  target: ArtBoardFocusTarget | null,
+  candidates: readonly ArtBoardFocusable[]
+): boolean {
+  if (target === null) return false;
+  const candidate = candidates.find((element) => {
+    if (target.kind === "asset") return element.dataset.assetId === target.assetId;
+    if (target.kind === "placement") {
+      return element.dataset.zone === target.zone && element.dataset.anchor === target.anchor;
+    }
+    if (target.kind === "id") return element.id === target.id;
+    const name = element.getAttribute?.("name") ?? element.name ?? "";
+    const value = element.getAttribute?.("value") ?? element.value ?? "";
+    return name === target.name && value === target.value;
+  });
+  if (!candidate) return false;
+  candidate.focus();
+  return true;
 }
 
 /** Derives UI affordances without giving the browser an apply-to-game path. */

@@ -36,10 +36,14 @@ function levelOneBrief() {
   };
 }
 
-async function repository() {
+async function repository(
+  assets: readonly typeof tile[] = [tile],
+  overrides: readonly Record<string, unknown>[] = []
+) {
   const root = await mkdtemp(join(tmpdir(), "art-board-api-"));
   await mkdir(join(root, "art-direction"), { recursive: true });
-  await writeFile(join(root, "art-direction", "catalog.json"), JSON.stringify({ schemaVersion: 1, assets: [tile] }));
+  await writeFile(join(root, "art-direction", "catalog.json"), JSON.stringify({ schemaVersion: 1, assets }));
+  await writeFile(join(root, "art-direction", "overrides.json"), JSON.stringify({ schemaVersion: 1, overrides }));
   return root;
 }
 
@@ -99,6 +103,31 @@ describe("Art Board development API", () => {
     const response = await request(root, "POST", "/api/art-board/briefs", invalid);
 
     expect(response).toMatchObject({ status: 400, json: { ok: false } });
+    await expect(readFile(join(root, "art-direction", "boards", "level-1.json"), "utf8")).rejects.toThrow();
+  });
+
+  it("rejects a Level 1 brief when a durable override removes placement compatibility", async () => {
+    const mageTile = {
+      ...tile,
+      id: "image:third-party:kenney-tiny-dungeon:tiles:tile-0084"
+    };
+    const root = await repository(
+      [mageTile],
+      [{
+        id: mageTile.id,
+        semanticClass: "creature",
+        capabilities: ["visual-binding"]
+      }]
+    );
+    const brief = levelOneBrief();
+    brief.decisions[0].assetId = mageTile.id;
+
+    const response = await request(root, "POST", "/api/art-board/briefs", brief);
+
+    expect(response).toMatchObject({ status: 400, json: { ok: false } });
+    expect((response.json as { issues: unknown[] }).issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "asset-kind-mismatch", assetId: mageTile.id })
+    ]));
     await expect(readFile(join(root, "art-direction", "boards", "level-1.json"), "utf8")).rejects.toThrow();
   });
 

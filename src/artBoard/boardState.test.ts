@@ -324,3 +324,68 @@ describe("levelOnePlacementTargets", () => {
     ]);
   });
 });
+
+describe("logical Art Board focus", () => {
+  type FocusToken =
+    | { kind: "asset"; assetId: string }
+    | { kind: "placement"; zone: string; anchor: string }
+    | { kind: "id"; id: string }
+    | { kind: "control"; name: string; value: string };
+  type Focusable = {
+    id: string;
+    dataset: Record<string, string | undefined>;
+    name: string;
+    value: string;
+    focus(): void;
+  };
+  type FocusApi = {
+    captureArtBoardFocus(element: Focusable | null): FocusToken | null;
+    restoreArtBoardFocus(token: FocusToken | null, candidates: readonly Focusable[]): boolean;
+  };
+  const focusApi = (): FocusApi => boardStateApi as unknown as FocusApi;
+
+  function focusable(overrides: Partial<Focusable> = {}): Focusable {
+    return {
+      id: "",
+      dataset: {},
+      name: "",
+      value: "",
+      focus() {},
+      ...overrides
+    };
+  }
+
+  it("restores the selected asset button after its old DOM node is replaced", () => {
+    const oldButton = focusable({
+      dataset: { assetId: "image:spell-icons:fire" }
+    });
+    const token = focusApi().captureArtBoardFocus(oldButton);
+    let focused = false;
+    const replacementButton = focusable({
+      dataset: { assetId: "image:spell-icons:fire" },
+      focus() { focused = true; }
+    });
+
+    const restored = focusApi().restoreArtBoardFocus(token, [
+      focusable({ dataset: { assetId: "image:spell-icons:earth" } }),
+      replacementButton
+    ]);
+
+    expect(restored).toBe(true);
+    expect(focused).toBe(true);
+  });
+
+  it("restores the same placement target so keyboard selection can continue after render", () => {
+    const token = focusApi().captureArtBoardFocus(focusable({
+      dataset: { zone: "entrance", anchor: "leftEdge" }
+    }));
+    let focusedTarget = "";
+    const replacementTarget = focusable({
+      dataset: { zone: "entrance", anchor: "leftEdge" },
+      focus() { focusedTarget = "entrance:leftEdge"; }
+    });
+
+    expect(focusApi().restoreArtBoardFocus(token, [replacementTarget])).toBe(true);
+    expect(focusedTarget).toBe("entrance:leftEdge");
+  });
+});

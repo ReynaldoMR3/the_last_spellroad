@@ -1,9 +1,12 @@
 import overridesDocument from "../../art-direction/overrides.json";
 import {
+  captureArtBoardFocus,
   deriveArtBoardViewState,
   exportBrief,
   levelOnePlacementTargets,
   reduceBoard,
+  restoreArtBoardFocus,
+  type ArtBoardFocusTarget,
   type BoardState
 } from "./boardState";
 import { filterAssets, mergeCatalogue, type DisplayAsset } from "./catalog";
@@ -121,6 +124,7 @@ let app: AppState = {
 };
 
 let mapPromise: Promise<TiledMap> | null = null;
+let retainedFocus: ArtBoardFocusTarget | null = null;
 
 void loadBoard();
 
@@ -148,6 +152,10 @@ async function loadBoard(): Promise<void> {
 }
 
 function render(): void {
+  const activeElement = document.activeElement;
+  retainedFocus = captureArtBoardFocus(
+    activeElement instanceof HTMLElement ? activeElement : null
+  ) ?? retainedFocus;
   const issues = validationIssues();
   const view = deriveArtBoardViewState({
     board: app.board,
@@ -257,6 +265,10 @@ function render(): void {
   `;
 
   bindEvents();
+  restoreArtBoardFocus(
+    retainedFocus,
+    [...root.querySelectorAll<HTMLElement>("button, input, select, textarea, summary")]
+  );
   void drawLevelMap();
 }
 

@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { applyCatalogueOverrides } from "../../src/artBoard/catalog";
 import { compileProposal, PRODUCTION_TARGET_INDEX, type CompileProposalIssue } from "../../src/artBoard/proposal";
-import type { ArtBrief, AssetRecord } from "../../src/artBoard/domain";
+import type { ArtBrief, AssetOverride, AssetRecord } from "../../src/artBoard/domain";
 
 export interface ArtBoardDevApiOptions {
   repositoryRoot: string;
@@ -31,7 +32,7 @@ export function createArtBoardDevApi({ repositoryRoot }: ArtBoardDevApiOptions) 
 
     try {
       if (request.method === "GET" && pathname === "/api/art-board/catalog") {
-        const catalogue = await readJson(join(repositoryRoot, "art-direction", "catalog.json"));
+        const catalogue = await correctedCatalogueDocument(repositoryRoot);
         sendJson(response, 200, { ok: true, catalog: catalogue });
         return true;
       }
@@ -78,11 +79,27 @@ export function createArtBoardDevApi({ repositoryRoot }: ArtBoardDevApiOptions) 
 }
 
 async function catalogueAssets(repositoryRoot: string): Promise<AssetRecord[]> {
+  return (await correctedCatalogueDocument(repositoryRoot)).assets;
+}
+
+async function correctedCatalogueDocument(
+  repositoryRoot: string
+): Promise<{ schemaVersion: 1; assets: AssetRecord[] }> {
   const catalogue = await readJson(join(repositoryRoot, "art-direction", "catalog.json"));
   if (!isRecord(catalogue) || !Array.isArray(catalogue.assets)) {
     throw new Error("Art Board catalogue must contain an assets array.");
   }
-  return catalogue.assets as AssetRecord[];
+  const overrides = await readJson(join(repositoryRoot, "art-direction", "overrides.json"));
+  if (!isRecord(overrides) || !Array.isArray(overrides.overrides)) {
+    throw new Error("Art Board overrides must contain an overrides array.");
+  }
+  return {
+    schemaVersion: 1,
+    assets: applyCatalogueOverrides(
+      catalogue.assets as AssetRecord[],
+      overrides.overrides as AssetOverride[]
+    )
+  };
 }
 
 function proposalBrief(body: unknown): unknown {
