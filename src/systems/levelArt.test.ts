@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   ALL_LEVELS,
+  computeLevelLaneBounds,
   computeTilemapOffset,
   isValidLevel,
   levelMapKey,
@@ -8,6 +10,31 @@ import {
   movementBlockerRectFromTiledObject,
   tileBlocksMovement
 } from "./levelArt";
+
+interface TiledLevel {
+  width: number;
+  height: number;
+  layers: Array<{ data: number[] }>;
+}
+
+function readLevel(level: number): TiledLevel {
+  return JSON.parse(readFileSync(new URL(`../../public/assets/levels/level-${level}.json`, import.meta.url), "utf8")) as TiledLevel;
+}
+
+function row(level: TiledLevel, rowIndex: number): number[] {
+  return level.layers[0].data.slice(rowIndex * level.width, (rowIndex + 1) * level.width);
+}
+
+function tileAt(level: TiledLevel, x: number, y: number): number {
+  return level.layers[0].data[y * level.width + x];
+}
+
+const LEVEL_1_WALL_ROWS = [
+  [37, 38, 38, 38, 30, 38, 38, 23, 38, 38, 38, 38, 30, 38, 38, 38, 38, 38, 38, 23, 30, 38, 38, 38, 38, 38, 38, 38, 30, 38, 38, 38, 23, 38, 38, 38, 30, 38, 38, 38, 38, 38, 38, 38, 30, 38, 23, 38, 38, 38, 38, 38, 30, 38, 38, 23, 38, 38, 38, 39],
+  [13, 13, 25, 25, 13, 13, 13, 13, 13, 25, 25, 13, 13, 13, 13, 13, 13, 25, 25, 13, 13, 13, 13, 13, 13, 25, 25, 13, 13, 13, 13, 13, 13, 13, 25, 25, 13, 13, 13, 13, 13, 13, 25, 25, 13, 13, 13, 13, 13, 13, 25, 25, 13, 13, 13, 13, 13, 25, 25, 13],
+  [13, 13, 25, 25, 13, 13, 13, 13, 13, 25, 25, 13, 13, 13, 13, 13, 13, 25, 25, 13, 13, 13, 13, 13, 13, 25, 25, 13, 13, 13, 13, 13, 13, 13, 25, 25, 13, 13, 13, 13, 13, 13, 25, 25, 13, 13, 13, 13, 13, 13, 25, 25, 13, 13, 13, 13, 13, 25, 25, 13],
+  [37, 38, 38, 38, 30, 38, 38, 38, 38, 38, 38, 38, 30, 38, 38, 38, 38, 38, 38, 38, 30, 38, 38, 38, 38, 38, 38, 38, 30, 38, 38, 38, 38, 38, 38, 38, 30, 38, 38, 38, 38, 38, 38, 38, 30, 38, 38, 38, 38, 38, 38, 38, 30, 38, 38, 38, 38, 38, 38, 39]
+];
 
 describe("levelMapKey / levelMapUrl — level number to Tiled JSON asset identity", () => {
   it("produces a distinct cache key per level", () => {
@@ -35,6 +62,82 @@ describe("ALL_LEVELS / isValidLevel", () => {
     expect(isValidLevel(6)).toBe(false);
     expect(isValidLevel(-1)).toBe(false);
     expect(isValidLevel(2.5)).toBe(false);
+  });
+});
+
+describe("level wall frame", () => {
+  it("keeps the regular-level top and bottom wall rows identical to Level 1", () => {
+    const level1 = readLevel(1);
+    const referenceRows = [0, 1, level1.height - 2, level1.height - 1].map((index) => row(level1, index));
+    expect(referenceRows).toEqual(LEVEL_1_WALL_ROWS);
+
+    for (const levelNumber of [2, 3, 4]) {
+      const level = readLevel(levelNumber);
+      expect(level.height).toBe(level1.height);
+      expect([0, 1, level.height - 2, level.height - 1].map((index) => row(level, index))).toEqual(referenceRows);
+    }
+  });
+
+  it("keeps the Level 1 wall motif on the boss arena's lower frame", () => {
+    const level1 = readLevel(1);
+    const boss = readLevel(5);
+    expect(boss.height).toBe(level1.height + 2);
+    expect([boss.height - 2, boss.height - 1].map((index) => row(boss, index))).toEqual([
+      row(level1, level1.height - 2),
+      row(level1, level1.height - 1)
+    ]);
+  });
+
+  it("turns the boss arena's top four rows into a deep wall with one centered two-sided entrance", () => {
+    const boss = readLevel(5);
+    const topWall = [0, 1, 2, 3].flatMap((rowIndex) => row(boss, rowIndex));
+
+    expect(topWall).not.toContain(1);
+    expect(topWall).not.toContain(13);
+    expect(topWall).not.toContain(25);
+    expect(topWall.filter((gid) => gid === 23)).toHaveLength(1);
+    expect(topWall.filter((gid) => gid === 24)).toHaveLength(1);
+    expect(tileAt(boss, 29, 3)).toBe(23);
+    expect(tileAt(boss, 30, 3)).toBe(24);
+  });
+
+  it("keeps the Level 5 dais and pillars inside the wall frame", () => {
+    const boss = readLevel(5);
+
+    expect(tileAt(boss, 22, 8)).toBe(43);
+    expect(tileAt(boss, 24, 9)).toBe(49);
+    expect(tileAt(boss, 4, 10)).toBe(50);
+    expect(tileAt(boss, 6, 10)).toBe(51);
+  });
+
+  it("adds symmetrical final-arena columns and magical basins around the existing dais", () => {
+    const boss = readLevel(5);
+
+    for (const [x, y] of [
+      [14, 7],
+      [45, 7],
+      [14, 14],
+      [45, 14]
+    ]) {
+      expect(tileAt(boss, x, y)).toBe(43);
+    }
+    for (const [x, y] of [
+      [18, 6],
+      [41, 6],
+      [18, 15],
+      [41, 15]
+    ]) {
+      expect(tileAt(boss, x, y)).toBe(33);
+    }
+  });
+
+  it("leaves the four removed prop locations as plain floor", () => {
+    const boss = readLevel(5);
+
+    expect(tileAt(boss, 12, 5)).toBe(1);
+    expect(tileAt(boss, 47, 5)).toBe(1);
+    expect(tileAt(boss, 12, 15)).toBe(1);
+    expect(tileAt(boss, 47, 15)).toBe(1);
   });
 });
 
@@ -134,5 +237,21 @@ describe("Tiled movement collision contract", () => {
         { x: 0, y: 126 }
       )
     ).toThrow(/axis-aligned rectangle/);
+  });
+});
+
+describe("computeLevelLaneBounds — matching movement space to the visible wall depth", () => {
+  const baseLane = { x: 0, y: 130, width: 960, height: 280 };
+
+  it("leaves regular levels on the original lane bounds", () => {
+    expect(computeLevelLaneBounds(1, baseLane)).toEqual(baseLane);
+    expect(computeLevelLaneBounds(4, baseLane)).toEqual(baseLane);
+  });
+
+  it("moves Level 5's upper boundary to the first floor row while preserving its lower boundary", () => {
+    const bossLane = computeLevelLaneBounds(5, baseLane);
+
+    expect(bossLane).toEqual({ x: 0, y: 174, width: 960, height: 236 });
+    expect(bossLane.y + bossLane.height).toBe(baseLane.y + baseLane.height);
   });
 });

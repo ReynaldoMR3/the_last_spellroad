@@ -63,6 +63,29 @@ export interface TilemapOffset {
   y: number;
 }
 
+export interface LaneBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Level 5's 320px map is drawn from y=110. Four 16px top-wall rows therefore end at y=174. */
+export const LEVEL_5_FLOOR_TOP_PX = 174;
+
+/** Keeps ordinary levels unchanged and removes Level 5's expanded top wall from walkable space. */
+export function computeLevelLaneBounds(level: number, baseLane: LaneBounds): LaneBounds {
+  if (level === 5) {
+    const bottom = baseLane.y + baseLane.height;
+    return {
+      ...baseLane,
+      y: LEVEL_5_FLOOR_TOP_PX,
+      height: bottom - LEVEL_5_FLOOR_TOP_PX
+    };
+  }
+  return { ...baseLane };
+}
+
 /**
  * Tiled's semantic movement flag. It may live on a tileset tile (Phaser exposes it through
  * `Tile.properties`) or on an object in any object layer. Layer names remain presentation
