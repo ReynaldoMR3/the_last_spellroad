@@ -3,7 +3,7 @@ import type { IncomingMessage } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createArtBoardDevApi } from "./devApi";
 
 const tile = {
@@ -100,6 +100,30 @@ describe("Art Board development API", () => {
 
     expect(response).toMatchObject({ status: 400, json: { ok: false } });
     await expect(readFile(join(root, "art-direction", "boards", "level-1.json"), "utf8")).rejects.toThrow();
+  });
+
+  it("keeps concurrent same-level brief writes independently atomic when timestamps match", async () => {
+    const root = await repository();
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
+    const first = levelOneBrief();
+    first.id = "brief:level-1:first";
+    const second = levelOneBrief();
+    second.id = "brief:level-1:second";
+
+    try {
+      const [firstResponse, secondResponse] = await Promise.all([
+        request(root, "POST", "/api/art-board/briefs", first),
+        request(root, "POST", "/api/art-board/briefs", second)
+      ]);
+
+      expect(firstResponse.status).toBe(200);
+      expect(secondResponse.status).toBe(200);
+      expect(JSON.parse(await readFile(join(root, "art-direction", "boards", "level-1.json"), "utf8"))).toMatchObject({
+        id: expect.stringMatching(/^brief:level-1:(first|second)$/)
+      });
+    } finally {
+      now.mockRestore();
+    }
   });
 
   it("derives proposal names from a valid brief and keeps output under proposals", async () => {

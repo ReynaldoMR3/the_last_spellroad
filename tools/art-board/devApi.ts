@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -133,8 +134,8 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
 
 async function writeJsonAtomically(path: string, document: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
-  const temporaryPath = `${path}.${process.pid}.${Date.now()}.tmp`;
-  await writeFile(temporaryPath, `${JSON.stringify(document, null, 2)}\n`, "utf8");
+  const temporaryPath = `${path}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`;
+  await writeFile(temporaryPath, `${JSON.stringify(document, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
   await rename(temporaryPath, path);
 }
 
