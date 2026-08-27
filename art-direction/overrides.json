@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "overrides": [
+    {
+      "id": "image:third-party:kenney-tiny-dungeon:tiles:tile-0084",
+      "semanticClass": "creature",
+      "capabilities": [
+        "visual-binding"
+      ]
+    }
+  ]
+}

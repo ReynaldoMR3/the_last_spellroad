@@ -11,3 +11,7 @@ __pycache__/
 # developer review, not a checked-in deliverable; promote a chosen file into
 # public/assets/audio/music/ by hand instead of committing this directory.
 public/assets/audio/_prototypes/
+
+.art-board/cache/
+art-direction/proposals/*.json
+!art-direction/proposals/.gitkeep
