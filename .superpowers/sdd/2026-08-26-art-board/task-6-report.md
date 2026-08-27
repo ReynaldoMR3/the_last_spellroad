@@ -46,3 +46,54 @@ No production game source, map, or asset file was modified.
 
 - The fire icon requested for the live search check is correctly rejected as a Level 1 placement because its catalogue capability is `visual-binding`, not `level-placement`; the successful draft/proposal therefore uses a documented placeable tile after the icon inspection.
 - `vite build` continues to report the repository's pre-existing large game-bundle warning. The development-only Art Board entry is exercised through `npm run art:board` and does not change that game bundle.
+
+## Fix round 1 — keyboard focus and override-safe validation
+
+### Status
+
+Resolved both Important review findings. Full Art Board rerenders now capture a control's logical identity and focus its replacement node, including catalogue assets, semantic placement targets, ID-based controls, and named/value controls. Durable catalogue overrides now produce detached corrected `AssetRecord` values used by the catalogue response and every browser/server validation and proposal boundary.
+
+### Files changed
+
+- `src/artBoard/boardState.ts` — logical focus capture/restore contracts.
+- `src/artBoard/boardState.test.ts` — replacement-node focus regressions for selected assets and placement targets.
+- `src/artBoard/catalog.ts` — shared `applyCatalogueOverrides` projection used before display and validation.
+- `src/artBoard/catalog.test.ts` — committed tile-0084 override regression with detached validation metadata.
+- `src/artBoard/main.ts` — retain and restore logical focus around every full render.
+- `tools/art-board/devApi.ts` — return and validate the same override-corrected catalogue records.
+- `tools/art-board/devApi.test.ts` — real request/filesystem regression proving a Level 1 brief cannot bypass a compatibility override.
+
+### Red/green evidence
+
+- **Focus RED:** `npx vitest run src/artBoard/boardState.test.ts` failed 2/13 because `captureArtBoardFocus` did not exist.
+- **Focus GREEN:** the same command passed 13/13 after logical focus capture/restore was added.
+- **Catalogue RED:** `npx vitest run src/artBoard/catalog.test.ts` failed 1/14 because validation records had no override projection.
+- **Catalogue GREEN:** the same command passed 14/14 after `applyCatalogueOverrides` began producing detached corrected records.
+- **API RED:** `npx vitest run tools/art-board/devApi.test.ts` failed 1/5 because the overridden tile-0084 Level 1 brief returned HTTP 200.
+- **API GREEN:** the same command passed 5/5 after the API loaded `overrides.json` and validated corrected records. The first green run exposed only an overly exact test-array assertion because the response also carried its existing invalid-context diagnostic; narrowing the assertion to require the compatibility error produced the final 5/5 result without another production change.
+
+### Commands and results
+
+- `npx vitest run src/artBoard tools/art-board/devApi.test.ts` — passed: 5 files, 83 tests.
+- `npm run typecheck` — passed.
+- `npm run build` — passed; Vite emitted its existing chunk-size warning.
+- `git diff --check` — passed.
+- `npm run art:board -- --host 127.0.0.1 --port 5174 --strictPort` — started the local companion for the keyboard and validation checks.
+
+### Live/manual evidence
+
+- Entered `fire` one key at a time. After each input-triggered rerender, `document.activeElement.id` remained `asset-search`, and the values progressed `f`, `fi`, `fir`, `fire`.
+- Pressed Enter on the Fire card. The replacement card retained focus with active asset ID `image:spell-icons:fire`, `aria-pressed=true`, and the inspector updated.
+- Pressed Enter on Entrance/left-anchor placement. The decision was recorded, export stayed disabled for the incompatible icon, and focus remained on the replacement target with zone `entrance` and anchor `leftEdge`.
+- Searched and keyboard-selected `image:third-party:kenney-tiny-dungeon:tiles:tile-0084`; the inspector showed corrected type `creature` and capability `visual-binding`.
+- Submitted that tile in a Level 1 brief to the running API. It returned `{ok:false}` with `asset-kind-mismatch`, and `art-direction/boards/level-1.json` did not exist afterward.
+- `git diff --name-only -- src ':!src/artBoard' public package.json vite.config.ts` produced no output, confirming no production game file changes.
+
+### Commit
+
+- `5a877e09c1b8d48879f806cf4a8cabf1161b83a1` — `fix: preserve art board review contracts`
+
+### Concerns
+
+- The API's existing `boardLevel` behavior appends `invalid-brief-context` whenever any validation error is present, so the rejected override response contains that diagnostic in addition to the required `asset-kind-mismatch`. This fix does not broaden scope to change that pre-existing response behavior.
+- The pre-existing Vite chunk-size warning remains unchanged.
