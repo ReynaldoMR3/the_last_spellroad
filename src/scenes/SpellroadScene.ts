@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { returnPlayerToTitle } from "../systems/runCompletion";
 import type { AoEShape, DebuffVariant, Element, MasteryTier, SpellDefinition, WaveDefinition } from "../data/types";
 import spellsData from "../data/spells/spells.json";
 import wavesLevel1Data from "../data/waves/level-1.json";
@@ -3416,11 +3417,12 @@ export class SpellroadScene extends Phaser.Scene {
    * `requireConfirm: true` rather than a new UI element or timed flash — exactly "persists
    * until dismissed" and "same visual language as the boss intro/outro banners," both
    * explicit acceptance criteria, for free from the mechanism issue #183 already built.
-   * Deliberately no `onHidden` follow-up: another acceptance criterion is no forced post-win
-   * flow (no auto-return to Title, no replay prompt), so dismissing this banner does nothing
-   * beyond closing it — the player simply stays on the field, free to keep playing. */
+   * Once the player acknowledges the victory, the run is over and returns to the initial
+   * title screen rather than leaving the completed encounter active. */
   private showWinBanner(): void {
-    this.showBossBanner(WIN_BANNER_TEXT + WIN_BANNER_CONFIRM_HINT, undefined, { requireConfirm: true });
+    this.showBossBanner(WIN_BANNER_TEXT + WIN_BANNER_CONFIRM_HINT, () => returnPlayerToTitle(this.scene), {
+      requireConfirm: true
+    });
   }
 
   /** @param emphasis "warning" gives the banner a distinct color + opaque background panel
