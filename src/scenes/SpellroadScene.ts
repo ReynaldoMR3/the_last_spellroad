@@ -2280,9 +2280,8 @@ export class SpellroadScene extends Phaser.Scene {
               if (!this.mage || !this.session.isCurrent(fireGeneration)) {
                 return;
               }
-              const rangedDamage = Math.round(ARCHETYPE_DAMAGE.ranged * enemy.damageModifier);
               if (isStillInRangedImpactZone(this.mage.x, this.mage.y, toX, toY)) {
-                this.health.applyDamage(rangedDamage);
+                this.health.applyDamage(Math.round(ARCHETYPE_DAMAGE.ranged * enemy.damageModifier));
               }
             });
           },

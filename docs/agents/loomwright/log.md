@@ -1415,14 +1415,24 @@ layer, attaches mage-only Arcade colliders, creates explicit object blockers, an
 layers/zones/colliders on a level transition. Enemy movement, targeting, spell behavior, lane
 bounds, and combat numbers are unchanged.
 
-Self-verification: `npm test -- --run` passed 30 files / 337 tests after the rejected dormant
-destructible-cover implementation was removed; `npm run typecheck`, `npm run build`, JSON map
-dimension/tile-count validation, and `git diff --check` passed. The production build retains the
-existing Vite large-chunk warning.
+Docker self-verification: `docker-compose run --rm game npm test -- --run` passed 30 files / 337
+tests; `docker-compose run --rm game npm run typecheck` and `docker-compose run --rm game npm run
+build` passed. JSON map dimension/tile-count validation and `git diff --check` also passed. The
+production build retains the existing Vite large-chunk warning.
 
 Developer playtest: approved in the worktree's Docker build on 2026-08-26 after iterative wall and
 door placement changes. The developer confirmed the final Level 1 result worked, including the
 solid closed-door/wall terrain requested for this checkpoint.
+
+**Verification rationale (ADR-0001):** the plausible defects were a decorative tile silently
+opening a gap in a visual wall, a floor tile becoming solid, or stale Arcade bodies surviving a
+level transition. The pure tests exercise every wall-integrated Level 1/5 GID, representative
+walkable floor GIDs, explicit object offsets, and malformed blocker geometry; the scene wiring
+uses one tracked collection for every created layer, blocker, and collider and destroys those
+collections before rebuilding. Docker typecheck/build catch the Phaser API and asset-loading
+wiring, while the developer's live Docker playtest exercises the tile-to-collider path that pure
+tests cannot instantiate. Level 5 uses the same tested collision classifier and lifecycle, and
+its complete set of wall-integrated GIDs is included in the focused test.
 
 **Status:** `shipped-and-validated` for the Phase 1 movement contract. Branch:
 `feat/castle-art-pass`.

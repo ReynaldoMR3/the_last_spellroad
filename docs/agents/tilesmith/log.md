@@ -1338,5 +1338,5 @@ tileset index, spawn point, or gameplay route changed.
 
 **Not included:** Levels 2-4, new third-party assets, spritesheet derivatives, or changes to
 the map dimensions and tileset. Tiled desktop is not installed in this environment, so visual
-QA used a nearest-neighbor renderer over the same packed PNG/GID mapping; final in-engine visual
-fit remains a human playtest gate.
+QA began with a nearest-neighbor renderer over the same packed PNG/GID mapping and concluded with
+the approved in-engine Docker checkpoint recorded above.
