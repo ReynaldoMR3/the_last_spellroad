@@ -1,9 +1,11 @@
 import overridesDocument from "../../art-direction/overrides.json";
 import {
+  audioPreviewMetadata,
+  bindingContextCards,
   captureArtBoardFocus,
   deriveArtBoardViewState,
   exportBrief,
-  levelOnePlacementTargets,
+  levelPlacementTargets,
   reduceBoard,
   restoreArtBoardFocus,
   type ArtBoardFocusTarget,
@@ -21,14 +23,23 @@ import {
   type AssetOverride,
   type AssetRecord,
   type LevelAnchor,
+  type LevelNumber,
   type LevelZone,
   type ValidationIssue
 } from "./domain";
-import { compileProposal, type CompileProposalResult } from "./proposal";
+import {
+  PRODUCTION_TARGET_INDEX,
+  bindingCompatibilityIndex,
+  compileProposal,
+  type CompileProposalResult
+} from "./proposal";
 import "./styles.css";
 
-const LEVEL = 1 as const;
-const MAP_URL = "/assets/levels/level-1.json";
+type BoardContext =
+  | { kind: "level"; level: LevelNumber }
+  | { kind: "binding"; bindingKey: string };
+
+const INITIAL_CONTEXT: BoardContext = { kind: "level", level: 1 };
 const ALL_KINDS: readonly (AssetKind | "all")[] = [
   "all",
   "image",
@@ -85,6 +96,7 @@ interface AppState {
   rawAssets: AssetRecord[];
   assets: DisplayAsset[];
   targetCount: number;
+  context: BoardContext;
   board: BoardState;
   selectedAssetId: string | null;
   query: string;
@@ -101,8 +113,8 @@ interface AppState {
 const root = artBoardRoot();
 
 const initialBoard: BoardState = {
-  briefId: "brief:level-1",
-  title: "Level 1 art direction",
+  briefId: "brief:art-board-draft",
+  title: "Art Board direction draft",
   decisions: []
 };
 
@@ -110,6 +122,7 @@ let app: AppState = {
   rawAssets: [],
   assets: [],
   targetCount: 0,
+  context: INITIAL_CONTEXT,
   board: initialBoard,
   selectedAssetId: null,
   query: "",
@@ -123,7 +136,7 @@ let app: AppState = {
   message: "Loading the repository catalogue…"
 };
 
-let mapPromise: Promise<TiledMap> | null = null;
+const mapPromises = new Map<LevelNumber, Promise<TiledMap>>();
 let retainedFocus: ArtBoardFocusTarget | null = null;
 
 void loadBoard();
@@ -143,7 +156,7 @@ async function loadBoard(): Promise<void> {
         overridesDocument.overrides as AssetOverride[]
       ),
       targetCount: Object.keys(targetResponse.targets).length,
-      message: "Select an asset, choose an action, then activate a Level 1 placement target."
+      message: "Choose a level or production binding, then select a compatible candidate."
     };
   } catch (error) {
     app = { ...app, message: readableError(error) };
@@ -164,7 +177,8 @@ function render(): void {
     issues,
     reviewConfirmed: app.reviewConfirmed
   });
-  const filteredAssets = filterAssets(app.assets, app.query, app.kind);
+  const contextAssets = contextCandidateAssets();
+  const filteredAssets = filterAssets(contextAssets, app.query, app.kind);
   const compiled = compiledProposal();
   const proposalReady = view.canExportProposal && app.briefPath !== null;
 
@@ -172,20 +186,29 @@ function render(): void {
     <header class="masthead">
       <div>
         <p class="eyebrow">The Last Spellroad · human review companion</p>
-        <h1>Level 1 Art Board</h1>
-        <p class="lede">Draft semantic art intent against the real Level 1 lane. Files produced here remain review artifacts.</p>
+        <h1>Art Board</h1>
+        <p class="lede">Compare repository assets against real level and game bindings. Every file produced here remains a review artifact.</p>
       </div>
       <div class="level-lock" aria-label="Current board context">
-        <span>Context locked</span>
-        <strong>Level 1</strong>
+        <span>Current context</span>
+        <strong>${escapeHtml(contextLabel(app.context))}</strong>
       </div>
     </header>
+
+    <nav class="context-nav" aria-label="Art Board contexts">
+      <div class="level-contexts" aria-label="Level previews">
+        ${([1, 2, 3, 4, 5] as LevelNumber[]).map((level) => `<button type="button" data-context-level="${level}" aria-pressed="${app.context.kind === "level" && app.context.level === level}">Level ${level}</button>`).join("")}
+      </div>
+      <div class="binding-contexts" aria-label="Production bindings">
+        ${bindingCards().map((card) => `<button type="button" data-context-binding="${escapeAttribute(card.bindingKey)}" aria-pressed="${app.context.kind === "binding" && app.context.bindingKey === card.bindingKey}"><span>${escapeHtml(bindingGroup(card.bindingKey))}</span>${escapeHtml(bindingLabel(card.bindingKey))}</button>`).join("")}
+      </div>
+    </nav>
 
     <main class="board-layout">
       <section id="${view.panels[0].id}" class="panel catalogue-panel" role="${view.panels[0].role}" aria-label="${view.panels[0].label}">
         <div class="panel-heading">
           <div><p class="panel-kicker">Library</p><h2>Asset catalogue</h2></div>
-          <span class="count">${filteredAssets.length} / ${app.assets.length}</span>
+          <span class="count">${filteredAssets.length} / ${contextAssets.length} compatible</span>
         </div>
         <div class="catalogue-tools">
           <label for="asset-search">Search assets</label>
@@ -196,30 +219,12 @@ function render(): void {
           </select>
         </div>
         <div class="asset-grid" aria-live="polite">
-          ${filteredAssets.length === 0 ? `<p class="empty-state">No catalogue assets match this search.</p>` : filteredAssets.map((asset) => assetCard(asset, asset.id === app.selectedAssetId)).join("")}
+          ${filteredAssets.length === 0 ? `<p class="empty-state">No compatible catalogue assets match this search.</p>` : filteredAssets.map((asset) => assetCard(asset, asset.id === app.selectedAssetId)).join("")}
         </div>
       </section>
 
       <section id="${view.panels[1].id}" class="panel scene-panel" role="${view.panels[1].role}" aria-label="${view.panels[1].label}">
-        <div class="panel-heading scene-heading">
-          <div><p class="panel-kicker">Semantic placement</p><h2>Level 1 scene canvas</h2></div>
-          <span class="map-source">Live map · 960 × 288</span>
-        </div>
-        <p class="guidance">The amber corridor marks the combat lane. Targets describe intent by named zone and anchor; they do not edit map cells.</p>
-        <div class="scene-frame">
-          <canvas id="level-map" width="960" height="288" role="img" aria-label="Rendered preview of the repository Level 1 tile map"></canvas>
-          <div class="combat-lane" aria-hidden="true"><span>combat lane guidance</span></div>
-          <div class="placement-grid" aria-label="Level 1 placement targets">
-            ${levelOnePlacementTargets().map(({ zone, anchor }) => placementButton(zone, anchor, view.selectedAsset)).join("")}
-          </div>
-        </div>
-        <div class="zone-legend" aria-label="Named Level 1 zones">
-          ${LEVEL_ZONES.map((zone) => `<span>${zoneLabel(zone)}</span>`).join("")}
-        </div>
-        <div class="decision-list">
-          <div class="subheading"><h3>Draft placements</h3><span>${activeDecisions().length}</span></div>
-          ${activeDecisions().length === 0 ? `<p class="empty-state">No placements yet. Select a catalogue card and activate a target above.</p>` : activeDecisions().map(decisionRow).join("")}
-        </div>
+        ${contextCanvas(view.selectedAsset)}
       </section>
 
       <section id="${view.panels[2].id}" class="panel inspector-panel" role="${view.panels[2].role}" aria-label="${view.panels[2].label}">
@@ -229,23 +234,25 @@ function render(): void {
         </div>
         ${selectedInspector(view.selectedAsset)}
         <fieldset class="action-picker">
-          <legend>Placement action</legend>
+          <legend>Decision action</legend>
           ${(["use", "replace", "remove"] as ArtAction[]).map((action) => `
             <label><input type="radio" name="placement-action" value="${action}"${app.action === action ? " checked" : ""} /> ${titleCase(action)}</label>
           `).join("")}
         </fieldset>
         <label for="placement-note">Art-direction note</label>
         <textarea id="placement-note" rows="3" placeholder="Describe the visual intent…">${escapeHtml(app.note)}</textarea>
+        ${app.context.kind === "binding" ? `<button id="record-binding" class="primary-button" type="button"${bindingActionAvailable(view.selectedAsset) ? "" : " disabled"}>Record ${escapeHtml(bindingLabel(app.context.bindingKey))} decision</button>` : ""}
 
         <div class="validation-block" aria-live="polite">
           <div class="subheading"><h3>Validation</h3><span class="${issues.some((issue) => issue.severity === "error") ? "error-chip" : "ready-chip"}">${issues.length === 0 ? "Ready" : `${issues.length} issue${issues.length === 1 ? "" : "s"}`}</span></div>
-          ${issues.length === 0 ? `<p>Draft decisions match the Level 1 contract.</p>` : `<ul>${issues.map((issue) => `<li class="${issue.severity}">${escapeHtml(issue.message)}</li>`).join("")}</ul>`}
+          ${issues.length === 0 ? `<p>Draft decisions match the selected level and production-binding contracts.</p>` : `<ul>${issues.map((issue) => `<li class="${issue.severity}">${escapeHtml(issue.message)}</li>`).join("")}</ul>`}
+          ${issues.length > 0 ? `<p class="draft-retained">Diagnostics never clear the draft; repair the highlighted reference and export again.</p>` : ""}
         </div>
 
         <div class="export-flow">
           <div class="review-step">
             <span class="step-number">1</span>
-            <div><h3>Export Level 1 brief</h3><p>Validate and save the draft under art-direction/boards.</p></div>
+            <div><h3>Export art brief</h3><p>Validate and save the current cross-context draft under art-direction/boards.</p></div>
           </div>
           <button id="export-brief" class="primary-button" type="button"${view.canExportBrief && !app.busy ? "" : " disabled"}>Export brief</button>
           ${app.briefPath ? `<p class="path-result">Saved: <code>${escapeHtml(app.briefPath)}</code></p>` : ""}
@@ -269,14 +276,97 @@ function render(): void {
     retainedFocus,
     [...root.querySelectorAll<HTMLElement>("button, input, select, textarea, summary")]
   );
-  void drawLevelMap();
+  if (app.context.kind === "level") void drawLevelMap(app.context.level);
+}
+
+function contextCanvas(selectedAsset: DisplayAsset | null): string {
+  if (app.context.kind === "binding") return bindingCanvas(app.context.bindingKey);
+  const level = app.context.level;
+  const decisions = activeDecisions().filter(
+    (decision) => decision.target.kind === "level" && decision.target.level === level
+  );
+  return `
+    <div class="panel-heading scene-heading">
+      <div><p class="panel-kicker">Semantic placement</p><h2>Level ${level} scene canvas</h2></div>
+      <span class="map-source">Live map · level-${level}.json</span>
+    </div>
+    <p class="guidance">The amber corridor marks the combat lane. Targets describe intent by named zone and anchor; they do not edit map cells.</p>
+    <div class="scene-frame">
+      <canvas id="level-map" width="960" height="288" role="img" aria-label="Rendered preview of the repository Level ${level} tile map"></canvas>
+      <div class="combat-lane" aria-hidden="true"><span>combat lane guidance</span></div>
+      <div class="placement-grid" aria-label="Level ${level} placement targets">
+        ${levelPlacementTargets(level).map(({ zone, anchor }) => placementButton(zone, anchor, selectedAsset)).join("")}
+      </div>
+    </div>
+    <div class="zone-legend" aria-label="Named Level ${level} zones">
+      ${LEVEL_ZONES.map((zone) => `<span>${zoneLabel(zone)}</span>`).join("")}
+    </div>
+    <div class="decision-list">
+      <div class="subheading"><h3>Level ${level} draft placements</h3><span>${decisions.length}</span></div>
+      ${decisions.length === 0 ? `<p class="empty-state">No placements yet. Select a compatible asset and activate a target above.</p>` : decisions.map(decisionRow).join("")}
+    </div>
+  `;
+}
+
+function bindingCanvas(bindingKey: string): string {
+  const card = bindingCards().find((candidate) => candidate.bindingKey === bindingKey);
+  if (!card) return `<p class="empty-state">The production binding is no longer indexed.</p>`;
+  const currentPreview = card.currentAsset && !card.currentAssetMissing
+    ? bindingMedia(card.currentAsset, `Current ${bindingLabel(bindingKey)}`)
+    : `<div class="missing-binding"><strong>Saved asset unavailable</strong><code>${escapeHtml(card.currentAssetId)}</code><p>Refresh or repair the catalogue. Any draft decision remains intact.</p></div>`;
+  const draft = card.draftDecision;
+  return `
+    <div class="panel-heading scene-heading">
+      <div><p class="panel-kicker">${escapeHtml(bindingGroup(bindingKey))}</p><h2>${escapeHtml(bindingLabel(bindingKey))}</h2></div>
+      <span class="map-source">${card.candidates.length} compatible candidates</span>
+    </div>
+    <p class="guidance">This card reflects the exact cache key and asset URL derived from the production system. Recording a decision creates review data only.</p>
+    <div class="binding-card${card.currentAssetMissing ? " missing" : ""}">
+      <div class="binding-current">
+        <p class="panel-kicker">Current production asset</p>
+        ${currentPreview}
+        <code>${escapeHtml(card.currentAssetId)}</code>
+      </div>
+      <dl>
+        <div><dt>Binding key</dt><dd><code>${escapeHtml(card.bindingKey)}</code></dd></div>
+        <div><dt>Production module</dt><dd><code>${escapeHtml(card.targetFile)}</code></dd></div>
+        <div><dt>Media</dt><dd>${card.mediaKind}</dd></div>
+      </dl>
+    </div>
+    <div class="decision-list">
+      <div class="subheading"><h3>Binding draft</h3><span>${draft ? "1 active" : "None"}</span></div>
+      ${draft ? decisionRow(draft) : `<p class="empty-state">Select a compatible candidate, choose Replace or Remove, then record the decision.</p>`}
+    </div>
+  `;
+}
+
+function bindingMedia(asset: DisplayAsset, label: string): string {
+  if (asset.kind === "image") {
+    return `<img class="binding-preview-image" src="${escapeAttribute(asset.url)}" alt="${escapeAttribute(label)}" />`;
+  }
+  if (asset.kind === "audio") return audioPreview(asset, label);
+  return `<div class="asset-glyph" aria-hidden="true">${assetGlyph(asset.kind)}</div>`;
+}
+
+function audioPreview(asset: DisplayAsset, label: string): string {
+  const metadata = audioPreviewMetadata(asset);
+  if (!metadata.canPreview) {
+    return `<p class="audio-fallback">${escapeHtml(metadata.fallbackText)}</p>`;
+  }
+  return `<div class="audio-preview">
+    <audio controls preload="metadata" data-audio-preview>
+      <source src="${escapeAttribute(metadata.sourceUrl)}"${metadata.mimeType ? ` type="${escapeAttribute(metadata.mimeType)}"` : ""} />
+    </audio>
+    <span>${escapeHtml(metadata.format)} · ${escapeHtml(label)}</span>
+    <p class="audio-fallback" data-audio-fallback hidden>${escapeHtml(metadata.fallbackText)}</p>
+  </div>`;
 }
 
 function assetCard(asset: DisplayAsset, selected: boolean): string {
   const media = asset.kind === "image"
     ? `<img src="${escapeAttribute(asset.url)}" alt="" loading="lazy" />`
     : asset.kind === "audio" && asset.capabilities.includes("audio-preview")
-      ? `<audio controls preload="metadata" src="${escapeAttribute(asset.url)}" aria-label="Preview ${escapeAttribute(asset.displayName)}"></audio>`
+      ? audioPreview(asset, `Preview ${asset.displayName}`)
       : `<div class="asset-glyph" aria-hidden="true">${assetGlyph(asset.kind)}</div>`;
 
   return `
@@ -305,7 +395,7 @@ function selectedInspector(asset: DisplayAsset | null): string {
   if (!asset) return `<div class="selected-empty"><div class="selection-mark">◇</div><p>Select a catalogue asset to inspect it and prepare a placement.</p></div>`;
   return `
     <article class="selected-asset">
-      ${asset.kind === "image" ? `<img src="${escapeAttribute(asset.url)}" alt="Preview of ${escapeAttribute(asset.displayName)}" />` : `<div class="selection-mark">${assetGlyph(asset.kind)}</div>`}
+      ${asset.kind === "image" ? `<img src="${escapeAttribute(asset.url)}" alt="Preview of ${escapeAttribute(asset.displayName)}" />` : asset.kind === "audio" ? audioPreview(asset, `Preview ${asset.displayName}`) : `<div class="selection-mark">${assetGlyph(asset.kind)}</div>`}
       <div><h3>${escapeHtml(asset.displayName)}</h3><code>${escapeHtml(asset.id)}</code></div>
       <dl>
         <div><dt>Type</dt><dd>${escapeHtml(asset.semanticClass)}</dd></div>
@@ -318,13 +408,15 @@ function selectedInspector(asset: DisplayAsset | null): string {
 }
 
 function decisionRow(decision: ArtDecision): string {
-  if (decision.target.kind !== "level") return "";
   const assetId = decision.assetId ?? decision.currentAssetId ?? "none";
   const asset = app.assets.find((candidate) => candidate.id === assetId);
+  const targetLabel = decision.target.kind === "level"
+    ? `${zoneLabel(decision.target.zone)} · ${anchorLabel(decision.target.anchor)}`
+    : bindingLabel(decision.target.bindingKey);
   return `
     <article class="decision-row">
       <span class="action-badge">${titleCase(decision.action)}</span>
-      <div><strong>${zoneLabel(decision.target.zone)} · ${anchorLabel(decision.target.anchor)}</strong><p>${escapeHtml(asset?.displayName ?? assetId)}</p>${decision.intent ? `<small>${escapeHtml(decision.intent)}</small>` : ""}</div>
+      <div><strong>${escapeHtml(targetLabel)}</strong><p>${escapeHtml(asset?.displayName ?? assetId)}</p>${decision.intent ? `<small>${escapeHtml(decision.intent)}</small>` : ""}</div>
     </article>
   `;
 }
@@ -342,6 +434,17 @@ function proposalReview(result: CompileProposalResult): string {
 }
 
 function bindEvents(): void {
+  document.querySelectorAll<HTMLButtonElement>("[data-context-level]").forEach((button) => {
+    button.addEventListener("click", () => {
+      setContext({ kind: "level", level: Number(button.dataset.contextLevel) as LevelNumber });
+    });
+  });
+  document.querySelectorAll<HTMLButtonElement>("[data-context-binding]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const bindingKey = button.dataset.contextBinding;
+      if (bindingKey) setContext({ kind: "binding", bindingKey });
+    });
+  });
   document.querySelector<HTMLInputElement>("#asset-search")?.addEventListener("input", (event) => {
     app = { ...app, query: (event.currentTarget as HTMLInputElement).value };
     render();
@@ -383,14 +486,36 @@ function bindEvents(): void {
   });
   document.querySelector<HTMLButtonElement>("#export-brief")?.addEventListener("click", () => void exportDraft());
   document.querySelector<HTMLButtonElement>("#export-proposal")?.addEventListener("click", () => void exportReviewedProposal());
+  document.querySelector<HTMLButtonElement>("#record-binding")?.addEventListener("click", recordBindingDecision);
+  document.querySelectorAll<HTMLAudioElement>("[data-audio-preview]").forEach((audio) => {
+    audio.addEventListener("error", () => {
+      audio.hidden = true;
+      const fallback = audio.parentElement?.querySelector<HTMLElement>("[data-audio-fallback]");
+      if (fallback) fallback.hidden = false;
+    });
+  });
+}
+
+function setContext(context: BoardContext): void {
+  app = {
+    ...app,
+    context,
+    selectedAssetId: null,
+    action: context.kind === "binding" ? "replace" : "use",
+    message: `${contextLabel(context)} selected. Choose a compatible candidate.`
+  };
+  retainedFocus = null;
+  render();
 }
 
 function placeAt(zone: LevelZone, anchor: LevelAnchor): void {
+  if (app.context.kind !== "level") return;
+  const level = app.context.level;
   const current = decisionAt(zone, anchor);
   const selected = app.assets.find((asset) => asset.id === app.selectedAssetId);
   const common = {
-    id: `decision:level-1:${zone}:${anchor}`,
-    target: { kind: "level" as const, level: LEVEL, zone, anchor },
+    id: `decision:level-${level}:${zone}:${anchor}`,
+    target: { kind: "level" as const, level, zone, anchor },
     ...(app.note.trim() ? { intent: app.note.trim() } : {})
   };
 
@@ -419,13 +544,55 @@ function placeAt(zone: LevelZone, anchor: LevelAnchor): void {
   render();
 }
 
+function recordBindingDecision(): void {
+  if (app.context.kind !== "binding") return;
+  const bindingKey = app.context.bindingKey;
+  const target = PRODUCTION_TARGET_INDEX[bindingKey];
+  if (!target) return;
+  const selected = app.assets.find((asset) => asset.id === app.selectedAssetId);
+  const common = {
+    id: `decision:${bindingKey}`,
+    target: { kind: "binding" as const, bindingKey },
+    ...(app.note.trim() ? { intent: app.note.trim() } : {})
+  };
+
+  if (app.action === "remove") {
+    app.board = reduceBoard(app.board, {
+      type: "remove",
+      ...common,
+      currentAssetId: target.currentAssetId
+    });
+  } else if (selected && app.action === "replace") {
+    app.board = reduceBoard(app.board, {
+      type: "replace",
+      ...common,
+      currentAssetId: target.currentAssetId,
+      assetId: selected.id
+    });
+  } else if (selected && app.action === "use") {
+    app.board = reduceBoard(app.board, { type: "use", ...common, assetId: selected.id });
+  } else {
+    return;
+  }
+
+  app = {
+    ...app,
+    note: "",
+    reviewConfirmed: false,
+    briefPath: null,
+    proposalPath: null,
+    message: `${titleCase(app.action)} decision recorded for ${bindingLabel(bindingKey)}.`
+  };
+  render();
+}
+
 async function exportDraft(): Promise<void> {
   const brief = exportBrief(app.board);
-  app = { ...app, busy: true, message: "Saving the Level 1 brief…" };
+  app = { ...app, busy: true, message: "Saving the art brief…" };
   render();
   const response = await postJson("/api/art-board/briefs", brief);
   app = response.ok
-    ? { ...app, busy: false, briefPath: response.path ?? null, proposalPath: null, message: "Level 1 brief saved. Review the proposal summary before the next export." }
+    ? { ...app, busy: false, briefPath: response.path ?? null, proposalPath: null, message: "Art brief saved. Review the proposal summary before the next export." }
     : { ...app, busy: false, message: issueMessage(response) };
   render();
 }
@@ -443,12 +610,16 @@ async function exportReviewedProposal(): Promise<void> {
 
 function validationIssues(): ValidationIssue[] {
   if (app.board.decisions.length === 0) return [];
-  return validateArtBrief(exportBrief(app.board), app.rawAssets);
+  return validateArtBrief(
+    exportBrief(app.board),
+    app.assets,
+    bindingCompatibilityIndex(PRODUCTION_TARGET_INDEX)
+  );
 }
 
 function compiledProposal(): CompileProposalResult {
   if (app.board.decisions.length === 0) return { proposal: null, issues: [] };
-  return compileProposal(exportBrief(app.board), app.rawAssets);
+  return compileProposal(exportBrief(app.board), app.rawAssets, PRODUCTION_TARGET_INDEX);
 }
 
 function activeDecisions(): ArtDecision[] {
@@ -456,20 +627,31 @@ function activeDecisions(): ArtDecision[] {
 }
 
 function decisionAt(zone: LevelZone, anchor: LevelAnchor): ArtDecision | undefined {
+  if (app.context.kind !== "level") return undefined;
+  const level = app.context.level;
   return [...activeDecisions()].reverse().find((decision) =>
-    decision.target.kind === "level" && decision.target.zone === zone && decision.target.anchor === anchor
+    decision.target.kind === "level" &&
+    decision.target.level === level &&
+    decision.target.zone === zone &&
+    decision.target.anchor === anchor
   );
 }
 
-async function drawLevelMap(): Promise<void> {
+async function drawLevelMap(level: LevelNumber): Promise<void> {
   const canvas = document.querySelector<HTMLCanvasElement>("#level-map");
   const context = canvas?.getContext("2d");
   if (!canvas || !context) return;
+  const mapUrl = `/assets/levels/level-${level}.json`;
   try {
-    const map = await (mapPromise ??= getJson<TiledMap>(MAP_URL));
+    let mapPromise = mapPromises.get(level);
+    if (!mapPromise) {
+      mapPromise = getJson<TiledMap>(mapUrl);
+      mapPromises.set(level, mapPromise);
+    }
+    const map = await mapPromise;
     const tileset = map.tilesets[0];
-    if (!tileset) throw new Error("Level 1 map has no tileset.");
-    const imageUrl = new URL(tileset.image, new URL(MAP_URL, window.location.href)).href;
+    if (!tileset) throw new Error(`Level ${level} map has no tileset.`);
+    const imageUrl = new URL(tileset.image, new URL(mapUrl, window.location.href)).href;
     const image = await loadImage(imageUrl);
     context.imageSmoothingEnabled = false;
     context.clearRect(0, 0, canvas.width, canvas.height);
@@ -485,7 +667,7 @@ async function drawLevelMap(): Promise<void> {
         context.drawImage(image, sourceX, sourceY, tileset.tilewidth, tileset.tileheight, targetX, targetY, map.tilewidth, map.tileheight);
       });
     }
-    await drawDecisionPreviews(context, canvas);
+    await drawDecisionPreviews(context, canvas, level);
   } catch (error) {
     context.fillStyle = "#141115";
     context.fillRect(0, 0, canvas.width, canvas.height);
@@ -495,9 +677,18 @@ async function drawLevelMap(): Promise<void> {
   }
 }
 
-async function drawDecisionPreviews(context: CanvasRenderingContext2D, canvas: HTMLCanvasElement): Promise<void> {
+async function drawDecisionPreviews(
+  context: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  level: LevelNumber
+): Promise<void> {
   const placementImages = activeDecisions().map(async (decision) => {
-    if (decision.target.kind !== "level" || decision.action === "remove" || !decision.assetId) return;
+    if (
+      decision.target.kind !== "level" ||
+      decision.target.level !== level ||
+      decision.action === "remove" ||
+      !decision.assetId
+    ) return;
     const asset = app.assets.find((candidate) => candidate.id === decision.assetId);
     if (!asset || asset.kind !== "image") return;
     const image = await loadImage(asset.url);
@@ -549,6 +740,52 @@ async function postJson(url: string, body: unknown): Promise<WriteResponse> {
 
 function issueMessage(response: WriteResponse): string {
   return response.issues?.map((issue) => issue.message).join(" ") || "The Art Board could not save this artifact.";
+}
+
+function bindingCards() {
+  return bindingContextCards(app.assets, app.board.decisions, PRODUCTION_TARGET_INDEX);
+}
+
+function contextCandidateAssets(): DisplayAsset[] {
+  if (app.context.kind === "binding") {
+    const bindingKey = app.context.bindingKey;
+    return bindingCards().find((card) => card.bindingKey === bindingKey)?.candidates ?? [];
+  }
+  return app.assets.filter(
+    (asset) =>
+      asset.kind === "image" &&
+      (asset.semanticClass === "tile" || asset.semanticClass === "prop") &&
+      asset.capabilities.includes("level-placement")
+  );
+}
+
+function bindingActionAvailable(selectedAsset: DisplayAsset | null): boolean {
+  if (app.context.kind !== "binding") return false;
+  return app.action === "remove" || selectedAsset !== null;
+}
+
+function contextLabel(context: BoardContext): string {
+  return context.kind === "level" ? `Level ${context.level}` : bindingLabel(context.bindingKey);
+}
+
+function bindingGroup(bindingKey: string): string {
+  if (bindingKey === "mage-sprite" || bindingKey.startsWith("enemy-")) return "Characters";
+  if (bindingKey.startsWith("spell-icon-")) return "Spell icons";
+  if (bindingKey.startsWith("openingvfx-")) return "Opening VFX";
+  if (bindingKey.startsWith("sfx-")) return "SFX";
+  if (bindingKey.startsWith("bgm-")) return "Music";
+  return "Binding";
+}
+
+function bindingLabel(bindingKey: string): string {
+  return bindingKey
+    .replace(/^openingvfx-/, "Opening VFX ")
+    .replace(/^sfx-/, "SFX ")
+    .replace(/^bgm-/, "BGM ")
+    .replace(/-/g, " ")
+    .replace(/^mage sprite$/, "Mage sprite")
+    .replace(/^enemy /, "Enemy ")
+    .replace(/^spell icon /, "Spell icon ");
 }
 
 function assetGlyph(kind: AssetKind): string {
