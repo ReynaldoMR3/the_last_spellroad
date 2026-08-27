@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ArtDecision, BindingArtTarget, LevelArtTarget } from "./domain";
+import type { DisplayAsset } from "./catalog";
+import * as boardStateApi from "./boardState";
 import { exportBrief, reduceBoard, type BoardState } from "./boardState";
 
 const levelTarget: LevelArtTarget = {
@@ -191,5 +193,134 @@ describe("exportBrief", () => {
       title: "Level 1 art direction",
       decisions: [{ ...decision, intent: "Warm landmark." }]
     });
+  });
+});
+
+describe("deriveArtBoardViewState", () => {
+  const fireIcon: DisplayAsset = {
+    id: "image:spell-icons:fire",
+    url: "/assets/spell-icons/fire.png",
+    kind: "image",
+    dimensions: { width: 32, height: 32 },
+    source: { name: null, license: null, evidencePath: null },
+    sourceStatus: "missing",
+    displayName: "Fire",
+    description: null,
+    tags: ["spell", "fire"],
+    tagOrigin: "suggested",
+    semanticClass: "icon",
+    capabilities: ["visual-binding"],
+    grid: null,
+    regions: [],
+    fileStatus: "present"
+  };
+
+  type DeriveViewState = (input: {
+    board: BoardState;
+    assets: readonly DisplayAsset[];
+    selectedAssetId: string | null;
+    issues: readonly { severity: "error" | "warning"; message: string }[];
+    reviewConfirmed: boolean;
+  }) => {
+    panels: { id: string; role: string; label: string }[];
+    selectedAsset: DisplayAsset | null;
+    canExportBrief: boolean;
+    canExportProposal: boolean;
+    applyToGameAvailable: boolean;
+  };
+
+  const deriveViewState = (): DeriveViewState =>
+    (boardStateApi as unknown as { deriveArtBoardViewState: DeriveViewState })
+      .deriveArtBoardViewState;
+
+  it("resolves the selected asset and exposes three labelled region panels", () => {
+    const state = reduceBoard(emptyBoard(), {
+      type: "use",
+      id: "decision:level-1:entrance:leftEdge",
+      target: levelTarget,
+      assetId: fireIcon.id
+    });
+
+    const view = deriveViewState()({
+      board: state,
+      assets: [fireIcon],
+      selectedAssetId: fireIcon.id,
+      issues: [],
+      reviewConfirmed: false
+    });
+
+    expect(view.selectedAsset).toBe(fireIcon);
+    expect(view.panels).toEqual([
+      { id: "asset-catalogue", role: "region", label: "Asset catalogue" },
+      { id: "level-1-scene", role: "region", label: "Level 1 scene canvas" },
+      { id: "selection-review", role: "region", label: "Selected asset and proposal review" }
+    ]);
+    expect(view.applyToGameAvailable).toBe(false);
+  });
+
+  it("keeps proposal export behind review confirmation", () => {
+    const board = reduceBoard(emptyBoard(), {
+      type: "use",
+      id: "decision:level-1:entrance:leftEdge",
+      target: levelTarget,
+      assetId: fireIcon.id
+    });
+
+    const beforeReview = deriveViewState()({
+      board,
+      assets: [fireIcon],
+      selectedAssetId: fireIcon.id,
+      issues: [],
+      reviewConfirmed: false
+    });
+    const afterReview = deriveViewState()({
+      board,
+      assets: [fireIcon],
+      selectedAssetId: fireIcon.id,
+      issues: [],
+      reviewConfirmed: true
+    });
+
+    expect(beforeReview.canExportBrief).toBe(true);
+    expect(beforeReview.canExportProposal).toBe(false);
+    expect(afterReview.canExportProposal).toBe(true);
+  });
+
+  it("disables both exports when validation has an error", () => {
+    const board = reduceBoard(emptyBoard(), {
+      type: "use",
+      id: "decision:level-1:entrance:leftEdge",
+      target: levelTarget,
+      assetId: fireIcon.id
+    });
+
+    const view = deriveViewState()({
+      board,
+      assets: [fireIcon],
+      selectedAssetId: fireIcon.id,
+      issues: [{ severity: "error", message: "The selected icon cannot be placed on the level." }],
+      reviewConfirmed: true
+    });
+
+    expect(view.canExportBrief).toBe(false);
+    expect(view.canExportProposal).toBe(false);
+  });
+});
+
+describe("levelOnePlacementTargets", () => {
+  it("orders one complete anchor row across all named zones before the next row", () => {
+    type PlacementTarget = { zone: string; anchor: string };
+    const placementTargets = (
+      boardStateApi as unknown as { levelOnePlacementTargets: () => PlacementTarget[] }
+    ).levelOnePlacementTargets;
+
+    expect(placementTargets()).toHaveLength(15);
+    expect(placementTargets().slice(0, 5)).toEqual([
+      { zone: "entrance", anchor: "leftEdge" },
+      { zone: "lane", anchor: "leftEdge" },
+      { zone: "leftEdge", anchor: "leftEdge" },
+      { zone: "rightEdge", anchor: "leftEdge" },
+      { zone: "threshold", anchor: "leftEdge" }
+    ]);
   });
 });

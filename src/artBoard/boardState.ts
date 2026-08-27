@@ -1,14 +1,69 @@
-import type {
-  ArtBrief,
-  ArtDecision,
-  ArtDecisionConfidence,
-  ArtTarget
+import {
+  LEVEL_ANCHORS,
+  LEVEL_ZONES,
+  type LevelAnchor,
+  type LevelZone,
+  type ArtBrief,
+  type ArtDecision,
+  type ArtDecisionConfidence,
+  type ArtTarget
 } from "./domain";
+import type { DisplayAsset } from "./catalog";
 
 export interface BoardState {
   briefId: string;
   title?: string;
   decisions: ArtDecision[];
+}
+
+export interface ArtBoardPanel {
+  id: "asset-catalogue" | "level-1-scene" | "selection-review";
+  role: "region";
+  label: string;
+}
+
+export interface ArtBoardViewState {
+  panels: ArtBoardPanel[];
+  selectedAsset: DisplayAsset | null;
+  canExportBrief: boolean;
+  canExportProposal: boolean;
+  applyToGameAvailable: false;
+}
+
+export interface ArtBoardViewStateInput {
+  board: BoardState;
+  assets: readonly DisplayAsset[];
+  selectedAssetId: string | null;
+  issues: readonly { severity: "error" | "warning"; message: string }[];
+  reviewConfirmed: boolean;
+}
+
+const ART_BOARD_PANELS: readonly ArtBoardPanel[] = [
+  { id: "asset-catalogue", role: "region", label: "Asset catalogue" },
+  { id: "level-1-scene", role: "region", label: "Level 1 scene canvas" },
+  { id: "selection-review", role: "region", label: "Selected asset and proposal review" }
+];
+
+/** Row-major targets for the three anchor rows drawn across the five zone columns. */
+export function levelOnePlacementTargets(): Array<{ zone: LevelZone; anchor: LevelAnchor }> {
+  return LEVEL_ANCHORS.flatMap((anchor) =>
+    LEVEL_ZONES.map((zone) => ({ zone, anchor }))
+  );
+}
+
+/** Derives UI affordances without giving the browser an apply-to-game path. */
+export function deriveArtBoardViewState(input: ArtBoardViewStateInput): ArtBoardViewState {
+  const hasError = input.issues.some((issue) => issue.severity === "error");
+  const canExportBrief = input.board.decisions.length > 0 && !hasError;
+
+  return {
+    panels: ART_BOARD_PANELS.map((panel) => ({ ...panel })),
+    selectedAsset:
+      input.assets.find((asset) => asset.id === input.selectedAssetId) ?? null,
+    canExportBrief,
+    canExportProposal: canExportBrief && input.reviewConfirmed,
+    applyToGameAvailable: false
+  };
 }
 
 interface DecisionEventBase {
