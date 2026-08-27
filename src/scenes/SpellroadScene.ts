@@ -40,6 +40,7 @@ import {
   TILESET_IMAGE_KEY,
   TILESET_IMAGE_URL,
   TILESET_NAME_IN_MAP,
+  computeLevelLaneBounds,
   computeTilemapOffset,
   levelMapKey,
   levelMapUrl,
@@ -627,6 +628,7 @@ export class SpellroadScene extends Phaser.Scene {
 
   private previewSpellId: string | null = null;
   private previewGraphics?: Phaser.GameObjects.Graphics;
+  private laneMaskShape?: Phaser.GameObjects.Graphics;
   /** backlog 2.22 / issue #44 -- the enemy auto-aim locked onto for the in-progress
    * preview, chosen once when the preview starts (see `handleHotbarPress`) and tracked
    * live (not re-evaluated) until confirm/cancel, per the design doc's soft-lock decision.
@@ -782,6 +784,7 @@ export class SpellroadScene extends Phaser.Scene {
   private currentLevelLayers: Phaser.Tilemaps.TilemapLayer[] = [];
   private currentLevelMovementBlockers: Phaser.GameObjects.Zone[] = [];
   private currentLevelMovementColliders: Phaser.Physics.Arcade.Collider[] = [];
+  private currentLaneRect = new Phaser.Geom.Rectangle(LANE_RECT.x, LANE_RECT.y, LANE_RECT.width, LANE_RECT.height);
   private renderedLevel = 0;
 
   constructor() {
@@ -946,6 +949,7 @@ export class SpellroadScene extends Phaser.Scene {
     this.currentLevelLayers = [];
     this.currentLevelMovementBlockers = [];
     this.currentLevelMovementColliders = [];
+    this.currentLaneRect.setTo(LANE_RECT.x, LANE_RECT.y, LANE_RECT.width, LANE_RECT.height);
     this.enemies = [];
     this.enemiesRemainingToSpawn = 0;
     this.waveIndex = 0;
@@ -1099,10 +1103,14 @@ export class SpellroadScene extends Phaser.Scene {
   }
 
   /** backlog 3.8 (issue #29) — swaps in the real Tiled layout for `level` (1-4 regular, 5 =
-   * boss arena), replacing whatever level's art was showing before. Issue #172 adds movement
-   * collision from tile/object semantics while preserving `LANE_RECT` as the outer clamp and
-   * leaving enemies, spawning, targeting, and combat geometry on their existing behavior. */
+   * boss arena), replacing whatever level's art was showing before. Idempotent per level
+   * (`renderedLevel` guard) so calling this every `startWave()` — including phase-breaks
+   * within the same boss fight, which stay on the same level — doesn't tear down and rebuild
+   * the same tilemap for no reason. Issue #172 supplies tile/object collision for the mage;
+   * Level 5 additionally applies its deeper upper-wall boundary to mage movement, enemy
+   * spawning, and spell-preview clipping so gameplay matches the visible floor. */
   private renderLevelArt(level: number): void {
+    this.applyLevelLaneBounds(level);
     if (this.renderedLevel === level) {
       return;
     }
@@ -1168,6 +1176,30 @@ export class SpellroadScene extends Phaser.Scene {
 
     this.currentLevelTilemap = map;
     this.renderedLevel = level;
+  }
+
+  private applyLevelLaneBounds(level: number): void {
+    const bounds = computeLevelLaneBounds(level, LANE_RECT);
+    this.currentLaneRect.setTo(bounds.x, bounds.y, bounds.width, bounds.height);
+
+    if (this.mage) {
+      this.mage.body.setBoundsRectangle(this.currentLaneRect);
+      const halfBodyHeight = this.mage.body.height / 2;
+      this.mage.y = Phaser.Math.Clamp(
+        this.mage.y,
+        this.currentLaneRect.top + halfBodyHeight,
+        this.currentLaneRect.bottom - halfBodyHeight
+      );
+    }
+
+    this.laneMaskShape?.clear();
+    this.laneMaskShape?.fillStyle(0xffffff, 1);
+    this.laneMaskShape?.fillRect(
+      this.currentLaneRect.x,
+      this.currentLaneRect.y,
+      this.currentLaneRect.width,
+      this.currentLaneRect.height
+    );
   }
 
   /** Issue #157 — one small ground-rune circle per catalog encounter, positioned per the
@@ -1268,7 +1300,7 @@ export class SpellroadScene extends Phaser.Scene {
     this.mage.setDisplaySize(32, 32);
     this.mage.setCollideWorldBounds(true);
     this.mage.body.setSize(32, 32);
-    this.mage.body.setBoundsRectangle(LANE_RECT);
+    this.mage.body.setBoundsRectangle(this.currentLaneRect);
 
     this.playerStatusBar = this.add.graphics();
     this.playerStatusBar.setDepth(UI_DEPTH);
@@ -1476,9 +1508,15 @@ export class SpellroadScene extends Phaser.Scene {
     this.previewGraphics = this.add.graphics();
     // backlog 2.10 — clip the shape preview to the lane rectangle so line/cone/circle
     // fills never visibly render past the purple guide-rails, regardless of aim angle.
-    const laneMaskShape = this.make.graphics({}, false);
-    laneMaskShape.fillRect(LANE_RECT.x, LANE_RECT.y, LANE_RECT.width, LANE_RECT.height);
-    this.previewGraphics.setMask(laneMaskShape.createGeometryMask());
+    this.laneMaskShape = this.make.graphics({}, false);
+    this.laneMaskShape.fillStyle(0xffffff, 1);
+    this.laneMaskShape.fillRect(
+      this.currentLaneRect.x,
+      this.currentLaneRect.y,
+      this.currentLaneRect.width,
+      this.currentLaneRect.height
+    );
+    this.previewGraphics.setMask(this.laneMaskShape.createGeometryMask());
   }
 
   private createInput(): void {
@@ -2015,7 +2053,7 @@ export class SpellroadScene extends Phaser.Scene {
       this,
       wave,
       { x: ENEMY_SPAWN_X, y: 270 },
-      LANE_RECT,
+      this.currentLaneRect,
       (enemy) => {
         this.enemies.push(enemy);
         this.enemiesRemainingToSpawn -= 1;
