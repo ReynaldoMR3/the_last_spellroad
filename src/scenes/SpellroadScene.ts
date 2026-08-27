@@ -20,7 +20,12 @@ import { ENEMY_REGISTRY } from "../data/enemyRegistry";
 import { countSpawnableEnemies } from "../systems/waveEnemyCounts";
 import { selectDefaultLoadout } from "../systems/defaultLoadout";
 import { selectAutoAimTarget } from "../systems/autoAim";
-import { isStillInRangedImpactZone } from "../systems/rangedImpact";
+import {
+  isStillInRangedImpactZone,
+  resolveCoverImpactOnPath,
+  type CoverPathCandidate,
+  type CoverPathImpact
+} from "../systems/rangedImpact";
 import { WaveSession, canResolveEncounterChoice, canResolvePhaseChoice, shouldAutoAdvance } from "../systems/waveSession";
 import { evaluateSidePocketOffer, resolveSidePocketExplore } from "../systems/sidePocketEncounter";
 import { SIDE_POCKET_ENCOUNTERS, type SidePocketEncounter } from "../data/sidePocketEncounters";
@@ -40,9 +45,13 @@ import {
   TILESET_IMAGE_URL,
   TILESET_NAME_IN_MAP,
   computeTilemapOffset,
+  destructibleCoverMetadataFromTiledObject,
   levelMapKey,
-  levelMapUrl
+  levelMapUrl,
+  movementBlockerRectFromTiledObject,
+  tileBlocksMovement
 } from "../systems/levelArt";
+import { coverBlocksMovement, createCoverState, type CoverState } from "../systems/destructibleCover";
 import { SPELL_ICON_ELEMENTS, iconKeyForSpell, spellIconKey, spellIconUrl } from "../systems/spellIcons";
 import { ALL_ENEMY_ARCHETYPES, MAGE_SPRITE_KEY, MAGE_SPRITE_URL, enemySpriteKey, enemySpriteUrl } from "../systems/characterArt";
 import {
@@ -85,6 +94,7 @@ import {
   OPENING_VFX_TRAIL_KEY,
   OPENING_VFX_TRAIL_URL
 } from "../systems/openingVfx";
+
 import {
   buildSaveBlob,
   prepareGameProgress,
@@ -93,6 +103,15 @@ import {
 } from "../systems/gameProgress";
 import { writeSave } from "../systems/SaveSystem";
 import { resolveDebugStartWave } from "../systems/debugStart";
+
+interface SceneCoverInstance {
+  readonly state: CoverState;
+  readonly zone: Phaser.GameObjects.Zone;
+  readonly body: Phaser.Physics.Arcade.StaticBody;
+  readonly visual: Phaser.GameObjects.Rectangle;
+  readonly movementCollider?: Phaser.Physics.Arcade.Collider;
+  readonly rubble?: Phaser.GameObjects.Rectangle;
+}
 
 const PLAYER_SPEED = 180;
 /** Widened 160->220 (2026-07-27, developer feedback: not enough room to evade projectiles/
@@ -477,6 +496,11 @@ const LANE_RECT = new Phaser.Geom.Rectangle(ROAD_LEFT, ROAD_TOP, ROAD_WIDTH, ROA
  * default-depth (0) gameplay/HUD object. */
 const BACKGROUND_DEPTH = -100;
 const TILE_LAYER_DEPTH = -50;
+const COVER_RUBBLE_DEPTH = -40;
+const COVER_RUBBLE_COLOR = 0x8a6b3d;
+const COVER_RUBBLE_OUTLINE_COLOR = 0x5c4630;
+const COVER_PILLAR_COLOR = 0xc2875b;
+const COVER_PILLAR_OUTLINE_COLOR = 0x704936;
 /** Issue #157 — the Side-Pocket rune markers sit on the ground, above the tile art but below
  * every default-depth (0) mage/enemy sprite, same "explicit depth regardless of creation
  * order" reasoning as `TILE_LAYER_DEPTH` above (markers are created once in `create()`,
@@ -775,7 +799,10 @@ export class SpellroadScene extends Phaser.Scene {
   // every level transition (see `renderLevelArt`). `renderedLevel` starts at 0 (no level is
   // valid at 0) so the very first `startWave(0)` call unconditionally renders Level 1's art.
   private currentLevelTilemap?: Phaser.Tilemaps.Tilemap;
-  private currentLevelLayer?: Phaser.Tilemaps.TilemapLayer;
+  private currentLevelLayers: Phaser.Tilemaps.TilemapLayer[] = [];
+  private currentLevelMovementBlockers: Phaser.GameObjects.Zone[] = [];
+  private currentLevelMovementColliders: Phaser.Physics.Arcade.Collider[] = [];
+  private currentLevelCovers = new Map<number, SceneCoverInstance>();
   private renderedLevel = 0;
 
   constructor() {
@@ -937,7 +964,10 @@ export class SpellroadScene extends Phaser.Scene {
     // happened to be visible, matching the precedent the `session` reset above already set.
     this.renderedLevel = 0;
     this.currentLevelTilemap = undefined;
-    this.currentLevelLayer = undefined;
+    this.currentLevelLayers = [];
+    this.currentLevelMovementBlockers = [];
+    this.currentLevelMovementColliders = [];
+    this.currentLevelCovers = new Map();
     this.enemies = [];
     this.enemiesRemainingToSpawn = 0;
     this.waveIndex = 0;
@@ -1091,17 +1121,36 @@ export class SpellroadScene extends Phaser.Scene {
   }
 
   /** backlog 3.8 (issue #29) — swaps in the real Tiled layout for `level` (1-4 regular, 5 =
-   * boss arena), replacing whatever level's art was showing before. Idempotent per level
-   * (`renderedLevel` guard) so calling this every `startWave()` — including phase-breaks
-   * within the same boss fight, which stay on the same level — doesn't tear down and rebuild
-   * the same tilemap for no reason. Purely visual: `LANE_RECT`/`ROAD_WIDTH`/`ROAD_HEIGHT`
-   * (movement clamping, enemy spawn positioning, spell-preview clipping) are never read from
-   * or written by this method. */
+   * boss arena), replacing whatever level's art was showing before. Issue #172 adds movement
+   * collision from tile/object semantics while preserving `LANE_RECT` as the outer clamp and
+   * leaving enemies, spawning, targeting, and combat geometry on their existing behavior. */
   private renderLevelArt(level: number): void {
     if (this.renderedLevel === level) {
       return;
     }
-    this.currentLevelLayer?.destroy();
+    if (!this.mage) {
+      throw new Error("renderLevelArt requires createMage to run first");
+    }
+    const mage = this.mage;
+    for (const collider of this.currentLevelMovementColliders) {
+      collider.destroy();
+    }
+    for (const blocker of this.currentLevelMovementBlockers) {
+      blocker.destroy();
+    }
+    for (const cover of this.currentLevelCovers.values()) {
+      cover.movementCollider?.destroy();
+      cover.rubble?.destroy();
+      cover.visual.destroy();
+      cover.zone.destroy();
+    }
+    for (const layer of this.currentLevelLayers) {
+      layer.destroy();
+    }
+    this.currentLevelMovementColliders = [];
+    this.currentLevelMovementBlockers = [];
+    this.currentLevelLayers = [];
+    this.currentLevelCovers.clear();
     this.currentLevelTilemap?.destroy();
 
     const map = this.make.tilemap({ key: levelMapKey(level) });
@@ -1118,12 +1167,128 @@ export class SpellroadScene extends Phaser.Scene {
       mapWidthPx: map.widthInPixels,
       mapHeightPx: map.heightInPixels
     });
-    const layer = map.createLayer("Terrain", tileset, offset.x, offset.y);
-    layer?.setDepth(TILE_LAYER_DEPTH);
+
+    map.layers.forEach((layerData, index) => {
+      const layer = map.createLayer(layerData.name, tileset, offset.x, offset.y);
+      if (!layer) {
+        return;
+      }
+      layer.setDepth(TILE_LAYER_DEPTH + index * 0.01);
+      layer.forEachTile((tile) => {
+        const blocksMovement = tileBlocksMovement(tile);
+        tile.setCollision(blocksMovement, blocksMovement, blocksMovement, blocksMovement);
+      });
+      this.currentLevelLayers.push(layer);
+      this.currentLevelMovementColliders.push(this.physics.add.collider(mage, layer));
+    });
+
+    for (const objectLayer of map.objects) {
+      for (const object of objectLayer.objects) {
+        const coverMetadata = destructibleCoverMetadataFromTiledObject(object, offset);
+        if (coverMetadata) {
+          if (this.currentLevelCovers.has(coverMetadata.objectId)) {
+            throw new Error(`Duplicate Tiled destructible cover object id ${coverMetadata.objectId}`);
+          }
+
+          const { rect } = coverMetadata;
+          const zone = this.add.zone(rect.x + rect.width / 2, rect.y + rect.height / 2, rect.width, rect.height);
+          this.physics.add.existing(zone, true);
+          const body = zone.body;
+          if (!(body instanceof Phaser.Physics.Arcade.StaticBody)) {
+            throw new Error(`Tiled destructible cover object ${coverMetadata.objectId} requires a static body`);
+          }
+
+          const visual = this.add
+            .rectangle(rect.x + rect.width / 2, rect.y + rect.height / 2, rect.width, rect.height, COVER_PILLAR_COLOR, 1)
+            .setDepth(COVER_RUBBLE_DEPTH)
+            .setStrokeStyle(2, COVER_PILLAR_OUTLINE_COLOR, 1);
+
+          this.currentLevelCovers.set(coverMetadata.objectId, {
+            state: createCoverState(String(coverMetadata.objectId), coverMetadata.coverHp),
+            zone,
+            body,
+            visual,
+            movementCollider: this.physics.add.collider(mage, zone)
+          });
+          continue;
+        }
+
+        const rect = movementBlockerRectFromTiledObject(object, offset);
+        if (!rect) {
+          continue;
+        }
+        const blocker = this.add.zone(rect.x + rect.width / 2, rect.y + rect.height / 2, rect.width, rect.height);
+        this.physics.add.existing(blocker, true);
+        this.currentLevelMovementBlockers.push(blocker);
+        this.currentLevelMovementColliders.push(this.physics.add.collider(mage, blocker));
+      }
+    }
 
     this.currentLevelTilemap = map;
-    this.currentLevelLayer = layer ?? undefined;
     this.renderedLevel = level;
+  }
+
+  /** Task 2 boundary for Task 3: replace, never mutate, the pure cover state. Destroyed cover
+   * keeps its authored tile-layer rubble visible while its static body and movement collider
+   * leave the Arcade simulation. */
+  private replaceCurrentLevelCoverState(objectId: number, state: CoverState): void {
+    const current = this.currentLevelCovers.get(objectId);
+    if (!current) {
+      throw new Error(`Unknown Tiled destructible cover object id ${objectId}`);
+    }
+    if (state.id !== current.state.id) {
+      throw new Error(`Cover state ${state.id} does not belong to Tiled object ${objectId}`);
+    }
+
+    let movementCollider = current.movementCollider;
+    let rubble = current.rubble;
+    if (coverBlocksMovement(current.state) && !coverBlocksMovement(state)) {
+      movementCollider?.destroy();
+      movementCollider = undefined;
+      this.physics.world.disableBody(current.body);
+      current.visual.setVisible(false);
+      rubble = this.add
+        .rectangle(
+          current.zone.x,
+          current.zone.y + current.zone.height * 0.3,
+          current.zone.width,
+          Math.max(4, current.zone.height * 0.4),
+          COVER_RUBBLE_COLOR,
+          0.9
+        )
+        .setDepth(COVER_RUBBLE_DEPTH)
+        .setStrokeStyle(1, COVER_RUBBLE_OUTLINE_COLOR, 0.9);
+    }
+
+    this.currentLevelCovers.set(objectId, {
+      ...current,
+      state,
+      movementCollider,
+      rubble
+    });
+  }
+
+  private currentCoverPathCandidates(): CoverPathCandidate[] {
+    return [...this.currentLevelCovers].map(([objectId, cover]) => ({
+      objectId,
+      rect: {
+        x: cover.zone.x - cover.zone.width / 2,
+        y: cover.zone.y - cover.zone.height / 2,
+        width: cover.zone.width,
+        height: cover.zone.height
+      },
+      state: cover.state
+    }));
+  }
+
+  private applyCoverPathImpact(impact: CoverPathImpact): SceneCoverInstance {
+    const cover = this.currentLevelCovers.get(impact.objectId);
+    if (!cover) {
+      throw new Error(`Unknown impacted cover object id ${impact.objectId}`);
+    }
+    this.replaceCurrentLevelCoverState(impact.objectId, impact.state);
+    this.spawnDamageNumber(cover.zone.x, cover.zone.y, impact.damageApplied, impact.state.hp, impact.state.maxHp);
+    return cover;
   }
 
   /** Issue #157 — one small ground-rune circle per catalog encounter, positioned per the
@@ -1737,11 +1902,37 @@ export class SpellroadScene extends Phaser.Scene {
 
     let hits = 0;
     let kills = 0;
+    const castOrigin = { x: this.mage.x, y: this.mage.y };
+    const coversAtCast = this.currentCoverPathCandidates();
+    const impactedCoverIds = new Set<number>();
+    const coverBlocksCastPath = (toX: number, toY: number): boolean => {
+      const impact = resolveCoverImpactOnPath({
+        from: castOrigin,
+        to: { x: toX, y: toY },
+        covers: coversAtCast,
+        damage: result.power,
+        source: "spell"
+      });
+      if (!impact) {
+        return false;
+      }
+      if (!impactedCoverIds.has(impact.objectId)) {
+        hits += 1;
+        impactedCoverIds.add(impact.objectId);
+        const cover = this.applyCoverPathImpact(impact);
+        this.spawnImpactBurst(cover.zone.x, cover.zone.y, ELEMENT_EFFECT_COLOR[spell.element], spell.element);
+      }
+      return true;
+    };
+
     for (const enemy of [...this.enemies]) {
       if (hits >= result.maxTargets) {
         break;
       }
       if (!result.hitTest(enemy.x, enemy.y)) {
+        continue;
+      }
+      if (coverBlocksCastPath(enemy.x, enemy.y)) {
         continue;
       }
       hits += 1;
@@ -1755,6 +1946,9 @@ export class SpellroadScene extends Phaser.Scene {
         this.hexcoin.earn(1);
         kills += 1;
       }
+    }
+    if (hits < result.maxTargets) {
+      coverBlocksCastPath(targetX, targetY);
     }
 
     // backlog 0.5, resolved 2026-08-01: gate Mastery progress on a KILL, not any landed
@@ -2237,8 +2431,21 @@ export class SpellroadScene extends Phaser.Scene {
               if (!this.mage || !this.session.isCurrent(fireGeneration)) {
                 return;
               }
+              const rangedDamage = Math.round(ARCHETYPE_DAMAGE.ranged * enemy.damageModifier);
+              const coverImpact = resolveCoverImpactOnPath({
+                from: { x: fromX, y: fromY },
+                to: { x: toX, y: toY },
+                covers: this.currentCoverPathCandidates(),
+                damage: rangedDamage,
+                source: "ranged"
+              });
+              if (coverImpact) {
+                const cover = this.applyCoverPathImpact(coverImpact);
+                this.spawnEnemyRangedImpactVfx(cover.zone.x, cover.zone.y);
+                return;
+              }
               if (isStillInRangedImpactZone(this.mage.x, this.mage.y, toX, toY)) {
-                this.health.applyDamage(Math.round(ARCHETYPE_DAMAGE.ranged * enemy.damageModifier));
+                this.health.applyDamage(rangedDamage);
               }
             });
           },

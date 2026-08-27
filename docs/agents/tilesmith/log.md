@@ -1296,3 +1296,47 @@ VFX now reads as visible in the flow of real combat (not just a single isolated 
 that its SFX now feels proportionate next to fire/ice/lightning -- per this agent's own standing
 rule that a developer playtest is the only thing that can close that loop, same as every prior
 VFX/SFX row in this log.
+
+## 2026-08-23 -- Issue #172 expanded castle art pass, bounded Phase 1 (Levels 1 and 5)
+
+Scoped the five-level direction in `docs/agents/tilesmith/castle-art-brief.md` and implemented
+the two endpoint maps only. The tile art remains in the existing `Terrain` layer. Following
+playtest feedback, Level 1's temporary pillar object layer was removed. No map dimension,
+tileset index, spawn point, or gameplay route changed.
+
+**Asset 1 -- `public/assets/levels/level-1.json` (castle gatehouse arrangement):**
+
+- Source: Kenney "Tiny Dungeon," https://kenney.nl/assets/tiny-dungeon; repository source sheet
+  `public/assets/third-party/kenney-tiny-dungeon/Tilemap/tilemap_packed.png`; license evidence
+  `public/assets/third-party/kenney-tiny-dungeon/License.txt`.
+- License: Creative Commons Zero (CC0 1.0). Commercial use and modification permitted;
+  attribution not required. No GraphicRiver or other commercial asset used.
+- Sourcing-contract step: **1 (Kenney.nl)**. Authored Tiled layout data using the existing,
+  already-vendored Kenney asset; no new binary asset was downloaded or originated.
+- Art use: red wall braziers (GID 30), continuous upper and lower gray masonry panels using
+  dedicated left, seamless-middle, and right pieces (GIDs 37-39), five irregularly spaced
+  closed chamber doors
+  embedded only in the upper wall (GID 23), worn edge stones (GID 25), and sparse pebble wear
+  (GID 13). The earlier lower door tiles, large floor mosaics, circular
+  floor motifs, and temporary pillars were removed after playtest feedback. The remaining
+  upper chamber-door tiles retain solid wall collision.
+- Sign-off status: **approved in the developer's Docker playtest on 2026-08-26**.
+
+**Asset 2 -- `public/assets/levels/level-5.json` (Director trial hall arrangement):**
+
+- Source: Kenney "Tiny Dungeon," https://kenney.nl/assets/tiny-dungeon; same repository source
+  sheet and `License.txt` evidence as Asset 1.
+- License: Creative Commons Zero (CC0 1.0). Commercial use and modification permitted;
+  attribution not required. No GraphicRiver or other commercial asset used.
+- Sourcing-contract step: **1 (Kenney.nl)**. Authored Tiled layout data using the existing,
+  already-vendored Kenney asset; no new binary asset was downloaded or originated.
+- Art use: symmetric green wall braziers (GID 33), paired carved reliefs (GIDs 20-21), central
+  threshold (GIDs 22-24 and 34-36), processional runner (GIDs 49-51), four dais-framing sigils
+  (GID 43), four grates (GIDs 55-56), and restrained edge wear (GIDs 13 and 25). The original
+  12x4 GID-49 boss dais remains unchanged at its prior coordinates.
+- Sign-off status: **pending human developer compliance and visual-fit review**.
+
+**Not included:** Levels 2-4, new third-party assets, spritesheet derivatives, or changes to
+the map dimensions and tileset. Tiled desktop is not installed in this environment, so visual
+QA used a nearest-neighbor renderer over the same packed PNG/GID mapping; final in-engine visual
+fit remains a human playtest gate.

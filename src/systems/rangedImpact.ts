@@ -12,6 +12,103 @@
  * stated core pillar ("tactical spell combat... over twitch reflexes").
  */
 
+import {
+  coverBlocksProjectile,
+  damageCover,
+  type CoverDamageResult,
+  type CoverDamageSource,
+  type CoverState
+} from "./destructibleCover";
+
+export interface PathPoint {
+  x: number;
+  y: number;
+}
+
+export interface CoverPathCandidate {
+  objectId: number;
+  rect: { x: number; y: number; width: number; height: number };
+  state: CoverState;
+}
+
+export interface CoverPathImpact extends CoverDamageResult {
+  objectId: number;
+}
+
+export interface ResolveCoverImpactInput {
+  from: PathPoint;
+  to: PathPoint;
+  covers: readonly CoverPathCandidate[];
+  damage: number;
+  source: CoverDamageSource;
+}
+
+function segmentRectangleEntry(
+  from: PathPoint,
+  to: PathPoint,
+  rect: CoverPathCandidate["rect"]
+): number | null {
+  let entry = 0;
+  let exit = 1;
+
+  for (const [start, delta, min, max] of [
+    [from.x, to.x - from.x, rect.x, rect.x + rect.width],
+    [from.y, to.y - from.y, rect.y, rect.y + rect.height]
+  ] as const) {
+    if (delta === 0) {
+      if (start < min || start > max) {
+        return null;
+      }
+      continue;
+    }
+
+    const first = (min - start) / delta;
+    const second = (max - start) / delta;
+    entry = Math.max(entry, Math.min(first, second));
+    exit = Math.min(exit, Math.max(first, second));
+    if (entry > exit) {
+      return null;
+    }
+  }
+
+  return entry;
+}
+
+/** Resolves the first intact cover struck by a spell/projectile travel segment. */
+export function resolveCoverImpactOnPath({
+  from,
+  to,
+  covers,
+  damage,
+  source
+}: ResolveCoverImpactInput): CoverPathImpact | null {
+  if (source === "melee") {
+    return null;
+  }
+
+  let firstCover: CoverPathCandidate | null = null;
+  let firstEntry = Number.POSITIVE_INFINITY;
+  for (const cover of covers) {
+    if (!coverBlocksProjectile(cover.state)) {
+      continue;
+    }
+    const entry = segmentRectangleEntry(from, to, cover.rect);
+    if (entry !== null && entry < firstEntry) {
+      firstCover = cover;
+      firstEntry = entry;
+    }
+  }
+
+  if (!firstCover) {
+    return null;
+  }
+
+  return {
+    objectId: firstCover.objectId,
+    ...damageCover(firstCover.state, damage, source)
+  };
+}
+
 /**
  * How close the player must still be to the point an archer fired at, at impact time, to
  * count as hit. Not one of Pato's numeric templates (hp-template.md fixes the 4-damage

@@ -64,6 +64,176 @@ export interface TilemapOffset {
 }
 
 /**
+ * Tiled's semantic movement flag. It may live on a tileset tile (Phaser exposes it through
+ * `Tile.properties`) or on an object in any object layer. Layer names remain presentation
+ * concerns: a tile in `Decorations` is not solid merely because it is decorative.
+ */
+export const BLOCKS_MOVEMENT_PROPERTY = "blocksMovement";
+export const DESTRUCTIBLE_COVER_PROPERTY = "destructibleCover";
+export const COVER_HP_PROPERTY = "coverHp";
+
+/** Existing maps predate semantic Tiled properties. GIDs 37/38/39 are the left, seamless
+ * middle, and right pieces of the solid gray wall; the paired GIDs 23/35 form a closed chamber
+ * door and intentionally retain wall collision. Floor GIDs 1, 13, and 49 stay absent. */
+const SHIPPED_BLOCKING_TILE_INDICES = new Set([23, 35, 37, 38, 39]);
+
+export type TiledPropertyBag =
+  | Readonly<Record<string, unknown>>
+  | ReadonlyArray<{ name: string; value: unknown }>
+  | null
+  | undefined;
+
+export interface MovementTileInput {
+  index: number;
+  properties?: TiledPropertyBag;
+}
+
+export interface TiledMovementObject {
+  id?: number;
+  name?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  rotation?: number;
+  gid?: number;
+  ellipse?: unknown;
+  polygon?: unknown;
+  polyline?: unknown;
+  properties?: TiledPropertyBag;
+}
+
+export interface MovementBlockerRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface DestructibleCoverMetadata {
+  objectId: number;
+  coverHp: number;
+  rect: MovementBlockerRect;
+}
+
+function tiledProperty(properties: TiledPropertyBag, name: string): unknown {
+  if (Array.isArray(properties)) {
+    return properties.find((property) => property.name === name)?.value;
+  }
+  if (properties && typeof properties === "object") {
+    return (properties as Readonly<Record<string, unknown>>)[name];
+  }
+  return undefined;
+}
+
+function explicitBlocksMovement(properties: TiledPropertyBag): boolean | undefined {
+  const value = tiledProperty(properties, BLOCKS_MOVEMENT_PROPERTY);
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "boolean") {
+    throw new Error(`Tiled property ${BLOCKS_MOVEMENT_PROPERTY} must be boolean`);
+  }
+  return value;
+}
+
+function explicitDestructibleCover(properties: TiledPropertyBag): boolean | undefined {
+  const value = tiledProperty(properties, DESTRUCTIBLE_COVER_PROPERTY);
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "boolean") {
+    throw new Error(`Tiled property ${DESTRUCTIBLE_COVER_PROPERTY} must be boolean`);
+  }
+  return value;
+}
+
+function tiledObjectLabel(object: TiledMovementObject): string {
+  return object.name ? `"${object.name}"` : `#${object.id ?? "unknown"}`;
+}
+
+/** True when this tile should stop movement, independent of which visual layer contains it. */
+export function tileBlocksMovement({ index, properties }: MovementTileInput): boolean {
+  return explicitBlocksMovement(properties) ?? SHIPPED_BLOCKING_TILE_INDICES.has(index);
+}
+
+/**
+ * Converts an explicitly blocking Tiled rectangle object into the world-space bounds used by
+ * Arcade Physics. Unmarked objects are presentation-only. More complex geometry is rejected
+ * loudly so a future map cannot silently promise collision the engine does not implement.
+ */
+export function movementBlockerRectFromTiledObject(
+  object: TiledMovementObject,
+  offset: TilemapOffset
+): MovementBlockerRect | null {
+  if (explicitBlocksMovement(object.properties) !== true) {
+    return null;
+  }
+
+  const isAxisAlignedRectangle =
+    object.gid === undefined &&
+    object.ellipse === undefined &&
+    object.polygon === undefined &&
+    object.polyline === undefined &&
+    (object.rotation ?? 0) === 0 &&
+    Number.isFinite(object.x) &&
+    Number.isFinite(object.y) &&
+    Number.isFinite(object.width) &&
+    Number.isFinite(object.height) &&
+    (object.width ?? 0) > 0 &&
+    (object.height ?? 0) > 0;
+
+  if (!isAxisAlignedRectangle) {
+    throw new Error(`Tiled movement blocker ${tiledObjectLabel(object)} must be an axis-aligned rectangle`);
+  }
+
+  return {
+    x: offset.x + object.x!,
+    y: offset.y + object.y!,
+    width: object.width!,
+    height: object.height!
+  };
+}
+
+/**
+ * Parses the stricter metadata contract for destructible blocking objects. Ordinary movement
+ * blockers return `null` and continue through `movementBlockerRectFromTiledObject` unchanged.
+ */
+export function destructibleCoverMetadataFromTiledObject(
+  object: TiledMovementObject,
+  offset: TilemapOffset
+): DestructibleCoverMetadata | null {
+  if (explicitDestructibleCover(object.properties) !== true) {
+    return null;
+  }
+
+  const label = tiledObjectLabel(object);
+  if (explicitBlocksMovement(object.properties) !== true) {
+    throw new Error(`Tiled destructible cover ${label} must set ${BLOCKS_MOVEMENT_PROPERTY} to true`);
+  }
+
+  const coverHp = tiledProperty(object.properties, COVER_HP_PROPERTY);
+  if (typeof coverHp !== "number" || !Number.isFinite(coverHp) || coverHp <= 0) {
+    throw new Error(`Tiled destructible cover ${label} ${COVER_HP_PROPERTY} must be a positive finite number`);
+  }
+
+  if (!Number.isInteger(object.id) || (object.id ?? 0) <= 0) {
+    throw new Error(`Tiled destructible cover ${label} must have a positive integer object id`);
+  }
+
+  const rect = movementBlockerRectFromTiledObject(object, offset);
+  if (!rect) {
+    throw new Error(`Tiled destructible cover ${label} must also block movement`);
+  }
+
+  return {
+    objectId: object.id!,
+    coverHp,
+    rect
+  };
+}
+
+/**
  * Where to draw a level's tile layer so it reads as "the lane" without changing the lane's
  * actual gameplay bounds. Tilesmith's #28 maps are sized in whole 16px tile units (960x288 for
  * Levels 1-4, 960x320 for the boss arena). As of backlog 2.27 / issue #53 (2026-08-02),
