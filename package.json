@@ -8,8 +8,10 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "audio:prototype": "tools/composer/render.sh"
+    "test": "vitest run && node --test tools/art-board/generateCatalog.test.mjs",
+    "audio:prototype": "tools/composer/render.sh",
+    "art:catalog": "node tools/art-board/generateCatalog.mjs",
+    "test:art:catalog": "node --test tools/art-board/generateCatalog.test.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0"
