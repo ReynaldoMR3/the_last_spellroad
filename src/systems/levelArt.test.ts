@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   ALL_LEVELS,
   computeTilemapOffset,
-  destructibleCoverMetadataFromTiledObject,
   isValidLevel,
   levelMapKey,
   levelMapUrl,
@@ -75,7 +74,7 @@ describe("computeTilemapOffset — aligning a level's Tiled layout to the live l
 
 describe("Tiled movement collision contract", () => {
   it("keeps shipped floor surfaces walkable while treating every shipped gray wall segment as blocking", () => {
-    for (const floorIndex of [1, 13, 49]) {
+    for (const floorIndex of [1, 13, 25, 49]) {
       expect(tileBlocksMovement({ index: floorIndex })).toBe(false);
     }
     for (const wallIndex of [37, 38, 39]) {
@@ -83,9 +82,10 @@ describe("Tiled movement collision contract", () => {
     }
   });
 
-  it("treats the shipped closed chamber-door tiles as solid wall decorations", () => {
-    expect(tileBlocksMovement({ index: 23 })).toBe(true);
-    expect(tileBlocksMovement({ index: 35 })).toBe(true);
+  it("treats every wall-integrated relief, threshold, brazier, and door tile as solid", () => {
+    for (const wallDecorationIndex of [20, 21, 22, 23, 24, 30, 33, 34, 35, 36]) {
+      expect(tileBlocksMovement({ index: wallDecorationIndex })).toBe(true);
+    }
   });
 
   it("uses explicit blocksMovement metadata instead of assuming every decoration is solid", () => {
@@ -134,120 +134,5 @@ describe("Tiled movement collision contract", () => {
         { x: 0, y: 126 }
       )
     ).toThrow(/axis-aligned rectangle/);
-  });
-});
-
-describe("Tiled destructible-cover metadata contract", () => {
-  it("returns object-id-keyed cover metadata with world-space bounds", () => {
-    expect(
-      destructibleCoverMetadataFromTiledObject(
-        {
-          id: 42,
-          name: "Sandstone pillar",
-          x: 320,
-          y: 96,
-          width: 24,
-          height: 32,
-          properties: [
-            { name: "blocksMovement", value: true },
-            { name: "destructibleCover", value: true },
-            { name: "coverHp", value: 50 }
-          ]
-        },
-        { x: 8, y: 126 }
-      )
-    ).toEqual({
-      objectId: 42,
-      coverHp: 50,
-      rect: { x: 328, y: 222, width: 24, height: 32 }
-    });
-  });
-
-  it("keeps ordinary blocking doors and walls on the existing movement-blocker path", () => {
-    const door = {
-      id: 12,
-      name: "Closed door",
-      x: 320,
-      y: 96,
-      width: 16,
-      height: 32,
-      properties: [{ name: "blocksMovement", value: true }]
-    };
-
-    expect(destructibleCoverMetadataFromTiledObject(door, { x: 0, y: 126 })).toBeNull();
-    expect(movementBlockerRectFromTiledObject(door, { x: 0, y: 126 })).toEqual({
-      x: 320,
-      y: 222,
-      width: 16,
-      height: 32
-    });
-  });
-
-  it.each([
-    ["missing", undefined],
-    ["zero", 0],
-    ["negative", -1],
-    ["nonnumeric", "50"],
-    ["non-finite", Number.POSITIVE_INFINITY]
-  ])("rejects %s coverHp loudly", (_case, coverHp) => {
-    expect(() =>
-      destructibleCoverMetadataFromTiledObject(
-        {
-          id: 43,
-          name: "Malformed pillar",
-          x: 100,
-          y: 40,
-          width: 16,
-          height: 16,
-          properties: {
-            blocksMovement: true,
-            destructibleCover: true,
-            coverHp
-          }
-        },
-        { x: 0, y: 126 }
-      )
-    ).toThrow(/coverHp.*positive finite number/);
-  });
-
-  it("rejects cover that cannot be keyed by a positive Tiled object id", () => {
-    expect(() =>
-      destructibleCoverMetadataFromTiledObject(
-        {
-          name: "Unkeyed pillar",
-          x: 100,
-          y: 40,
-          width: 16,
-          height: 16,
-          properties: {
-            blocksMovement: true,
-            destructibleCover: true,
-            coverHp: 50
-          }
-        },
-        { x: 0, y: 126 }
-      )
-    ).toThrow(/positive integer object id/);
-  });
-
-  it("requires destructible cover to opt into movement blocking", () => {
-    expect(() =>
-      destructibleCoverMetadataFromTiledObject(
-        {
-          id: 44,
-          name: "Nonblocking pillar",
-          x: 100,
-          y: 40,
-          width: 16,
-          height: 16,
-          properties: {
-            blocksMovement: false,
-            destructibleCover: true,
-            coverHp: 50
-          }
-        },
-        { x: 0, y: 126 }
-      )
-    ).toThrow(/blocksMovement.*true/);
   });
 });

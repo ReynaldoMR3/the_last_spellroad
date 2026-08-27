@@ -1334,7 +1334,7 @@ tileset index, spawn point, or gameplay route changed.
   threshold (GIDs 22-24 and 34-36), processional runner (GIDs 49-51), four dais-framing sigils
   (GID 43), four grates (GIDs 55-56), and restrained edge wear (GIDs 13 and 25). The original
   12x4 GID-49 boss dais remains unchanged at its prior coordinates.
-- Sign-off status: **pending human developer compliance and visual-fit review**.
+- Sign-off status: **approved with the Phase 1 Docker checkpoint on 2026-08-26**.
 
 **Not included:** Levels 2-4, new third-party assets, spritesheet derivatives, or changes to
 the map dimensions and tileset. Tiled desktop is not installed in this environment, so visual

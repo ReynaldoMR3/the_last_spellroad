@@ -69,13 +69,12 @@ export interface TilemapOffset {
  * concerns: a tile in `Decorations` is not solid merely because it is decorative.
  */
 export const BLOCKS_MOVEMENT_PROPERTY = "blocksMovement";
-export const DESTRUCTIBLE_COVER_PROPERTY = "destructibleCover";
-export const COVER_HP_PROPERTY = "coverHp";
 
-/** Existing maps predate semantic Tiled properties. GIDs 37/38/39 are the left, seamless
- * middle, and right pieces of the solid gray wall; the paired GIDs 23/35 form a closed chamber
- * door and intentionally retain wall collision. Floor GIDs 1, 13, and 49 stay absent. */
-const SHIPPED_BLOCKING_TILE_INDICES = new Set([23, 35, 37, 38, 39]);
+/** Existing maps predate semantic Tiled properties. These are the wall-integrated relief,
+ * threshold, brazier, door, and masonry pieces used along the shipped Level 1/5 boundaries.
+ * They remain solid even when their artwork is more decorative than GIDs 37-39's plain gray
+ * wall. Floor GIDs 1, 13, 25, and 49 stay absent. */
+const SHIPPED_BLOCKING_TILE_INDICES = new Set([20, 21, 22, 23, 24, 30, 33, 34, 35, 36, 37, 38, 39]);
 
 export type TiledPropertyBag =
   | Readonly<Record<string, unknown>>
@@ -110,12 +109,6 @@ export interface MovementBlockerRect {
   height: number;
 }
 
-export interface DestructibleCoverMetadata {
-  objectId: number;
-  coverHp: number;
-  rect: MovementBlockerRect;
-}
-
 function tiledProperty(properties: TiledPropertyBag, name: string): unknown {
   if (Array.isArray(properties)) {
     return properties.find((property) => property.name === name)?.value;
@@ -133,17 +126,6 @@ function explicitBlocksMovement(properties: TiledPropertyBag): boolean | undefin
   }
   if (typeof value !== "boolean") {
     throw new Error(`Tiled property ${BLOCKS_MOVEMENT_PROPERTY} must be boolean`);
-  }
-  return value;
-}
-
-function explicitDestructibleCover(properties: TiledPropertyBag): boolean | undefined {
-  const value = tiledProperty(properties, DESTRUCTIBLE_COVER_PROPERTY);
-  if (value === undefined) {
-    return undefined;
-  }
-  if (typeof value !== "boolean") {
-    throw new Error(`Tiled property ${DESTRUCTIBLE_COVER_PROPERTY} must be boolean`);
   }
   return value;
 }
@@ -192,44 +174,6 @@ export function movementBlockerRectFromTiledObject(
     y: offset.y + object.y!,
     width: object.width!,
     height: object.height!
-  };
-}
-
-/**
- * Parses the stricter metadata contract for destructible blocking objects. Ordinary movement
- * blockers return `null` and continue through `movementBlockerRectFromTiledObject` unchanged.
- */
-export function destructibleCoverMetadataFromTiledObject(
-  object: TiledMovementObject,
-  offset: TilemapOffset
-): DestructibleCoverMetadata | null {
-  if (explicitDestructibleCover(object.properties) !== true) {
-    return null;
-  }
-
-  const label = tiledObjectLabel(object);
-  if (explicitBlocksMovement(object.properties) !== true) {
-    throw new Error(`Tiled destructible cover ${label} must set ${BLOCKS_MOVEMENT_PROPERTY} to true`);
-  }
-
-  const coverHp = tiledProperty(object.properties, COVER_HP_PROPERTY);
-  if (typeof coverHp !== "number" || !Number.isFinite(coverHp) || coverHp <= 0) {
-    throw new Error(`Tiled destructible cover ${label} ${COVER_HP_PROPERTY} must be a positive finite number`);
-  }
-
-  if (!Number.isInteger(object.id) || (object.id ?? 0) <= 0) {
-    throw new Error(`Tiled destructible cover ${label} must have a positive integer object id`);
-  }
-
-  const rect = movementBlockerRectFromTiledObject(object, offset);
-  if (!rect) {
-    throw new Error(`Tiled destructible cover ${label} must also block movement`);
-  }
-
-  return {
-    objectId: object.id!,
-    coverHp,
-    rect
   };
 }
 
