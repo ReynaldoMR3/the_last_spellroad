@@ -17,6 +17,7 @@ interface BindingContextCard {
   currentAssetMissing: boolean;
   candidates: DisplayAsset[];
   draftDecision: ArtDecision | null;
+  draftDecisions: ArtDecision[];
   mediaKind: "image" | "audio";
 }
 
@@ -214,6 +215,9 @@ describe("Art Board contexts", () => {
 
     expect(card?.draftDecision).toBe(second);
     expect(issues.map((issue) => issue.code)).toContain("conflicting-binding-decisions");
-    expect([first, second]).toHaveLength(2);
+    expect(card?.draftDecisions.map((decision) => decision.id)).toEqual([
+      first.id,
+      second.id
+    ]);
   });
 });

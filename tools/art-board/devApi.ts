@@ -1,9 +1,9 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { applyCatalogueOverrides } from "../../src/artBoard/catalog";
-import { compileProposal, PRODUCTION_TARGET_INDEX, type CompileProposalIssue } from "../../src/artBoard/proposal";
+import { compileProposal, PRODUCTION_TARGET_INDEX } from "../../src/artBoard/proposal";
 import type { ArtBrief, AssetOverride, AssetRecord } from "../../src/artBoard/domain";
 
 export interface ArtBoardDevApiOptions {
@@ -44,13 +44,17 @@ export function createArtBoardDevApi({ repositoryRoot }: ArtBoardDevApiOptions) 
         const body = await readJsonBody(request);
         const catalogue = await catalogueAssets(repositoryRoot);
         const result = compileProposal(body, catalogue, PRODUCTION_TARGET_INDEX);
-        const level = boardLevel(body, result.issues);
-        if (result.issues.some(isError) || level === null) {
-          sendJson(response, 400, { ok: false, issues: level === null ? [...result.issues, invalidContext()] : result.issues });
+        if (result.issues.some(isError)) {
+          sendJson(response, 400, { ok: false, issues: result.issues });
           return true;
         }
-        const relativePath = `art-direction/boards/level-${level}.json`;
-        await writeJsonAtomically(join(repositoryRoot, relativePath), body);
+        const context = briefContextName(body);
+        if (context === null) {
+          sendJson(response, 400, { ok: false, issues: [invalidContext()] });
+          return true;
+        }
+        const relativePath = `art-direction/boards/${context}.json`;
+        await writeJsonAtomically(containedArtifactPath(repositoryRoot, relativePath), body);
         sendJson(response, 200, { ok: true, path: relativePath });
         return true;
       }
@@ -59,13 +63,20 @@ export function createArtBoardDevApi({ repositoryRoot }: ArtBoardDevApiOptions) 
         const brief = proposalBrief(body);
         const catalogue = await catalogueAssets(repositoryRoot);
         const result = compileProposal(brief, catalogue, PRODUCTION_TARGET_INDEX);
-        const level = boardLevel(brief, result.issues);
-        if (result.proposal === null || level === null) {
-          sendJson(response, 400, { ok: false, issues: level === null ? [...result.issues, invalidContext()] : result.issues });
+        if (result.proposal === null) {
+          sendJson(response, 400, { ok: false, issues: result.issues });
           return true;
         }
-        const relativePath = `art-direction/proposals/proposal-level-${level}.json`;
-        await writeJsonAtomically(join(repositoryRoot, relativePath), result.proposal);
+        const context = briefContextName(brief);
+        if (context === null) {
+          sendJson(response, 400, { ok: false, issues: [invalidContext()] });
+          return true;
+        }
+        const relativePath = `art-direction/proposals/proposal-${context}.json`;
+        await writeJsonAtomically(
+          containedArtifactPath(repositoryRoot, relativePath),
+          result.proposal
+        );
         sendJson(response, 200, { ok: true, path: relativePath });
         return true;
       }
@@ -106,24 +117,74 @@ function proposalBrief(body: unknown): unknown {
   return isRecord(body) && "brief" in body ? body.brief : body;
 }
 
-function boardLevel(brief: unknown, issues: readonly CompileProposalIssue[]): number | null {
-  if (issues.some(isError) || !isRecord(brief) || !Array.isArray(brief.decisions) || brief.decisions.length === 0) return null;
-  const levels = new Set<number>();
-  for (const decision of brief.decisions) {
-    if (!isRecord(decision) || !isRecord(decision.target) || decision.target.kind !== "level") return null;
-    const level = decision.target.level;
-    if (typeof level !== "number" || !Number.isInteger(level) || level < 1 || level > 5) return null;
-    levels.add(level);
+function briefContextName(brief: unknown): string | null {
+  if (!isRecord(brief) || !Array.isArray(brief.decisions) || brief.decisions.length === 0) {
+    return null;
   }
-  return levels.size === 1 ? [...levels][0] : null;
+  const contexts: string[] = [];
+  for (const decision of brief.decisions) {
+    if (!isRecord(decision) || !isRecord(decision.target)) return null;
+    const target = decision.target;
+    if (
+      target.kind === "level" &&
+      typeof target.level === "number" &&
+      Number.isInteger(target.level) &&
+      target.level >= 1 &&
+      target.level <= 5
+    ) {
+      contexts.push(`level-${target.level}`);
+      continue;
+    }
+    if (
+      target.kind === "binding" &&
+      typeof target.bindingKey === "string" &&
+      Object.prototype.hasOwnProperty.call(PRODUCTION_TARGET_INDEX, target.bindingKey)
+    ) {
+      contexts.push(`binding-${target.bindingKey}`);
+      continue;
+    }
+    return null;
+  }
+  const uniqueContexts = [...new Set(contexts)];
+  if (uniqueContexts.length === 1) return uniqueContexts[0];
+  const hash = createHash("sha256")
+    .update(canonicalJson(brief.decisions))
+    .digest("hex")
+    .slice(0, 16);
+  return `mixed-${hash}`;
 }
 
 function invalidContext() {
   return {
     code: "invalid-brief-context",
     severity: "error",
-    message: "Art Board files require decisions for exactly one level context."
+    message: "Art Board files require at least one validated level or production binding decision."
   };
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (isRecord(value)) {
+    return `{${Object.keys(value).sort().map((key) =>
+      `${JSON.stringify(key)}:${canonicalJson(value[key])}`
+    ).join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
+function containedArtifactPath(repositoryRoot: string, relativePath: string): string {
+  if (isAbsolute(relativePath)) throw new Error("Art Board artifact paths must be relative.");
+  const root = resolve(repositoryRoot);
+  const output = resolve(root, relativePath);
+  const pathFromRoot = relative(root, output);
+  if (
+    pathFromRoot === "" ||
+    pathFromRoot === ".." ||
+    pathFromRoot.startsWith(`..${sep}`)
+  ) {
+    throw new Error("Art Board artifact path escaped the repository root.");
+  }
+  return output;
 }
 
 function isError(issue: { severity: string }): boolean {

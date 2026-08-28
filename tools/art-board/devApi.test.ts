@@ -1,10 +1,11 @@
 import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import type { IncomingMessage } from "node:http";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { Readable } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 import { createArtBoardDevApi } from "./devApi";
+import { PRODUCTION_TARGET_INDEX } from "../../src/artBoard/proposal";
 
 const tile = {
   id: "image:tiles:torch",
@@ -32,6 +33,43 @@ function levelOneBrief() {
         assetId: tile.id,
         status: "draft"
       }
+    ]
+  };
+}
+
+function spellIconAsset() {
+  return {
+    ...tile,
+    id: PRODUCTION_TARGET_INDEX["spell-icon-fire"].currentAssetId,
+    path: "public/assets/spell-icons/fire.png",
+    semanticClass: "icon",
+    capabilities: ["visual-binding"]
+  };
+}
+
+function spellIconBrief() {
+  return {
+    schemaVersion: 1,
+    id: "brief:spell-icon-fire",
+    decisions: [
+      {
+        id: "decision:spell-icon-fire:remove",
+        target: { kind: "binding", bindingKey: "spell-icon-fire" },
+        action: "remove",
+        currentAssetId: PRODUCTION_TARGET_INDEX["spell-icon-fire"].currentAssetId,
+        status: "draft"
+      }
+    ]
+  };
+}
+
+function mixedBrief() {
+  return {
+    schemaVersion: 1,
+    id: "brief:mixed-review",
+    decisions: [
+      levelOneBrief().decisions[0],
+      spellIconBrief().decisions[0]
     ]
   };
 }
@@ -170,5 +208,67 @@ describe("Art Board development API", () => {
       status: "review"
     });
     await expect(readFile(join(root, "src", "escaped.json"), "utf8")).rejects.toThrow();
+  });
+
+  it("exports and compiles a valid binding brief under its known-key context", async () => {
+    const root = await repository([spellIconAsset()]);
+    const brief = { ...spellIconBrief(), outputPath: "../../src/escaped-binding.json" };
+
+    const briefResponse = await request(root, "POST", "/api/art-board/briefs", brief);
+    const proposalResponse = await request(root, "POST", "/api/art-board/proposals", {
+      brief,
+      outputPath: "../../src/escaped-proposal.json"
+    });
+
+    expect(briefResponse).toMatchObject({
+      status: 200,
+      json: { ok: true, path: "art-direction/boards/binding-spell-icon-fire.json" }
+    });
+    expect(proposalResponse).toMatchObject({
+      status: 200,
+      json: {
+        ok: true,
+        path: "art-direction/proposals/proposal-binding-spell-icon-fire.json"
+      }
+    });
+    expect(JSON.parse(await readFile(
+      join(root, "art-direction", "boards", "binding-spell-icon-fire.json"),
+      "utf8"
+    ))).toEqual(brief);
+    await expect(readFile(join(root, "src", "escaped-binding.json"), "utf8")).rejects.toThrow();
+    await expect(readFile(join(root, "src", "escaped-proposal.json"), "utf8")).rejects.toThrow();
+  });
+
+  it("uses one deterministic contained hash context for mixed brief and proposal output", async () => {
+    const root = await repository([tile, spellIconAsset()]);
+    const brief = { ...mixedBrief(), outputPath: "/tmp/caller-choice.json" };
+
+    const firstBrief = await request(root, "POST", "/api/art-board/briefs", brief);
+    const secondBrief = await request(root, "POST", "/api/art-board/briefs", brief);
+    const proposal = await request(root, "POST", "/api/art-board/proposals", {
+      brief,
+      outputPath: "../../outside.json"
+    });
+
+    expect(firstBrief.status).toBe(200);
+    expect(secondBrief.json).toEqual(firstBrief.json);
+    const briefPath = (firstBrief.json as { path: string }).path;
+    const proposalPath = (proposal.json as { path: string }).path;
+    expect(briefPath).toMatch(/^art-direction\/boards\/mixed-[0-9a-f]{16}\.json$/);
+    expect(proposalPath).toBe(
+      briefPath.replace("art-direction/boards/", "art-direction/proposals/proposal-")
+    );
+    for (const outputPath of [briefPath, proposalPath]) {
+      expect(isAbsolute(outputPath)).toBe(false);
+      expect(relative(root, resolve(root, outputPath))).not.toMatch(/^\.\.(?:\/|$)/);
+    }
+    expect(JSON.parse(await readFile(join(root, briefPath), "utf8"))).toEqual(brief);
+    expect(JSON.parse(await readFile(join(root, proposalPath), "utf8"))).toMatchObject({
+      id: "proposal:brief:mixed-review",
+      status: "review",
+      changes: [{ targetFile: "public/assets/levels/level-1.json" }, { targetFile: "src/systems/spellIcons.ts" }]
+    });
+    await expect(readFile("/tmp/caller-choice.json", "utf8")).rejects.toThrow();
+    await expect(readFile(resolve(root, "..", "outside.json"), "utf8")).rejects.toThrow();
   });
 });

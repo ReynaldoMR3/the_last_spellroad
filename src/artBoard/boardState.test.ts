@@ -221,6 +221,9 @@ describe("deriveArtBoardViewState", () => {
     selectedAssetId: string | null;
     issues: readonly { severity: "error" | "warning"; message: string }[];
     reviewConfirmed: boolean;
+    context?:
+      | { kind: "level"; level: 1 | 2 | 3 | 4 | 5 }
+      | { kind: "binding"; bindingKey: string };
   }) => {
     panels: { id: string; role: string; label: string }[];
     selectedAsset: DisplayAsset | null;
@@ -252,7 +255,7 @@ describe("deriveArtBoardViewState", () => {
     expect(view.selectedAsset).toBe(fireIcon);
     expect(view.panels).toEqual([
       { id: "asset-catalogue", role: "region", label: "Asset catalogue" },
-      { id: "level-1-scene", role: "region", label: "Level 1 scene canvas" },
+      { id: "context-canvas", role: "region", label: "Level 1 scene canvas" },
       { id: "selection-review", role: "region", label: "Selected asset and proposal review" }
     ]);
     expect(view.applyToGameAvailable).toBe(false);
@@ -304,6 +307,86 @@ describe("deriveArtBoardViewState", () => {
 
     expect(view.canExportBrief).toBe(false);
     expect(view.canExportProposal).toBe(false);
+  });
+
+  it("labels the scene region from the active level or binding context", () => {
+    const input = {
+      board: emptyBoard(),
+      assets: [fireIcon],
+      selectedAssetId: null,
+      issues: [],
+      reviewConfirmed: false
+    };
+
+    const levelView = deriveViewState()({
+      ...input,
+      context: { kind: "level", level: 5 }
+    });
+    const bindingView = deriveViewState()({
+      ...input,
+      context: { kind: "binding", bindingKey: "spell-icon-fire" }
+    });
+
+    expect(levelView.panels[1]).toEqual({
+      id: "context-canvas",
+      role: "region",
+      label: "Level 5 scene canvas"
+    });
+    expect(bindingView.panels[1]).toEqual({
+      id: "context-canvas",
+      role: "region",
+      label: "spell-icon-fire binding context"
+    });
+  });
+
+  it("keeps binding and mixed drafts behind the same explicit proposal review gate", () => {
+    const bindingDecision: ArtDecision = {
+      id: "decision:spell-icon-fire:remove",
+      target: spellIconTarget,
+      action: "remove",
+      currentAssetId: fireIcon.id,
+      status: "draft"
+    };
+    const boards: BoardState[] = [
+      { ...emptyBoard(), decisions: [bindingDecision] },
+      {
+        ...emptyBoard(),
+        decisions: [
+          {
+            id: "decision:level-1:entrance:leftEdge",
+            target: levelTarget,
+            action: "use",
+            assetId: fireIcon.id,
+            status: "draft"
+          },
+          bindingDecision
+        ]
+      }
+    ];
+
+    for (const board of boards) {
+      const beforeReview = deriveViewState()({
+        board,
+        assets: [fireIcon],
+        selectedAssetId: null,
+        issues: [],
+        reviewConfirmed: false,
+        context: { kind: "binding", bindingKey: "spell-icon-fire" }
+      });
+      const afterReview = deriveViewState()({
+        board,
+        assets: [fireIcon],
+        selectedAssetId: null,
+        issues: [],
+        reviewConfirmed: true,
+        context: { kind: "binding", bindingKey: "spell-icon-fire" }
+      });
+
+      expect(beforeReview.canExportBrief).toBe(true);
+      expect(beforeReview.canExportProposal).toBe(false);
+      expect(afterReview.canExportProposal).toBe(true);
+      expect(afterReview.applyToGameAvailable).toBe(false);
+    }
   });
 });
 

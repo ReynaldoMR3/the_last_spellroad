@@ -175,7 +175,8 @@ function render(): void {
     assets: app.assets,
     selectedAssetId: app.selectedAssetId,
     issues,
-    reviewConfirmed: app.reviewConfirmed
+    reviewConfirmed: app.reviewConfirmed,
+    context: app.context
   });
   const contextAssets = contextCandidateAssets();
   const filteredAssets = filterAssets(contextAssets, app.query, app.kind);

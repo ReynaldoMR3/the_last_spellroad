@@ -20,7 +20,7 @@ export interface BoardState {
 }
 
 export interface ArtBoardPanel {
-  id: "asset-catalogue" | "level-1-scene" | "selection-review";
+  id: "asset-catalogue" | "context-canvas" | "selection-review";
   role: "region";
   label: string;
 }
@@ -39,7 +39,12 @@ export interface ArtBoardViewStateInput {
   selectedAssetId: string | null;
   issues: readonly { severity: "error" | "warning"; message: string }[];
   reviewConfirmed: boolean;
+  context?: ArtBoardContext;
 }
+
+export type ArtBoardContext =
+  | { kind: "level"; level: LevelNumber }
+  | { kind: "binding"; bindingKey: string };
 
 export type ArtBoardFocusTarget =
   | { kind: "asset"; assetId: string }
@@ -64,6 +69,7 @@ export interface BindingContextCard {
   currentAssetMissing: boolean;
   candidates: DisplayAsset[];
   draftDecision: ArtDecision | null;
+  draftDecisions: ArtDecision[];
   mediaKind: "image" | "audio";
 }
 
@@ -75,11 +81,19 @@ export interface AudioPreviewMetadata {
   fallbackText: string;
 }
 
-const ART_BOARD_PANELS: readonly ArtBoardPanel[] = [
-  { id: "asset-catalogue", role: "region", label: "Asset catalogue" },
-  { id: "level-1-scene", role: "region", label: "Level 1 scene canvas" },
-  { id: "selection-review", role: "region", label: "Selected asset and proposal review" }
-];
+function artBoardPanels(context: ArtBoardContext): readonly ArtBoardPanel[] {
+  return [
+    { id: "asset-catalogue", role: "region", label: "Asset catalogue" },
+    {
+      id: "context-canvas",
+      role: "region",
+      label: context.kind === "level"
+        ? `Level ${context.level} scene canvas`
+        : `${context.bindingKey} binding context`
+    },
+    { id: "selection-review", role: "region", label: "Selected asset and proposal review" }
+  ];
+}
 
 /** Row-major targets for the three anchor rows drawn across the five zone columns. */
 export function levelOnePlacementTargets(): Array<{ zone: LevelZone; anchor: LevelAnchor }> {
@@ -109,12 +123,13 @@ export function bindingContextCards(
   const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
   return Object.entries(targetIndex).map(([bindingKey, target]) => {
     const currentAsset = assetsById.get(target.currentAssetId) ?? null;
-    const draftDecision = [...decisions].reverse().find(
+    const draftDecisions = decisions.filter(
       (decision) =>
         decision.status !== "superseded" &&
         decision.target.kind === "binding" &&
         decision.target.bindingKey === bindingKey
-    ) ?? null;
+    );
+    const draftDecision = draftDecisions[draftDecisions.length - 1] ?? null;
     return {
       bindingKey,
       targetFile: target.targetFile,
@@ -123,6 +138,7 @@ export function bindingContextCards(
       currentAssetMissing: currentAsset === null || currentAsset.fileStatus === "missing",
       candidates: assets.filter((asset) => isCompatibleCandidate(asset, target.compatibility)),
       draftDecision,
+      draftDecisions: draftDecisions.map(cloneDecision),
       mediaKind: target.compatibility.assetKinds.includes("audio") ? "audio" : "image"
     };
   });
@@ -220,7 +236,7 @@ export function deriveArtBoardViewState(input: ArtBoardViewStateInput): ArtBoard
   const canExportBrief = input.board.decisions.length > 0 && !hasError;
 
   return {
-    panels: ART_BOARD_PANELS.map((panel) => ({ ...panel })),
+    panels: artBoardPanels(input.context ?? { kind: "level", level: 1 }).map((panel) => ({ ...panel })),
     selectedAsset:
       input.assets.find((asset) => asset.id === input.selectedAssetId) ?? null,
     canExportBrief,
