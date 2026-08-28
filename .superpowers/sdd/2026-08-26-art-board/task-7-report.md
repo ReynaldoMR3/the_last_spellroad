@@ -56,3 +56,61 @@ No production game source, level map, binding module, or asset was modified. `ar
 - Step 7 cannot proceed without a real developer-selected and explicitly approved Level 1 art decision. Inventing a verification choice would violate the human approval gate.
 - Vite still reports the pre-existing production bundle size warning (`index` JavaScript above 500 kB); this task does not increase or change the game entry's architecture.
 - Codec support is browser-dependent by design. The board uses MIME-typed native controls and preserves the draft when the control reports an error; it does not transcode repository audio.
+
+## Fix round 1 — shared-context persistence and accessible context state
+
+### Status
+
+Resolved all three review findings. The local API now persists every valid shared `ArtBrief` without accepting a caller-selected output path: one-level briefs use `level-<n>`, one-known-binding briefs use `binding-<known-key>`, and valid multi-context briefs use `mixed-<16-character SHA-256 content hash>`. Proposal filenames use the exact same deterministic context name under the review-only proposals directory. Both write paths pass an explicit repository-containment guard before the atomic write.
+
+The browser scene region now exposes `context-canvas` with an accessible label derived from the active level or binding. Binding cards retain a detached list of all active draft decisions, allowing the conflict regression to assert actual output state rather than the input array.
+
+Step 7 remains **awaiting developer approval**.
+
+**Exact approval-gate blocker:** Awaiting developer approval: no real Level 1 art decision has been supplied. Therefore `art-direction/boards/level-1.json` was not created, no proposal was applied, and no game file was changed.
+
+### Files changed
+
+- `tools/art-board/devApi.ts` — validated context-name derivation, canonical mixed-decision hashing, deterministic matching board/proposal filenames, and repository path containment.
+- `tools/art-board/devApi.test.ts` — real binding and mixed brief/proposal POST regressions, deterministic hash matching, ignored caller paths, containment assertions, and no production writes.
+- `src/artBoard/boardState.ts` — active-context panel labels and retained active binding draft collections.
+- `src/artBoard/boardState.test.ts` — Level 5/binding region labels plus binding/mixed browser-state review-gate coverage.
+- `src/artBoard/contexts.test.ts` — conflicting-draft assertion against retained binding-card output.
+- `src/artBoard/main.ts` — supplies the active browser context to view-state derivation.
+
+### Red/green evidence
+
+- **RED:** `npx vitest run tools/art-board/devApi.test.ts src/artBoard/boardState.test.ts src/artBoard/contexts.test.ts` failed 4/28 tests:
+  - binding brief export returned HTTP 400 instead of `binding-spell-icon-fire.json`;
+  - mixed brief export returned HTTP 400 instead of a deterministic hash path;
+  - Level 5 still exposed the hard-coded `level-1-scene`/Level 1 region;
+  - conflicting draft output had no retained `draftDecisions` collection.
+- **GREEN:** the same focused suite passed 29/29 after the fix (7 API, 15 board-state, and 7 context tests).
+- `npm run typecheck` passed alongside the focused suite.
+
+### Commands and results
+
+- `npm run art:catalog` — passed; no catalogue diff.
+- `npm run typecheck` — passed.
+- `npm test` — passed: 38 Vitest files, 442 tests; catalogue scanner suite, 6 tests.
+- `npm run build` — passed; Vite emitted only the repository's existing large-chunk warning.
+- `git diff --check` — passed.
+- Explicit filesystem assertions confirmed the absence of `art-direction/boards/level-1.json`, the synthetic binding board, and the synthetic binding proposal after live cleanup.
+
+### Live export/review evidence
+
+- Selected the `spell-icon-fire` binding and confirmed the center region was exposed as `spell-icon-fire binding context`.
+- Recorded a synthetic Remove decision and exported it successfully to `art-direction/boards/binding-spell-icon-fire.json`.
+- `Export reviewed proposal` was disabled before brief export and remained disabled after brief export until “I reviewed the proposal summary” was checked.
+- After explicit review confirmation, exported `art-direction/proposals/proposal-binding-spell-icon-fire.json`; its review payload targeted only `src/systems/spellIcons.ts` and contained no apply operation.
+- Browser inspection found zero apply buttons and `git diff --name-only -- src ':!src/artBoard' public package.json vite.config.ts` returned no production changes.
+- Removed both synthetic live-check artifacts before verification and commit. No real art decision was created.
+
+### Commit
+
+- `1fccade3ed87e2c4f6f911081e4990e92cb3fb35` — `fix: support all art brief contexts`
+
+### Concerns
+
+- The approval gate remains the only blocker: a real developer-selected Level 1 decision is still required before Step 7 can create or apply anything.
+- The existing Vite large-chunk warning remains unchanged.
