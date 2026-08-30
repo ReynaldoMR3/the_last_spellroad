@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { ArtDecision, BindingArtTarget, LevelArtTarget } from "./domain";
 import type { DisplayAsset } from "./catalog";
 import * as boardStateApi from "./boardState";
-import { exportBrief, levelActionAvailable, reduceBoard, type BoardState } from "./boardState";
+import {
+  exportBrief,
+  levelActionAvailable,
+  levelDecisionId,
+  reduceBoard,
+  type BoardState
+} from "./boardState";
 
 const levelTarget: LevelArtTarget = {
   kind: "level",
@@ -33,6 +39,41 @@ describe("reduceBoard", () => {
         currentDecision: undefined
       })
     ).toBe(true);
+  });
+
+  it("keeps removals for different existing tiles at the same level target", () => {
+    const firstAssetId = "image:third-party:kenney-tiny-dungeon:tiles:tile-0028";
+    const secondAssetId = "image:third-party:kenney-tiny-dungeon:tiles:tile-0029";
+    const firstId = levelDecisionId({
+      level: 5,
+      zone: "leftEdge",
+      anchor: "leftEdge",
+      action: "remove",
+      currentAssetId: firstAssetId
+    });
+    const secondId = levelDecisionId({
+      level: 5,
+      zone: "leftEdge",
+      anchor: "leftEdge",
+      action: "remove",
+      currentAssetId: secondAssetId
+    });
+
+    const first = reduceBoard(emptyBoard(), {
+      type: "remove",
+      id: firstId,
+      target: { kind: "level", level: 5, zone: "leftEdge", anchor: "leftEdge" },
+      currentAssetId: firstAssetId
+    });
+    const second = reduceBoard(first, {
+      type: "remove",
+      id: secondId,
+      target: { kind: "level", level: 5, zone: "leftEdge", anchor: "leftEdge" },
+      currentAssetId: secondAssetId
+    });
+
+    expect(firstId).not.toBe(secondId);
+    expect(second.decisions.map((decision) => decision.currentAssetId)).toEqual([firstAssetId, secondAssetId]);
   });
 
   it("records a Level 1 Use as semantic zone and anchor intent without map cells", () => {

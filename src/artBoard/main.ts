@@ -6,6 +6,7 @@ import {
   deriveArtBoardViewState,
   exportBrief,
   levelActionAvailable,
+  levelDecisionId,
   levelPlacementTargets,
   reduceBoard,
   restoreArtBoardFocus,
@@ -518,19 +519,34 @@ function placeAt(zone: LevelZone, anchor: LevelAnchor): void {
   const current = decisionAt(zone, anchor);
   const selected = app.assets.find((asset) => asset.id === app.selectedAssetId);
   const common = {
-    id: `decision:level-${level}:${zone}:${anchor}`,
     target: { kind: "level" as const, level, zone, anchor },
     ...(app.note.trim() ? { intent: app.note.trim() } : {})
   };
 
   if (app.action === "use" && selected) {
-    app.board = reduceBoard(app.board, { type: "use", ...common, assetId: selected.id });
+    app.board = reduceBoard(app.board, {
+      type: "use",
+      ...common,
+      id: levelDecisionId({ level, zone, anchor, action: "use" }),
+      assetId: selected.id
+    });
   } else if (app.action === "replace" && current && selected) {
     const currentAssetId = current.assetId ?? current.currentAssetId;
     if (!currentAssetId) return;
-    app.board = reduceBoard(app.board, { type: "replace", ...common, currentAssetId, assetId: selected.id });
+    app.board = reduceBoard(app.board, {
+      type: "replace",
+      ...common,
+      id: levelDecisionId({ level, zone, anchor, action: "replace", currentAssetId }),
+      currentAssetId,
+      assetId: selected.id
+    });
   } else if (app.action === "remove" && selected) {
-    app.board = reduceBoard(app.board, { type: "remove", ...common, currentAssetId: selected.id });
+    app.board = reduceBoard(app.board, {
+      type: "remove",
+      ...common,
+      id: levelDecisionId({ level, zone, anchor, action: "remove", currentAssetId: selected.id }),
+      currentAssetId: selected.id
+    });
   } else {
     return;
   }

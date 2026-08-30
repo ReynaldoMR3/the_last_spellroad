@@ -130,6 +130,27 @@ export function levelActionAvailable({
 }
 
 /**
+ * Level removals retain the identity of the existing asset so independent wall
+ * removals at the same semantic location do not overwrite one another.
+ */
+export function levelDecisionId({
+  level,
+  zone,
+  anchor,
+  action,
+  currentAssetId
+}: {
+  level: LevelNumber;
+  zone: LevelZone;
+  anchor: LevelAnchor;
+  action: ArtAction;
+  currentAssetId?: string;
+}): string {
+  const targetId = `decision:level-${level}:${zone}:${anchor}`;
+  return action === "remove" && currentAssetId ? `${targetId}:remove:${currentAssetId}` : targetId;
+}
+
+/**
  * Projects the exact production target index into browser cards. Candidate
  * choices satisfy the complete kind, semantic-class, and capability contract;
  * a missing current file remains visible as a repairable binding instead of
