@@ -52,35 +52,51 @@ export function mergeCatalogue(
 ): DisplayAsset[] {
   const overridesById = new Map(overrides.map((override) => [override.id, override]));
 
-  return catalogue.flatMap((record) => {
+  return applyCatalogueOverrides(catalogue, overrides).map((record) => {
     const correction = overridesById.get(record.id);
-    if (correction?.excluded) return [];
-
-    const source: AssetSource = {
-      ...record.source,
-      ...correction?.source
-    };
-    const tags = correction?.tags !== undefined ? [...correction.tags] : [...record.tags];
     const displayAsset: DisplayAsset = {
       id: record.id,
       url: browserAssetUrl(record.path),
       kind: record.kind,
       dimensions: record.dimensions ? { ...record.dimensions } : null,
-      source,
-      sourceStatus: assetSourceStatus(source),
+      source: { ...record.source },
+      sourceStatus: assetSourceStatus(record.source),
       displayName: correctedDisplayName(correction?.displayName, record.path),
       description: correction?.description ?? null,
-      tags,
+      tags: [...record.tags],
+      tagOrigin: record.tagOrigin,
+      semanticClass: record.semanticClass,
+      capabilities: [...record.capabilities],
+      grid: record.grid ? { ...record.grid } : null,
+      regions: (record.regions ?? []).map((region) => ({ ...region })),
+      fileStatus: record.fileStatus ?? "present"
+    };
+    return displayAsset;
+  });
+}
+
+/** Applies durable overrides to detached records used by every validation boundary. */
+export function applyCatalogueOverrides(
+  catalogue: readonly AssetRecord[],
+  overrides: readonly AssetOverride[]
+): AssetRecord[] {
+  const overridesById = new Map(overrides.map((override) => [override.id, override]));
+  return catalogue.flatMap((record) => {
+    const correction = overridesById.get(record.id);
+    if (correction?.excluded) return [];
+    return [{
+      ...record,
+      dimensions: record.dimensions ? { ...record.dimensions } : null,
+      source: { ...record.source, ...correction?.source },
+      tags: correction?.tags !== undefined ? [...correction.tags] : [...record.tags],
       tagOrigin: correction?.tags !== undefined ? "corrected" : record.tagOrigin,
       semanticClass: correction?.semanticClass ?? record.semanticClass,
       capabilities: correction?.capabilities !== undefined
         ? [...correction.capabilities]
         : [...record.capabilities],
-      grid: record.grid ? { ...record.grid } : null,
-      regions: (record.regions ?? []).map((region) => ({ ...region })),
-      fileStatus: record.fileStatus ?? "present"
-    };
-    return [displayAsset];
+      grid: record.grid ? { ...record.grid } : record.grid,
+      regions: record.regions?.map((region) => ({ ...region }))
+    }];
   });
 }
 

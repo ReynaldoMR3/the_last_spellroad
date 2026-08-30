@@ -6,6 +6,7 @@ import {
   mergeCatalogue,
   type DisplayAsset
 } from "./catalog";
+import * as catalogApi from "./catalog";
 import type { AssetOverride, AssetRecord } from "./domain";
 import seededOverrides from "../../art-direction/overrides.json";
 
@@ -147,6 +148,39 @@ describe("mergeCatalogue", () => {
 
     expect(asset.semanticClass).toBe("creature");
     expect(asset.capabilities).toEqual(["visual-binding"]);
+  });
+
+  it("projects overrides into detached validation records as well as display cards", () => {
+    const mage = record({
+      id: "image:third-party:kenney-tiny-dungeon:tiles:tile-0084",
+      path: "public/assets/third-party/kenney-tiny-dungeon/Tiles/tile_0084.png",
+      tags: ["character", "mage", "player"],
+      semanticClass: "tile",
+      capabilities: ["level-placement"]
+    });
+    type CorrectCatalogue = (
+      records: readonly AssetRecord[],
+      overrides: readonly AssetOverride[]
+    ) => AssetRecord[];
+    const correctCatalogue = (
+      catalogApi as unknown as { applyCatalogueOverrides: CorrectCatalogue }
+    ).applyCatalogueOverrides;
+
+    const [corrected] = correctCatalogue(
+      [mage],
+      seededOverrides.overrides as AssetOverride[]
+    );
+
+    expect(corrected).toMatchObject({
+      id: mage.id,
+      path: mage.path,
+      semanticClass: "creature",
+      capabilities: ["visual-binding"]
+    });
+    expect(mage).toMatchObject({
+      semanticClass: "tile",
+      capabilities: ["level-placement"]
+    });
   });
 });
 

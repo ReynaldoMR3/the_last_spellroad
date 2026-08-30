@@ -128,7 +128,7 @@ export function compileProposal(
     return { proposal: null, issues: shapeIssues };
   }
   const validatedBrief = brief as ArtBrief;
-  const compatibilityIndex = targetCompatibilityIndex(targetIndex);
+  const compatibilityIndex = bindingCompatibilityIndex(targetIndex);
   const validationIssues = validateArtBrief(validatedBrief, catalogue, compatibilityIndex);
   const bindingIssues = bindingCurrentAssetIssues(validatedBrief, targetIndex);
   const issues: CompileProposalIssue[] = [...validationIssues, ...bindingIssues];
@@ -405,7 +405,10 @@ function freezeCompatibility(compatibility: BindingCompatibility): BindingCompat
   });
 }
 
-function targetCompatibilityIndex(targetIndex: ProposalTargetIndex): BindingCompatibilityIndex {
+/** Detached compatibility contracts for validation and compatibility-filtered UI choices. */
+export function bindingCompatibilityIndex(
+  targetIndex: ProposalTargetIndex = PRODUCTION_TARGET_INDEX
+): BindingCompatibilityIndex {
   return Object.fromEntries(
     Object.entries(targetIndex).map(([bindingKey, target]) => [bindingKey, target.compatibility])
   );

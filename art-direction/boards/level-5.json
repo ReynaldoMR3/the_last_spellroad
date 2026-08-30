@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "id": "brief:art-board-draft",
+  "title": "Art Board direction draft",
+  "decisions": [
+    {
+      "id": "decision:level-5:rightEdge:leftEdge:remove:image:third-party:kenney-tiny-dungeon:tiles:tile-0028",
+      "target": {
+        "kind": "level",
+        "level": 5,
+        "zone": "rightEdge",
+        "anchor": "leftEdge"
+      },
+      "status": "draft",
+      "action": "remove",
+      "currentAssetId": "image:third-party:kenney-tiny-dungeon:tiles:tile-0028"
+    },
+    {
+      "id": "decision:level-5:threshold:leftEdge:remove:image:third-party:kenney-tiny-dungeon:tiles:tile-0028",
+      "target": {
+        "kind": "level",
+        "level": 5,
+        "zone": "threshold",
+        "anchor": "leftEdge"
+      },
+      "status": "draft",
+      "action": "remove",
+      "currentAssetId": "image:third-party:kenney-tiny-dungeon:tiles:tile-0028"
+    },
+    {
+      "id": "decision:level-5:leftEdge:leftEdge:remove:image:third-party:kenney-tiny-dungeon:tiles:tile-0028",
+      "target": {
+        "kind": "level",
+        "level": 5,
+        "zone": "leftEdge",
+        "anchor": "leftEdge"
+      },
+      "status": "draft",
+      "action": "remove",
+      "currentAssetId": "image:third-party:kenney-tiny-dungeon:tiles:tile-0028"
+    },
+    {
+      "id": "decision:level-5:lane:leftEdge:remove:image:third-party:kenney-tiny-dungeon:tiles:tile-0028",
+      "target": {
+        "kind": "level",
+        "level": 5,
+        "zone": "lane",
+        "anchor": "leftEdge"
+      },
+      "status": "draft",
+      "action": "remove",
+      "currentAssetId": "image:third-party:kenney-tiny-dungeon:tiles:tile-0028"
+    },
+    {
+      "id": "decision:level-5:entrance:leftEdge:remove:image:third-party:kenney-tiny-dungeon:tiles:tile-0028",
+      "target": {
+        "kind": "level",
+        "level": 5,
+        "zone": "entrance",
+        "anchor": "leftEdge"
+      },
+      "status": "draft",
+      "action": "remove",
+      "currentAssetId": "image:third-party:kenney-tiny-dungeon:tiles:tile-0028"
+    },
+    {
+      "id": "decision:level-5:threshold:leftEdge:remove:image:third-party:kenney-tiny-dungeon:tiles:tile-0029",
+      "target": {
+        "kind": "level",
+        "level": 5,
+        "zone": "threshold",
+        "anchor": "leftEdge"
+      },
+      "status": "draft",
+      "action": "remove",
+      "currentAssetId": "image:third-party:kenney-tiny-dungeon:tiles:tile-0029"
+    },
+    {
+      "id": "decision:level-5:rightEdge:leftEdge:remove:image:third-party:kenney-tiny-dungeon:tiles:tile-0029",
+      "target": {
+        "kind": "level",
+        "level": 5,
+        "zone": "rightEdge",
+        "anchor": "leftEdge"
+      },
+      "status": "draft",
+      "action": "remove",
+      "currentAssetId": "image:third-party:kenney-tiny-dungeon:tiles:tile-0029"
+    },
+    {
+      "id": "decision:level-5:leftEdge:leftEdge:remove:image:third-party:kenney-tiny-dungeon:tiles:tile-0029",
+      "target": {
+        "kind": "level",
+        "level": 5,
+        "zone": "leftEdge",
+        "anchor": "leftEdge"
+      },
+      "status": "draft",
+      "action": "remove",
+      "currentAssetId": "image:third-party:kenney-tiny-dungeon:tiles:tile-0029"
+    },
+    {
+      "id": "decision:level-5:lane:leftEdge:remove:image:third-party:kenney-tiny-dungeon:tiles:tile-0029",
+      "target": {
+        "kind": "level",
+        "level": 5,
+        "zone": "lane",
+        "anchor": "leftEdge"
+      },
+      "status": "draft",
+      "action": "remove",
+      "currentAssetId": "image:third-party:kenney-tiny-dungeon:tiles:tile-0029"
+    },
+    {
+      "id": "decision:level-5:entrance:leftEdge:remove:image:third-party:kenney-tiny-dungeon:tiles:tile-0029",
+      "target": {
+        "kind": "level",
+        "level": 5,
+        "zone": "entrance",
+        "anchor": "leftEdge"
+      },
+      "status": "draft",
+      "action": "remove",
+      "currentAssetId": "image:third-party:kenney-tiny-dungeon:tiles:tile-0029"
+    }
+  ]
+}

@@ -47,6 +47,11 @@ Build the static game:
 docker-compose run --rm game npm run build
 ```
 
+For repository art-direction reviews, use the local Art Board and follow the
+[Art Board workflow](docs/art-direction/art-board-workflow.md). It creates
+review artifacts only; production map and binding changes still require
+explicit approval, normal implementation, and a game playtest.
+
 Build the production image:
 
 ```bash

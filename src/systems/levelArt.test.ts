@@ -78,14 +78,12 @@ describe("level wall frame", () => {
     }
   });
 
-  it("keeps the Level 1 wall motif on the boss arena's lower frame", () => {
+  it("keeps the boss arena's lower floor and a solid plain wall after removing the rejected motifs", () => {
     const level1 = readLevel(1);
     const boss = readLevel(5);
     expect(boss.height).toBe(level1.height + 2);
-    expect([boss.height - 2, boss.height - 1].map((index) => row(boss, index))).toEqual([
-      row(level1, level1.height - 2),
-      row(level1, level1.height - 1)
-    ]);
+    expect(row(boss, boss.height - 2)).toEqual(row(level1, level1.height - 2));
+    expect(row(boss, boss.height - 1)).toEqual([37, ...Array(58).fill(38), 39]);
   });
 
   it("turns the boss arena's top four rows into a deep wall with one centered two-sided entrance", () => {
@@ -99,6 +97,21 @@ describe("level wall frame", () => {
     expect(topWall.filter((gid) => gid === 24)).toHaveLength(1);
     expect(tileAt(boss, 29, 3)).toBe(23);
     expect(tileAt(boss, 30, 3)).toBe(24);
+  });
+
+  it("replaces the rejected Tile 0028 and Tile 0029 wall motifs with the plain blocking wall", () => {
+    const boss = readLevel(5);
+    const terrain = boss.layers[0].data;
+
+    expect(terrain).not.toContain(29);
+    expect(terrain).not.toContain(30);
+    for (const [x, y] of [
+      [14, 0], [45, 0], [21, 1], [38, 1], [25, 2], [34, 2],
+      [8, 0], [18, 0], [41, 0], [51, 0], [11, 1], [48, 1], [16, 2], [43, 2],
+      [4, 19], [12, 19], [20, 19], [28, 19], [36, 19], [44, 19], [52, 19]
+    ]) {
+      expect(tileAt(boss, x, y)).toBe(38);
+    }
   });
 
   it("keeps the Level 5 dais and pillars inside the wall frame", () => {
