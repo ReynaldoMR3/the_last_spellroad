@@ -5,6 +5,7 @@ import {
   captureArtBoardFocus,
   deriveArtBoardViewState,
   exportBrief,
+  levelActionAvailable,
   levelPlacementTargets,
   reduceBoard,
   restoreArtBoardFocus,
@@ -385,9 +386,11 @@ function assetCard(asset: DisplayAsset, selected: boolean): string {
 
 function placementButton(zone: LevelZone, anchor: LevelAnchor, selectedAsset: DisplayAsset | null): string {
   const current = decisionAt(zone, anchor);
-  const needsSelected = app.action !== "remove";
-  const needsCurrent = app.action !== "use";
-  const disabled = (needsSelected && selectedAsset === null) || (needsCurrent && current === undefined);
+  const disabled = !levelActionAvailable({
+    action: app.action,
+    selectedAssetId: selectedAsset?.id ?? null,
+    currentDecision: current
+  });
   const label = `${titleCase(app.action)} ${selectedAsset?.displayName ?? "selected asset"} at ${zoneLabel(zone)}, ${anchorLabel(anchor)}`;
   return `<button class="placement-target${current ? " occupied" : ""}" type="button" data-zone="${zone}" data-anchor="${anchor}" aria-label="${escapeAttribute(label)}" title="${escapeAttribute(label)}"${disabled ? " disabled" : ""}><span>${anchorShort(anchor)}</span></button>`;
 }
@@ -526,10 +529,8 @@ function placeAt(zone: LevelZone, anchor: LevelAnchor): void {
     const currentAssetId = current.assetId ?? current.currentAssetId;
     if (!currentAssetId) return;
     app.board = reduceBoard(app.board, { type: "replace", ...common, currentAssetId, assetId: selected.id });
-  } else if (app.action === "remove" && current) {
-    const currentAssetId = current.assetId ?? current.currentAssetId;
-    if (!currentAssetId) return;
-    app.board = reduceBoard(app.board, { type: "remove", ...common, currentAssetId });
+  } else if (app.action === "remove" && selected) {
+    app.board = reduceBoard(app.board, { type: "remove", ...common, currentAssetId: selected.id });
   } else {
     return;
   }

@@ -6,6 +6,7 @@ import {
   type ArtBrief,
   type ArtDecision,
   type ArtDecisionConfidence,
+  type ArtAction,
   type ArtTarget,
   type BindingCompatibility,
   type LevelNumber
@@ -107,6 +108,25 @@ export function levelPlacementTargets(
   return LEVEL_ANCHORS.flatMap((anchor) =>
     LEVEL_ZONES.map((zone) => ({ level, zone, anchor }))
   );
+}
+
+/**
+ * A level removal names the selected catalogue asset as the existing tile to
+ * remove. Unlike replace, it does not need an earlier Art Board draft at the
+ * semantic target because the board never stores individual map cells.
+ */
+export function levelActionAvailable({
+  action,
+  selectedAssetId,
+  currentDecision
+}: {
+  action: ArtAction;
+  selectedAssetId: string | null;
+  currentDecision?: ArtDecision;
+}): boolean {
+  if (action === "use") return selectedAssetId !== null;
+  if (action === "remove") return selectedAssetId !== null;
+  return selectedAssetId !== null && currentDecision !== undefined;
 }
 
 /**

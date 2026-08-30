@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ArtDecision, BindingArtTarget, LevelArtTarget } from "./domain";
 import type { DisplayAsset } from "./catalog";
 import * as boardStateApi from "./boardState";
-import { exportBrief, reduceBoard, type BoardState } from "./boardState";
+import { exportBrief, levelActionAvailable, reduceBoard, type BoardState } from "./boardState";
 
 const levelTarget: LevelArtTarget = {
   kind: "level",
@@ -25,6 +25,16 @@ function emptyBoard(): BoardState {
 }
 
 describe("reduceBoard", () => {
+  it("allows a selected existing tile to be removed from a semantic level target without a prior draft", () => {
+    expect(
+      levelActionAvailable({
+        action: "remove",
+        selectedAssetId: "image:third-party:kenney-tiny-dungeon:tiles:tile-0028",
+        currentDecision: undefined
+      })
+    ).toBe(true);
+  });
+
   it("records a Level 1 Use as semantic zone and anchor intent without map cells", () => {
     const state = reduceBoard(emptyBoard(), {
       type: "use",
