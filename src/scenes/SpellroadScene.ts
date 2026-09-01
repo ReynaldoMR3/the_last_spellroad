@@ -6,18 +6,21 @@ import wavesLevel1Data from "../data/waves/level-1.json";
 import wavesLevel2Data from "../data/waves/level-2.json";
 import wavesLevel3Data from "../data/waves/level-3.json";
 import wavesLevel4Data from "../data/waves/level-4.json";
+import wavesLevel5Data from "../data/waves/level-5.json";
 import wavesBoss1Data from "../data/waves/boss-1.json";
 import { HealthSystem, MAX_HP } from "../systems/HealthSystem";
 import { ManaSystem, MANA_REGEN_PER_SEC, MAX_MANA } from "../systems/ManaSystem";
 import { MasterySystem } from "../systems/MasterySystem";
 import { HexcoinSystem, FEE_PHASE_RECOVERY, PHASE_RECOVERY_HP_FRACTION, MAX_RECOVERIES_HARD_CAP } from "../systems/HexcoinSystem";
 import { DebuffSystem } from "../systems/DebuffSystem";
+import { resolveElementalCast, type ElementalOutcome } from "../systems/elementalDamage";
 import { computeDebuffMagnitude, formatDebuffHudLines } from "../systems/debuffDisplay";
-import { archetypeDisplayName, computeHpBarColor, computeHpFraction } from "../systems/enemyStatusOverlay";
+import { computeHpBarColor, computeHpFraction } from "../systems/enemyStatusOverlay";
 import { SpellCaster, SHAPE_GEOMETRY } from "../entities/SpellCaster";
 import { Enemy, ARCHETYPE_DAMAGE, DEBUFFER_TELEGRAPH_MS, DEBUFFER_TRAVEL_MS } from "../entities/Enemy";
 import { spawnWave } from "../systems/WaveLoader";
-import { ENEMY_REGISTRY } from "../data/enemyRegistry";
+import { MONSTER_REGISTRY } from "../data/monsterRegistry";
+import { validateSpells, validateWaveFairness, validateWaves } from "../data/validateContent";
 import { countSpawnableEnemies } from "../systems/waveEnemyCounts";
 import { selectDefaultLoadout } from "../systems/defaultLoadout";
 import { selectAutoAimTarget } from "../systems/autoAim";
@@ -48,7 +51,7 @@ import {
   tileBlocksMovement
 } from "../systems/levelArt";
 import { SPELL_ICON_ELEMENTS, iconKeyForSpell, spellIconKey, spellIconUrl } from "../systems/spellIcons";
-import { ALL_ENEMY_ARCHETYPES, MAGE_SPRITE_KEY, MAGE_SPRITE_URL, enemySpriteKey, enemySpriteUrl } from "../systems/characterArt";
+import { MAGE_SPRITE_KEY, MAGE_SPRITE_URL, MONSTER_VISUAL_IDS, monsterSprite } from "../systems/characterArt";
 import {
   ALL_CAST_ELEMENTS,
   ALL_SFX_CUES,
@@ -93,12 +96,14 @@ import {
 import {
   buildSaveBlob,
   prepareGameProgress,
+  resolveDeathRestartWaveIndex,
   type PersistentMetadata,
   type SpellroadStartData
 } from "../systems/gameProgress";
 import { writeSave } from "../systems/SaveSystem";
 import { resolveDebugStartWave } from "../systems/debugStart";
 import { onboardingHintText } from "../systems/howToPlay";
+import { resolveBossWavePresentation } from "../systems/bossElementalAffordance";
 
 const PLAYER_SPEED = 180;
 /** Widened 160->220 (2026-07-27, developer feedback: not enough room to evade projectiles/
@@ -399,7 +404,7 @@ const BOSS_BANNER_INTRO_TEXT =
   "avatar assembles itself out of the same sacred geometry that built the Road: too " +
   "smooth, too attentive, more curious than cruel. You feel measured rather than hated, the way " +
   "a lesson feels measured, and understand, distantly, that surviving this is not escape — it " +
-  "is only passing the part of the test that lets you keep walking. The Invigilator turns " +
+  "is only passing the part of the test that lets you keep walking. The figure turns " +
   "toward you, unhurried, and begins.";
 /** Issue #249 — same UI-chrome-not-lore reasoning as `BOSS_BANNER_OUTRO_CONFIRM_HINT` (see its
  * own comment): the intro banner now also gates on an explicit `[Y] Continue` (developer
@@ -408,7 +413,7 @@ const BOSS_BANNER_INTRO_TEXT =
  * outro/win banners), so it needs the same appended confirm hint. */
 const BOSS_BANNER_INTRO_CONFIRM_HINT = "\n\n[Y] Continue";
 const BOSS_BANNER_OUTRO_TEXT =
-  "The Invigilator's geometry comes apart the way frost leaves a window — not shattered, just " +
+  "The figure's geometry comes apart the way frost leaves a window — not shattered, just " +
   "no longer held together, its hex-lines guttering into ordinary dark stone. For one long " +
   "moment there is a quiet the Road has never given you before, unscored by any generated " +
   "thing. You do not feel triumphant so much as tired, and faintly, uselessly sorry — this was " +
@@ -445,13 +450,6 @@ const WIN_BANNER_CONFIRM_HINT = "\n\n[Y] Continue";
  * short banner still gets a sensible minimum hold. */
 const BOSS_BANNER_MIN_DISPLAY_MS = 9000;
 const BOSS_BANNER_MS_PER_WORD = 300;
-/** Issue #116 — see `bossNameText`'s own comment. Names the encounter's actual boss
- * explicitly rather than just its title, since the fight's individual enemies (ordinary
- * registry archetypes per `boss-1.json`) keep showing their own archetype label — e.g. a
- * Debuffer-archetype enemy's name tag still reads "The Tarrywright" — throughout the fight;
- * "wears many faces" preempts the "wait, which one is the real boss?" confusion that could
- * otherwise cause, without this HUD element having to override those per-enemy labels too. */
-const BOSS_NAME_TEXT = "⚔ The Invigilator — wears many faces this fight";
 /** backlog 2.10 — the lane rectangle the mage and (per this fix) enemies are both clamped
  * to, and the shape preview is visually clipped to via a geometry mask. Hit-tests don't
  * need their own separate clip: once enemies can't exist outside this rect, there's
@@ -486,9 +484,9 @@ const SIDE_POCKET_DRESSING_OFFSETS: ReadonlyArray<{ dx: number; dy: number; radi
 ];
 /** Heckler critique, 2026-08-02 (8), MAJOR 1: none of the HUD text objects ever called
  * `setDepth`, so they sat at the same default depth (0) as every `Enemy` and its own
- * `nameLabel`/`statusBar` overlay (`Enemy.ts` — also never sets one). Phaser breaks
+ * status-bar overlay (`Enemy.ts` — also never sets one). Phaser breaks
  * equal-depth ties by display-list insertion order, and enemies are constructed (and thus
- * inserted) after `createHud()` already ran, so an enemy's name label could paint over the
+ * inserted) after `createHud()` already ran, so an enemy sprite/status overlay could paint over the
  * top-right Level/Wave and debuff HUD boxes whenever it wandered into that screen region —
  * reachable in ordinary play, not a contrived edge case (see Heckler's finding for the exact
  * lane-clamp-rectangle overlap math). Deliberately picked a value distinct from
@@ -609,6 +607,10 @@ export class SpellroadScene extends Phaser.Scene {
   private caster!: SpellCaster;
 
   private enemies: Enemy[] = [];
+  /** One live wind-up cue per Debuffer. Elemental hit resolution explicitly cancels the
+   * matching cue when lightning interrupts the committed attack, keeping Phaser visual time
+   * synchronized with `EnemyCombatState`'s pure countdown. */
+  private readonly debuffTelegraphs = new Map<Enemy, Phaser.GameObjects.Arc>();
   private enemiesRemainingToSpawn = 0;
 
   private previewSpellId: string | null = null;
@@ -707,15 +709,8 @@ export class SpellroadScene extends Phaser.Scene {
    * itself, a death interrupting it, or a scene reset), rather than leaking a stale listener for
    * a later, unrelated confirm-gated banner to accidentally co-fire alongside. */
   private bossBannerConfirmListener: (() => void) | null = null;
-  /** Issue #116 — persistent boss-name HUD element ("The Invigilator") shown for the whole
-   * Level 5 encounter. `boss-1.json`'s three phases are composed entirely of ordinary
-   * registry enemy types (`spellbound_thug`/`hexbow_skirmisher`/etc.), so before this the
-   * fight's actual named identity only ever appeared in the intro/outro banner text — a
-   * player who missed that (see #112/#113) had no in-combat way to learn who they were
-   * fighting. Toggled by `startWave`'s boss-Phase-1 branch (shown) and the boss-victory
-   * branch in `updateEnemies` (cleared); persists across a death/retry of the same fight,
-   * same as the boss theme/banner. */
-  private bossNameText?: Phaser.GameObjects.Text;
+  /** Persistent, neutral boss-trial marker shown only during the Level 5 encounter. */
+  private bossAffordanceText?: Phaser.GameObjects.Text;
   /** backlog 4.11 / issue #97 — the currently-playing boss-theme instance, or `undefined` if
    * none is active. Tracked (not just fire-and-forget `this.sound.play()`) so `stopBossTheme`
    * can stop this exact instance — the track loops for the whole multi-phase encounter, so
@@ -787,6 +782,7 @@ export class SpellroadScene extends Phaser.Scene {
     this.cache.json.add("waves-level-2", wavesLevel2Data);
     this.cache.json.add("waves-level-3", wavesLevel3Data);
     this.cache.json.add("waves-level-4", wavesLevel4Data);
+    this.cache.json.add("waves-level-5", wavesLevel5Data);
     this.cache.json.add("waves-boss-1", wavesBoss1Data);
 
     // backlog 3.8 (issue #29) — Tilesmith's #28 Tiled layouts + their shared tileset image.
@@ -805,14 +801,11 @@ export class SpellroadScene extends Phaser.Scene {
     // tileset image above (one tiny PNG).
     this.load.image(MAGE_SPRITE_KEY, MAGE_SPRITE_URL);
 
-    // Issue #163 — real per-archetype enemy sprites (`characterArt.ts`), replacing
-    // `Enemy.ensureTexture`'s old `fillRoundedRect` flat-color-square placeholder. Loaded
-    // eagerly up front (3 tiny PNGs) so every archetype's texture already exists in the cache
-    // by the time the first wave spawns an `Enemy` — `ensureTexture`'s
-    // `scene.textures.exists(key)` check is what makes this preload load-bearing rather than
-    // cosmetic.
-    for (const archetype of ALL_ENEMY_ARCHETYPES) {
-      this.load.image(enemySpriteKey(archetype), enemySpriteUrl(archetype));
+    // The full registry roster is eagerly loaded through the neutral asset lookup. Elements
+    // belong to wave assignments, so preload must not fabricate presentation metadata.
+    for (const monsterId of MONSTER_VISUAL_IDS) {
+      const sprite = monsterSprite(monsterId);
+      this.load.image(sprite.key, sprite.url);
     }
 
     // backlog 2.30 / issue #56 — one hand-authored icon per element (`spellIcons.ts`), loaded
@@ -877,8 +870,18 @@ export class SpellroadScene extends Phaser.Scene {
       ...(this.cache.json.get("waves-level-2") as WaveDefinition[]),
       ...(this.cache.json.get("waves-level-3") as WaveDefinition[]),
       ...(this.cache.json.get("waves-level-4") as WaveDefinition[]),
+      ...(this.cache.json.get("waves-level-5") as WaveDefinition[]),
       ...(this.cache.json.get("waves-boss-1") as WaveDefinition[])
     ];
+    const defaultLoadout = selectDefaultLoadout(this.spells);
+    const contentErrors = [
+      ...validateSpells(this.spells, { requireFixedDefaultLoadout: true }),
+      ...validateWaves(this.waves, MONSTER_REGISTRY, { requireFinalBoss: true }),
+      ...validateWaveFairness(this.waves, defaultLoadout)
+    ];
+    if (contentErrors.length > 0) {
+      throw new Error(`Invalid runtime content:\n${contentErrors.join("\n")}`);
+    }
     const prepared = prepareGameProgress(data, this.spells.map((spell) => spell.id), this.waves);
     this.discoveredSpellIds = prepared.discoveredSpellIds;
     this.persistentMetadata = prepared.metadata;
@@ -887,7 +890,7 @@ export class SpellroadScene extends Phaser.Scene {
     // `default_loadout_slot` (issue #71), a curated 2-per-weight-class set authored in
     // `spells.json`, then limited to spells this save has actually discovered. The current
     // build still has no discovery mutation of its own; preparation remains the authority.
-    this.equippedSpells = selectDefaultLoadout(this.spells).filter((spell) => discoveredSpellIds.has(spell.id));
+    this.equippedSpells = defaultLoadout.filter((spell) => discoveredSpellIds.has(spell.id));
 
     this.health = new HealthSystem(
       () => this.handleDeath(),
@@ -1024,7 +1027,10 @@ export class SpellroadScene extends Phaser.Scene {
 
     const debugStartRequested =
       import.meta.env.DEV && new URLSearchParams(window.location.search).has("debugLevel");
-    this.startWave(debugStartRequested ? resolveDebugStartWave(this.waves) : prepared.startWaveIndex);
+    this.startWave(
+      debugStartRequested ? resolveDebugStartWave(this.waves) : prepared.startWaveIndex,
+      { directDebugEntry: debugStartRequested }
+    );
     if (prepared.resetNotice) {
       this.flashMessage(prepared.resetNotice, 2500, "warning");
     }
@@ -1343,8 +1349,8 @@ export class SpellroadScene extends Phaser.Scene {
       icon.setDisplaySize(HOTBAR_ICON_SIZE, HOTBAR_ICON_SIZE);
       icon.setVisible(false);
       // backlog 2.32 / issue #58, Heckler MAJOR finding 1 (2026-08-02 (8)) — every persistent
-      // HUD element needs an explicit depth above enemy overlays (`Enemy.ts`'s nameLabel/
-      // statusBar, added to the display list after createHud() runs); the icon/text slots
+      // HUD element needs an explicit depth above the enemy status bar, which is added to the
+      // display list after createHud() runs; the icon/text slots
       // introduced by #55/#56 predate that fix and need the same UI_DEPTH applied here.
       icon.setDepth(UI_DEPTH);
       return icon;
@@ -1417,23 +1423,23 @@ export class SpellroadScene extends Phaser.Scene {
     this.levelWaveText.setOrigin(1, 0);
     this.levelWaveText.setDepth(UI_DEPTH);
 
-    // Issue #116 — persistent boss-name plate, top-center so it doesn't collide with the
+    // Persistent nameless trial plate, top-center so it doesn't collide with the
     // top-left stat block or the top-right Level/Wave readout. Empty (no visible element)
     // outside the Level 5 encounter — `startWave`/`updateEnemies` are the only two call
     // sites that ever set/clear its text.
-    this.bossNameText = this.add.text(CANVAS_WIDTH / 2, 16, "", {
+    this.bossAffordanceText = this.add.text(CANVAS_WIDTH / 2, 16, "", {
       color: MESSAGE_WARNING_COLOR,
       fontFamily: "Georgia, serif",
       fontStyle: "bold",
-      fontSize: "18px",
+      fontSize: "14px",
       backgroundColor: "#1c1330",
       padding: { x: 12, y: 6 }
     });
-    this.bossNameText.setOrigin(0.5, 0);
-    this.bossNameText.setDepth(UI_DEPTH);
+    this.bossAffordanceText.setOrigin(0.5, 0);
+    this.bossAffordanceText.setDepth(UI_DEPTH);
     // Same empty-background behavior as `tierUpText` above: outside Level 5, the blank boss
     // plate must not leave a 24x32 dark block at the top-center of the HUD.
-    this.bossNameText.setVisible(false);
+    this.bossAffordanceText.setVisible(false);
 
     // backlog 2.31 / issue #57 — debuff-magnitude/duration HUD line, directly below the
     // Level/Wave readout above (same fixed top-right column). Left empty by default;
@@ -1451,13 +1457,14 @@ export class SpellroadScene extends Phaser.Scene {
 
     // backlog 2.35 / issue #78 — centered in the upper lane, clear of the hotbar row below
     // and the top-left/top-right HUD corners, so it doesn't compete with any always-on element.
-    this.onboardingHintText = this.add.text(CANVAS_WIDTH / 2, ROAD_TOP + 40, onboardingHintText(), {
+    this.onboardingHintText = this.add.text(CANVAS_WIDTH / 2, ROAD_TOP + 24, onboardingHintText(), {
       color: "#f3e7c2",
       fontFamily: "monospace",
-      fontSize: "14px",
+      fontSize: "13px",
       align: "center",
       backgroundColor: "#1c1330",
-      padding: { x: 14, y: 10 }
+      padding: { x: 14, y: 10 },
+      wordWrap: { width: 880 }
     });
     this.onboardingHintText.setOrigin(0.5, 0);
     this.onboardingHintText.setDepth(UI_DEPTH);
@@ -1467,7 +1474,7 @@ export class SpellroadScene extends Phaser.Scene {
     this.onboardingHintActive = true;
     this.time.delayedCall(ONBOARDING_HINT_FALLBACK_MS, () => this.dismissOnboardingHint());
 
-    // backlog 4.10 / issue #96 — the Invigilator intro/outro banner. Centered, wider than the
+    // Boss intro/outro banner. Centered, wider than the
     // onboarding hint (word-wrapped, since the authored narration runs several sentences), and
     // deliberately in `levelWaveText`'s serif font rather than the HUD's monospace — a
     // narrative beat should not read as another status readout. Starts hidden (alpha 0); only
@@ -1794,22 +1801,38 @@ export class SpellroadScene extends Phaser.Scene {
     // rather than per-enemy inside the hit loop below.
     this.spawnCastEffect(spell, targetX, targetY);
 
-    let hits = 0;
     let kills = 0;
-    for (const enemy of [...this.enemies]) {
-      if (hits >= result.maxTargets) {
-        break;
-      }
-      if (!result.hitTest(enemy.x, enemy.y)) {
-        continue;
-      }
-      hits += 1;
+    const validTargets = [...this.enemies].filter(
+      (enemy) => enemy.active && !enemy.defeated && result.hitTest(enemy.x, enemy.y)
+    );
+    const resolvedHits = resolveElementalCast({
+      spell,
+      masteryPowerBonus: result.masteryPowerBonus,
+      maxTargets: result.maxTargets,
+      caster: { x: this.mage.x, y: this.mage.y },
+      primaryOrigin: result.primaryOrigin,
+      targets: validTargets
+    });
+    for (const hit of resolvedHits) {
+      const enemy = hit.target;
       const enemyX = enemy.x;
       const enemyY = enemy.y;
-      const killed = enemy.takeDamage(result.power);
-      this.spawnDamageNumber(enemyX, enemyY, result.power, enemy.hp, enemy.maxHp);
-      this.spawnImpactBurst(enemyX, enemyY, ELEMENT_EFFECT_COLOR[spell.element], spell.element);
-      if (killed) {
+      const application = enemy.applyElementalHit(hit);
+      if (!application.applied) {
+        continue;
+      }
+      if (application.cancelledDebuffTelegraph) {
+        this.cancelDebuffTelegraph(enemy);
+      }
+      this.spawnDamageNumber(enemyX, enemyY, hit.totalDamage, enemy.hp, enemy.maxHp);
+      this.spawnImpactBurst(
+        enemyX,
+        enemyY,
+        ELEMENT_EFFECT_COLOR[spell.element],
+        spell.element,
+        hit.outcome
+      );
+      if (application.killed) {
         this.removeEnemy(enemy);
         this.hexcoin.earn(1);
         kills += 1;
@@ -1909,7 +1932,7 @@ export class SpellroadScene extends Phaser.Scene {
 
   // ----- enemies / waves -----
 
-  private startWave(index: number): void {
+  private startWave(index: number, options: { directDebugEntry?: boolean } = {}): void {
     const wave = this.waves[index];
     if (!wave) {
       // Issue #48 — park the session explicitly instead of relying on the old
@@ -1957,11 +1980,15 @@ export class SpellroadScene extends Phaser.Scene {
     }
 
     if (wave.is_boss) {
-      if (wave.wave_index === 0) {
-        // First phase of the fight: this is the one HP-reset point (hp-template.md's
-        // per-wave reset) — later phases in this same fight deliberately do NOT reset,
-        // since the boss/trial damage-threat budget is cumulative across phases, which is
-        // the entire reason Phase-Transition Recovery exists as a paid mid-fight option.
+      const bossPresentation = resolveBossWavePresentation(this.waves, index, options.directDebugEntry === true);
+      this.bossAffordanceText
+        ?.setText(bossPresentation.affordanceText ?? "")
+        .setVisible(bossPresentation.affordanceText !== undefined);
+      if (bossPresentation.initializeTrial) {
+        // Trial initialization normally occurs on phase 1; an explicit dev-only direct entry
+        // initializes its selected phase as an isolated review run. This is the one HP-reset
+        // point for that run — later normally-progressed phases deliberately do NOT reset,
+        // since the boss/trial damage-threat budget is cumulative across phases.
         const totalPhases = this.waves.filter((w) => w.is_boss && w.level === wave.level).length;
         this.bossMaxRecoveries = Math.min(totalPhases - 2, MAX_RECOVERIES_HARD_CAP);
         this.hexcoin.startBossFight();
@@ -1982,27 +2009,30 @@ export class SpellroadScene extends Phaser.Scene {
         // `onHidden` callback so the player reads the narration first, then the mechanical
         // warning, never both at once.
         // Issue #142 — the two tracks are mutually exclusive (`shouldPlayCombatCueForWave`).
-        // Level 5's Phase 1 is entered directly from the last ordinary wave of Level 4, whose
+        // The trial's Phase 1 is entered from Level 5's last ordinary wave, whose
         // cue is already stopped by the wave-clear path below; this is belt-and-braces for the
-        // one path that isn't a normal wave clear (`?debugLevel=5` boots straight in).
+        // path that isn't a normal wave clear (a direct boss-phase debug entry).
         this.stopCombatCue();
         // Issue #188 — same belt-and-braces for the third track. The interlude predicate
         // (`shouldPlayExplorationLoopBetweenWaves`) already refuses to start an interlude into a
-        // boss wave, so on the normal Level 4 -> 5 path there is nothing playing to stop; this
-        // covers `?debugLevel=5` and any future path that reaches Phase 1 without a preceding
+        // boss wave, so on the normal Level 5 regular -> trial path there is nothing playing to stop; this
+        // covers direct boss-phase debug entry and any future path that reaches a trial without a preceding
         // ordinary wave clear.
         this.stopExplorationLoop();
         this.playBossTheme();
         this.showBossBanner(
           BOSS_BANNER_INTRO_TEXT + BOSS_BANNER_INTRO_CONFIRM_HINT,
           () => {
-            this.flashMessage("Director Trial — Phase 1 (HP won't reset again until you win or die)", 2400, "warning");
+            this.flashMessage(
+              `Director Trial — Phase ${bossPresentation.phaseNumber} (HP won't reset again until you win or die)`,
+              2400,
+              "warning"
+            );
           },
           { requireConfirm: true }
         );
-        this.bossNameText?.setText(BOSS_NAME_TEXT).setVisible(true);
       } else {
-        this.flashMessage(`Director Trial — Phase ${wave.wave_index + 1}`, 1800);
+        this.flashMessage(`Director Trial — Phase ${bossPresentation.phaseNumber}`, 1800);
       }
     } else {
       if (wave.wave_index === 0) {
@@ -2024,8 +2054,8 @@ export class SpellroadScene extends Phaser.Scene {
     // authored entry including ones `spawnWave` silently skips for an unregistered `type`. That
     // skip never called `onSpawn`, so the counter could never reach zero and the wave soft-locked
     // permanently even after every spawnable enemy died. `countSpawnableEnemies` counts only
-    // entries `ENEMY_REGISTRY` actually recognizes, matching what `spawnWave` will really spawn.
-    this.enemiesRemainingToSpawn = countSpawnableEnemies(wave, ENEMY_REGISTRY);
+    // entries `MONSTER_REGISTRY` actually recognizes, matching what `spawnWave` will really spawn.
+    this.enemiesRemainingToSpawn = countSpawnableEnemies(wave, MONSTER_REGISTRY);
     spawnWave(
       this,
       wave,
@@ -2251,8 +2281,8 @@ export class SpellroadScene extends Phaser.Scene {
     // Issue #167: this used to be bucketed per archetype (`positionsByArchetype`), on the
     // reasoning that the deliberately non-overlapping preferred-range bands (240 ranged vs. 150
     // debuffer vs. 34 melee) already kept different archetypes apart. They don't: those bands
-    // describe a settled distance from the mage, and say nothing about a Nearblade crossing
-    // straight through a Farlance on its way in — which is exactly what the developer saw. The
+    // describe a settled distance from the mage, and say nothing about a melee enemy crossing
+    // straight through a ranged enemy on its way in — which is exactly what the developer saw. The
     // bands are still safe from the flat separation applied here; see `Enemy.update`'s comment.
     //
     // Snapshotted once, before the update loop, so separation is computed from a single
@@ -2274,7 +2304,7 @@ export class SpellroadScene extends Phaser.Scene {
         this.mage.x,
         this.mage.y,
         {
-          onMeleeHit: () => this.health.applyDamage(Math.round(ARCHETYPE_DAMAGE.melee * enemy.damageModifier)),
+          onMeleeHit: () => this.health.applyDamage(enemy.outgoingDamage(ARCHETYPE_DAMAGE.melee)),
           onRangedFire: (fromX, fromY, toX, toY) => {
             // Developer feedback (2026-07-27): no way to tell a non-melee hit is coming.
             // `EnemyCallbacks` already carried the shot's start/end coordinates — the scene
@@ -2297,14 +2327,14 @@ export class SpellroadScene extends Phaser.Scene {
                 return;
               }
               if (isStillInRangedImpactZone(this.mage.x, this.mage.y, toX, toY)) {
-                this.health.applyDamage(Math.round(ARCHETYPE_DAMAGE.ranged * enemy.damageModifier));
+                this.health.applyDamage(enemy.outgoingDamage(ARCHETYPE_DAMAGE.ranged));
               }
             });
           },
           onDebuffTelegraphStart: (x, y, variant) => {
             // Issue #237 — the previously-instant, unavoidable debuff pulse now starts with a
             // visible wind-up tell instead of applying on the same frame it decides to fire.
-            this.spawnDebuffTelegraph(x, y, variant);
+            this.spawnDebuffTelegraph(enemy, x, y, variant);
           },
           onDebuffFire: (fromX, fromY, toX, toY, variant) => {
             // Issue #237 — mirrors `onRangedFire` exactly: a real travel-time projectile,
@@ -2353,7 +2383,7 @@ export class SpellroadScene extends Phaser.Scene {
         this.hexcoin.earn(1);
       }
       this.persistProgress();
-      this.flashMessage(`${archetypeDisplayName("debuffer")} yields -- nothing left to guard`, 1400);
+      this.flashMessage("The remaining enemies yield -- nothing left to guard", 1400);
     }
 
     // Issue #48 — gated on the session phase, not on the counters alone. The old condition
@@ -2432,9 +2462,8 @@ export class SpellroadScene extends Phaser.Scene {
         this.showBossBanner(BOSS_BANNER_OUTRO_TEXT + BOSS_BANNER_OUTRO_CONFIRM_HINT, undefined, {
           requireConfirm: true
         });
-        // Issue #116 — the fight is over; clear the persistent name plate rather than leaving
-        // "The Invigilator" on screen through the regular levels that follow.
-        this.bossNameText?.setText("").setVisible(false);
+        // The fight is over; clear the persistent trial marker before the next regular level.
+        this.bossAffordanceText?.setText("").setVisible(false);
       }
       this.time.delayedCall(1200, () => {
         // If the player died during this 1200ms gap (a ranged shot already in flight when the
@@ -2454,6 +2483,7 @@ export class SpellroadScene extends Phaser.Scene {
     // ticket scopes, never a despawn/cleanup path (e.g. `handleDeath`'s own
     // `this.enemies.forEach((e) => e.destroy())` calls `destroy()` directly, not this method).
     this.sound.play(sfxKey("enemyDeath"), computeSfxVariation());
+    this.cancelDebuffTelegraph(enemy);
     this.enemies = this.enemies.filter((e) => e !== enemy);
     enemy.destroy();
   }
@@ -2944,7 +2974,13 @@ export class SpellroadScene extends Phaser.Scene {
    * layered alongside the existing floating damage number (backlog 2.9) rather than
    * replacing it — the number carries the amount, this carries the "something just hit"
    * beat, tinted by the same per-element color `spawnCastEffect` uses for the same cast. */
-  private spawnImpactBurst(x: number, y: number, color: number, element: Element): void {
+  private spawnImpactBurst(
+    x: number,
+    y: number,
+    color: number,
+    element: Element,
+    outcome: ElementalOutcome
+  ): void {
     // backlog 3.10 / issue #81 — impact SFX wired alongside this existing per-hit visual beat,
     // same integration point as the cast SFX above. Fires once per landed hit (`confirmCast`'s
     // per-enemy loop calls this per hit, not per cast), matching the existing damage-number/
@@ -2976,6 +3012,36 @@ export class SpellroadScene extends Phaser.Scene {
     } else {
       this.spawnElementalImpactVfx(element, x, y);
     }
+    this.spawnElementalOutcomeIndicator(x, y, outcome);
+  }
+
+  /** Matchup feedback uses geometry as well as color: rising chevron = advantage, falling
+   * chevron = disadvantage, double guard-ring = resistance. Neutral keeps the ordinary
+   * element-colored impact. No monster name or archetype text is introduced. */
+  private spawnElementalOutcomeIndicator(x: number, y: number, outcome: ElementalOutcome): void {
+    if (outcome === "neutral") {
+      return;
+    }
+    const marker = this.add.graphics().setDepth(12);
+    if (outcome === "advantage") {
+      marker.lineStyle(3, 0x7ef29a, 1);
+      marker.strokeTriangle(x - 8, y - 24, x, y - 32, x + 8, y - 24);
+    } else if (outcome === "disadvantage") {
+      marker.lineStyle(3, 0xffa07a, 1);
+      marker.strokeTriangle(x - 8, y - 32, x + 8, y - 32, x, y - 24);
+    } else {
+      marker.lineStyle(3, 0xd5d8e8, 1);
+      marker.strokeCircle(x, y, 21);
+      marker.strokeCircle(x, y, 16);
+    }
+    this.tweens.add({
+      targets: marker,
+      y: outcome === "disadvantage" ? 7 : -7,
+      alpha: 0,
+      duration: 420,
+      ease: "Cubic.Out",
+      onComplete: () => marker.destroy()
+    });
   }
 
   /**
@@ -2988,19 +3054,38 @@ export class SpellroadScene extends Phaser.Scene {
    * `spawnDebuffPulse` so the tell and its eventual (dodgeable) payoff read as one continuous
    * visual language.
    */
-  private spawnDebuffTelegraph(x: number, y: number, variant: DebuffVariant): void {
+  private spawnDebuffTelegraph(enemy: Enemy, x: number, y: number, variant: DebuffVariant): void {
+    this.cancelDebuffTelegraph(enemy);
     const color = variant === "speed" ? 0x6f4fa8 : 0x4fa8a3;
     const ring = this.add.circle(x, y, 26, color, 0);
     ring.setStrokeStyle(3, color, 0.95);
     ring.setDepth(998);
+    this.debuffTelegraphs.set(enemy, ring);
     this.tweens.add({
       targets: ring,
       radius: 8,
       duration: DEBUFFER_TELEGRAPH_MS,
       ease: "Cubic.In",
       onUpdate: () => ring.setStrokeStyle(3, color, ring.alpha),
-      onComplete: () => ring.destroy()
+      onComplete: () => {
+        if (this.debuffTelegraphs.get(enemy) === ring) {
+          this.debuffTelegraphs.delete(enemy);
+        }
+        ring.destroy();
+      }
     });
+  }
+
+  /** Cancels the visual half of one committed Debuffer attack after `EnemyCombatState` has
+   * cleared its countdown, so an interrupted tell cannot resume as an invisible projectile. */
+  private cancelDebuffTelegraph(enemy: Enemy): void {
+    const ring = this.debuffTelegraphs.get(enemy);
+    if (!ring) {
+      return;
+    }
+    this.debuffTelegraphs.delete(enemy);
+    this.tweens.killTweensOf(ring);
+    ring.destroy();
   }
 
   /**
@@ -3098,9 +3183,9 @@ export class SpellroadScene extends Phaser.Scene {
     // this method's cleanup unfolds — mirrors the existing `flashMessage` call a few lines
     // down, which also fires unconditionally on every `handleDeath` invocation.
     this.sound.play(sfxKey("playerDeath"), computeSfxVariation());
-    // backlog 4.11 / issue #97 — a death respawns at the current level's start (0.2's
-    // resolution), which for the boss level is Phase 1 — `startWave` below will restart the
-    // theme/banner on its own once the respawn delay elapses. Stopped here first so neither
+    // backlog 4.11 / issue #97 — an ordinary-wave death respawns at the current level's start;
+    // a boss-phase death respawns at the first `is_boss` phase of that level. `startWave` below
+    // will restart the theme/banner on its own once the respawn delay elapses. Stopped here so neither
     // lingers, unstyled, over the "Died —..." beat in the meantime; harmless no-op if the death
     // didn't happen mid-boss-fight (nothing is playing/visible to stop).
     this.stopBossTheme();
@@ -3158,8 +3243,9 @@ export class SpellroadScene extends Phaser.Scene {
     );
 
     // Checkpoint/respawn placement (backlog item 0.2, resolved 2026-08-01 by the
-    // developer): a death respawns at the first wave of the CURRENT level, not the
-    // absolute start of the run, and waves replayed on that retry re-award Hexcoin —
+    // developer): an ordinary-wave death respawns at the first wave of the CURRENT level,
+    // while a boss-phase death respawns at that level's first boss phase. Neither restarts the
+    // absolute run, and waves replayed on that retry re-award Hexcoin —
     // nothing here suppresses that, `confirmCast`'s `hexcoin.earn(1)` fires on every
     // kill unconditionally.
     //
@@ -3173,7 +3259,10 @@ export class SpellroadScene extends Phaser.Scene {
     // undoes only the failed attempt's partial gains, never Hexcoin already banked from
     // levels actually cleared, while still bounding what a single retry can add (capped
     // by that level's own kill count, same intent the zero-reset was reaching for).
-    this.enemies.forEach((e) => e.destroy());
+    this.enemies.forEach((enemy) => {
+      this.cancelDebuffTelegraph(enemy);
+      enemy.destroy();
+    });
     this.enemies = [];
     this.enemiesRemainingToSpawn = 0;
     this.health.reset();
@@ -3182,8 +3271,7 @@ export class SpellroadScene extends Phaser.Scene {
     this.mage?.setPosition(MAGE_START.x, MAGE_START.y);
     this.hexcoin.rollbackToLevelStart();
     this.persistProgress();
-    const currentLevel = this.waves[this.waveIndex]?.level;
-    const levelStartIndex = this.waves.findIndex((w) => w.level === currentLevel);
+    const restartWaveIndex = resolveDeathRestartWaveIndex(this.waves, this.waveIndex);
     this.time.delayedCall(1500, () => {
       // A second death can't happen during this window (HP is already back at full and every
       // enemy is destroyed), but check anyway rather than assume: if anything did take a newer
@@ -3191,7 +3279,7 @@ export class SpellroadScene extends Phaser.Scene {
       if (!this.session.isCurrent(deathGeneration)) {
         return;
       }
-      this.startWave(levelStartIndex >= 0 ? levelStartIndex : 0);
+      this.startWave(restartWaveIndex);
     });
   }
 
@@ -3225,7 +3313,7 @@ export class SpellroadScene extends Phaser.Scene {
   // ----- boss encounter (backlog 4.10/4.11, issues #96/#97) -----
 
   /** Starts looping if nothing is already playing; a no-op otherwise so a same-fight
-   * phase-break (`startWave` re-entering with `wave_index !== 0`) never restarts the track
+   * phase-break never restarts the track
    * mid-loop — only a fresh Phase 1 entry (first attempt or a death-retry) calls this. */
   private playBossTheme(): void {
     if (this.bossThemeSound?.isPlaying) {
@@ -3427,7 +3515,7 @@ export class SpellroadScene extends Phaser.Scene {
   }
 
   /** Issue #236 — the vertical slice's win acknowledgment, shown once `startWave` finds no
-   * more waves (see that call site's own comment for why it's deferred behind the Invigilator
+   * more waves (see that call site's own comment for why it's deferred behind the trial
    * outro banner rather than called directly from there). Reuses `showBossBanner` with
    * `requireConfirm: true` rather than a new UI element or timed flash — exactly "persists
    * until dismissed" and "same visual language as the boss intro/outro banners," both
@@ -3501,17 +3589,14 @@ export class SpellroadScene extends Phaser.Scene {
         : `Wave ${this.waveIndex + 1}/${this.waves.length}`
     );
 
-    // backlog 2.31 / issue #57 — debuff magnitude/duration, built on top of the existing
-    // `spawnDebuffPulse` visual rather than replacing it. `archetypeDisplayName("debuffer")`
-    // is the same seam the enemy's own overlay label already uses (see its doc comment in
-    // `enemyStatusOverlay.ts`) and now returns Lorena's "The Tarrywright" (backlog 4.2) —
-    // that one function's "debuffer" case feeds this line and the enemy label together.
+    // Debuff magnitude/duration, built on top of the existing visual pulse. The HUD describes
+    // the mechanical state without identifying a monster by name or archetype.
     const debuffMagnitude = computeDebuffMagnitude(
       this.debuff.speedStackCount,
       this.debuff.manaRegenStackCount,
       MANA_REGEN_PER_SEC
     );
-    const debuffLines = formatDebuffHudLines(debuffMagnitude, archetypeDisplayName("debuffer"));
+    const debuffLines = formatDebuffHudLines(debuffMagnitude);
     this.debuffText?.setText(debuffLines.join("\n"));
   }
 

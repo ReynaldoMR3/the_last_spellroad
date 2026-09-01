@@ -1,28 +1,24 @@
 [
   {
-    "_variant_schedule": "issue #162: bonecage_brute and thistle_marksman (introduced Level 3) recur here, splitting spellbound_thug x3 into spellbound_thug x2 + bonecage_brute x1, and hexbow_skirmisher x2 into hexbow_skirmisher x1 + thistle_marksman x1 -- same totals Melee=3/Ranged=2, budget-neutral. See docs/agents/warden/log.md (2026-08-12).",
     "level": 4,
     "wave_index": 0,
     "enemies": [
-      { "type": "spellbound_thug", "count": 2, "spawn_delay_ms": 0 },
-      { "type": "bonecage_brute", "count": 1, "spawn_delay_ms": 0 },
-      { "type": "hexbow_skirmisher", "count": 1, "spawn_delay_ms": 650 },
-      { "type": "thistle_marksman", "count": 1, "spawn_delay_ms": 650 },
-      { "type": "creeping_bramble", "count": 1, "spawn_delay_ms": 1050 }
+      { "type": "monster_m04", "archetype": "melee", "element": "lightning", "count": 3, "spawn_delay_ms": 0 },
+      { "type": "monster_r04", "archetype": "ranged", "element": "lightning", "count": 2, "spawn_delay_ms": 650 },
+      { "type": "monster_d04", "archetype": "debuffer", "element": "lightning", "count": 1, "spawn_delay_ms": 1050 }
     ],
     "hp_modifier": 1.24,
     "damage_modifier": 1.24
   },
   {
-    "_variant_schedule": "issue #162: glint_archer (introduced Level 1) recurs here, splitting hexbow_skirmisher x3 into hexbow_skirmisher x2 + glint_archer x1 -- same total Ranged=3, budget-neutral. See docs/agents/warden/log.md (2026-08-12).",
     "level": 4,
     "wave_index": 1,
     "enemies": [
-      { "type": "spellbound_thug", "count": 2, "spawn_delay_ms": 0 },
-      { "type": "hexbow_skirmisher", "count": 2, "spawn_delay_ms": 600 },
-      { "type": "glint_archer", "count": 1, "spawn_delay_ms": 600 },
-      { "type": "creeping_bramble", "count": 1, "spawn_delay_ms": 1000 },
-      { "type": "murmur_wisp", "count": 1, "spawn_delay_ms": 1300 }
+      { "type": "monster_m01", "archetype": "melee", "element": "fire", "count": 2, "spawn_delay_ms": 0 },
+      { "type": "monster_m03", "archetype": "melee", "element": "earth", "count": 1, "spawn_delay_ms": 0 },
+      { "type": "monster_r03", "archetype": "ranged", "element": "earth", "count": 1, "spawn_delay_ms": 600 },
+      { "type": "monster_r04", "archetype": "ranged", "element": "lightning", "count": 1, "spawn_delay_ms": 600 },
+      { "type": "monster_d04", "archetype": "debuffer", "element": "lightning", "count": 1, "spawn_delay_ms": 1100 }
     ],
     "hp_modifier": 1.25,
     "damage_modifier": 1.25
@@ -31,12 +27,12 @@
     "level": 4,
     "wave_index": 2,
     "enemies": [
-      { "type": "spellbound_thug", "count": 2, "spawn_delay_ms": 0 },
-      { "type": "voidfang_stalker", "count": 1, "spawn_delay_ms": 0 },
-      { "type": "hexbow_skirmisher", "count": 1, "spawn_delay_ms": 600 },
-      { "type": "storm_lancer", "count": 1, "spawn_delay_ms": 600 },
-      { "type": "creeping_bramble", "count": 1, "spawn_delay_ms": 950 },
-      { "type": "murmur_wisp", "count": 1, "spawn_delay_ms": 1250 }
+      { "type": "monster_m02", "archetype": "melee", "element": "ice", "count": 1, "spawn_delay_ms": 0 },
+      { "type": "monster_m03", "archetype": "melee", "element": "earth", "count": 1, "spawn_delay_ms": 0 },
+      { "type": "monster_m04", "archetype": "melee", "element": "lightning", "count": 1, "spawn_delay_ms": 0 },
+      { "type": "monster_r02", "archetype": "ranged", "element": "ice", "count": 1, "spawn_delay_ms": 600 },
+      { "type": "monster_r04", "archetype": "ranged", "element": "lightning", "count": 1, "spawn_delay_ms": 600 },
+      { "type": "monster_d03", "archetype": "debuffer", "element": "earth", "count": 1, "spawn_delay_ms": 1100 }
     ],
     "hp_modifier": 1.26,
     "damage_modifier": 1.26

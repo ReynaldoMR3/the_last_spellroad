@@ -1,7 +1,8 @@
 import Phaser from "phaser";
 import type { WaveDefinition } from "../data/types";
-import { ENEMY_REGISTRY } from "../data/enemyRegistry";
+import { MONSTER_REGISTRY } from "../data/monsterRegistry";
 import { Enemy } from "../entities/Enemy";
+import { snapshotEnemyElementalState } from "./elementalDamage";
 
 /**
  * Spawns a wave's enemies on their staggered spawn_delay_ms timers — Engine Integration
@@ -24,9 +25,9 @@ export function spawnWave(
   isStillCurrent: () => boolean
 ): void {
   for (const entry of wave.enemies) {
-    const registryEntry = ENEMY_REGISTRY[entry.type];
+    const registryEntry = MONSTER_REGISTRY[entry.type];
     if (!registryEntry) {
-      console.warn(`Unknown enemy type "${entry.type}" — not in ENEMY_REGISTRY, skipping.`);
+      console.warn(`Unknown enemy type "${entry.type}" — not in MONSTER_REGISTRY, skipping.`);
       continue;
     }
     for (let i = 0; i < entry.count; i++) {
@@ -36,15 +37,19 @@ export function spawnWave(
         }
         const jitterX = Phaser.Math.Between(-40, 40);
         const jitterY = Phaser.Math.Between(-30, 30);
+        const elementalState = snapshotEnemyElementalState(entry);
         const enemy = new Enemy(
           scene,
           spawnPoint.x + jitterX,
           spawnPoint.y + jitterY,
           registryEntry.archetype,
+          elementalState.element,
+          elementalState.resistantElements,
           registryEntry.debuffVariant ?? "speed",
           laneRect,
           wave.hp_modifier,
-          wave.damage_modifier
+          wave.damage_modifier,
+          entry.type
         );
         onSpawn(enemy);
       });

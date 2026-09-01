@@ -1,9 +1,9 @@
 import type { WaveDefinition } from "../data/types";
 
 /**
- * Dev-only: jump straight to a level's first wave via `?debugLevel=<n>` instead of playing
- * through every prior level first. Resolves against the real flattened wave array so the
- * shortcut cannot drift when earlier levels gain or lose waves.
+ * Dev-only: jump to a level's first wave via `?debugLevel=<n>`, or an exact wave inside it
+ * with `?debugLevel=<n>&debugWave=<zero-based-index>`. Resolves against the real flattened
+ * wave array so the shortcut cannot drift when earlier levels gain or lose waves.
  */
 export function resolveDebugStartWave(
   waves: readonly WaveDefinition[],
@@ -20,6 +20,13 @@ export function resolveDebugStartWave(
   if (!Number.isInteger(level)) {
     return 0;
   }
-  const index = waves.findIndex((wave) => wave.level === level);
+  const rawWave = new URLSearchParams(search).get("debugWave");
+  if (rawWave !== null && !/^\d+$/.test(rawWave)) {
+    return 0;
+  }
+  const requestedWave = rawWave === null ? undefined : Number(rawWave);
+  const index = waves.findIndex((wave) =>
+    wave.level === level && (requestedWave === undefined || wave.wave_index === requestedWave)
+  );
   return index === -1 ? 0 : index;
 }

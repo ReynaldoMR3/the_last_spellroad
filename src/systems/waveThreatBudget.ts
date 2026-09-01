@@ -100,7 +100,7 @@ export function isOnboardingGrace(budget: ThreatBudget): boolean {
  * uniformly by this multiplier -- not a new, independently-chosen band per level. Level 1's
  * multiplier is exactly 1.0 (i.e. Level 1 keeps validating against `STANDARD_REGULAR_WAVE_BAND`
  * completely unchanged), so nothing about Level 1's already-shipped, already-Pato-validated
- * margins moves. Levels 2-4 step the envelope up by a fixed +0.08 per level -- small enough
+ * margins moves. Levels 2-5 step the envelope up by a fixed +0.08 per level -- small enough
  * that every already-validated (Melee=3,Ranged=2)/(Melee=2,Ranged=3) composition pair still
  * clears the scaled floor at every level (see `waveThreatBudget.test.ts`), large enough that a
  * `damage_modifier` > 1.0 is actually necessary to reach the scaled ceiling instead of the
@@ -110,7 +110,8 @@ export const LEVEL_BAND_MULTIPLIER: Record<number, number> = {
   1: 1.0,
   2: 1.08,
   3: 1.16,
-  4: 1.24
+  4: 1.24,
+  5: 1.32
 };
 
 /** Scales every bound of a `ThreatBand` by the same factor -- the floor and ceiling move
@@ -126,7 +127,7 @@ export function scaleBand(band: ThreatBand, multiplier: number): ThreatBand {
 
 /** The regular-wave band a given level's waves are checked against -- `STANDARD_REGULAR_WAVE_BAND`
  * scaled by that level's `LEVEL_BAND_MULTIPLIER` entry. Throws for a level with no defined
- * multiplier (only 1-4 are regular-wave levels; the boss/trial uses `BOSS_TRIAL_BAND` below,
+ * multiplier (only 1-5 are regular-wave levels; the boss/trial uses `BOSS_TRIAL_BAND` below,
  * never this function) -- an unrecognized level is an authoring mistake, not a value to
  * silently pass through. */
 export function levelRegularWaveBand(level: number): ThreatBand {
@@ -149,7 +150,7 @@ export function applyDamageModifier(budget: ThreatBudget, damageModifier: number
 
 /** `hp-template.md`'s Boss/trial row (40-60% competent / 70-90% careless), as a `ThreatBand` --
  * cumulative across every phase of a multi-phase fight (no HP reset between phases), never
- * scaled by `LEVEL_BAND_MULTIPLIER` (that table is for the four regular-wave levels only). */
+ * scaled by `LEVEL_BAND_MULTIPLIER` (that table is for the five regular-wave levels only). */
 export const BOSS_TRIAL_BAND: ThreatBand = {
   competentMin: 40,
   competentMax: 60,

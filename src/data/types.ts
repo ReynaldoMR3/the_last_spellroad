@@ -5,6 +5,35 @@ export type MasteryTier = "novice" | "adept" | "master";
 export type EnemyArchetype = "melee" | "ranged" | "debuffer";
 export type DebuffVariant = "speed" | "mana_regen";
 
+export interface AdjacentPressureEffect {
+  kind: "adjacent_pressure";
+  range_tiles: 1;
+  bonus_damage: 2;
+  max_applications_per_target: 1;
+}
+
+export interface WeakenEffect {
+  kind: "weaken";
+  outgoing_damage_multiplier: 0.8;
+  duration_ms: 3000;
+  max_stacks: 1;
+}
+
+export interface StunEffect {
+  kind: "stun";
+  duration_ms: 500;
+  reapply_lockout_ms: 1500;
+  max_stacks: 1;
+}
+
+export interface SingleTargetBurstEffect {
+  kind: "single_target_burst";
+  bonus_damage: 3;
+  max_targets: 1;
+}
+
+export type SpellEffect = AdjacentPressureEffect | WeakenEffect | StunEffect | SingleTargetBurstEffect;
+
 /**
  * Engine Integration schema (GDD) — one entry per spell, authored by Frieren, validated by Pato.
  * `master_discount` records which stat this spell's Master-tier -10% applies to — mana-template.md:
@@ -18,6 +47,8 @@ export interface SpellDefinition {
   base_power: number;
   base_targets: number;
   master_discount: "cost" | "cooldown";
+  /** Every authored spell carries the exact discriminated effect payload for its element. */
+  effect: SpellEffect;
   /** Issue #71's decision — the default hotbar loadout is now data-driven: a spell with this
    * field present is equipped at run start, in ascending slot order (1-based). Absent/undefined
    * means "not in the default loadout" (still loaded, just not initially equipped — see
@@ -29,7 +60,14 @@ export interface SpellDefinition {
 
 /** Engine Integration schema (GDD) — one enemy line within a wave, authored by Warden. */
 export interface WaveEnemyEntry {
+  /** Registry visual ID; authored names are deliberately not part of the wave contract. */
   type: string;
+  /** Must repeat the registry archetype so authored threat is reviewable directly in JSON. */
+  archetype: EnemyArchetype;
+  /** The active element belongs to this wave assignment, never to a registry silhouette. */
+  element: Element;
+  /** Boss-only direct-spell resistance declarations, validated before wave migration. */
+  resistant_elements?: Element[];
   count: number;
   spawn_delay_ms: number;
 }

@@ -4,6 +4,7 @@ import type { SaveBlob, SaveLoadResult } from "./SaveSystem";
 import {
   buildSaveBlob,
   prepareGameProgress,
+  resolveDeathRestartWaveIndex,
   type PersistentMetadata
 } from "./gameProgress";
 
@@ -173,5 +174,27 @@ describe("buildSaveBlob", () => {
       loreFlags: ["met-director", "opened-gate"],
       checkpointId: "level:3"
     });
+  });
+});
+
+describe("resolveDeathRestartWaveIndex", () => {
+  const campaign: WaveDefinition[] = [
+    { level: 4, wave_index: 0, enemies: [], hp_modifier: 1, damage_modifier: 1 },
+    { level: 5, wave_index: 0, enemies: [], hp_modifier: 1, damage_modifier: 1 },
+    { level: 5, wave_index: 1, enemies: [], hp_modifier: 1, damage_modifier: 1 },
+    { level: 5, wave_index: 2, enemies: [], hp_modifier: 1, damage_modifier: 1 },
+    { level: 5, wave_index: 3, enemies: [], hp_modifier: 1, damage_modifier: 1, is_boss: true },
+    { level: 5, wave_index: 4, enemies: [], hp_modifier: 1, damage_modifier: 1, is_boss: true },
+    { level: 5, wave_index: 5, enemies: [], hp_modifier: 1, damage_modifier: 1, is_boss: true }
+  ];
+
+  it("restarts every boss phase at the first same-level boss phase", () => {
+    expect(resolveDeathRestartWaveIndex(campaign, 4)).toBe(4);
+    expect(resolveDeathRestartWaveIndex(campaign, 5)).toBe(4);
+    expect(resolveDeathRestartWaveIndex(campaign, 6)).toBe(4);
+  });
+
+  it("keeps non-boss death restart at the first wave of the current level", () => {
+    expect(resolveDeathRestartWaveIndex(campaign, 2)).toBe(1);
   });
 });

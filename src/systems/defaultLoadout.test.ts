@@ -11,6 +11,7 @@ function spell(id: string, default_loadout_slot?: number): SpellDefinition {
     base_power: 1,
     base_targets: 1,
     master_discount: "cost",
+    effect: { kind: "adjacent_pressure", range_tiles: 1, bonus_damage: 2, max_applications_per_target: 1 },
     default_loadout_slot
   };
 }

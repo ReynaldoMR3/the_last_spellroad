@@ -10,6 +10,7 @@ import level1 from "../data/waves/level-1.json";
 import level2 from "../data/waves/level-2.json";
 import level3 from "../data/waves/level-3.json";
 import level4 from "../data/waves/level-4.json";
+import level5 from "../data/waves/level-5.json";
 import boss1 from "../data/waves/boss-1.json";
 
 function wave(overrides: Partial<WaveDefinition>): WaveDefinition {
@@ -165,11 +166,11 @@ describe("Side-Pocket Lore Encounters — full-set economy and isolation propert
  * above builds its own synthetic `WaveDefinition`s, so this whole suite stayed green without
  * anything ever checking the controller against the wave list the game actually ships and plays.
  * These tests walk the real flattened list, assembled exactly the way `SpellroadScene.create`
- * assembles it (levels 1-4 then boss-1, in order), driving it through the same `wave`/`next` pair
+ * assembles it (levels 1-5 then boss-1, in order), driving it through the same `wave`/`next` pair
  * `SpellroadScene.updateEnemies` passes in.
  */
 describe("Side-Pocket Lore Encounters — against the real shipped wave list (issue #166)", () => {
-  const REAL_WAVES = [...level1, ...level2, ...level3, ...level4, ...boss1] as WaveDefinition[];
+  const REAL_WAVES = [...level1, ...level2, ...level3, ...level4, ...level5, ...boss1] as WaveDefinition[];
 
   /** Replays a whole run, collecting the encounters actually offered, with flags persisting. */
   function playThrough(): string[] {
