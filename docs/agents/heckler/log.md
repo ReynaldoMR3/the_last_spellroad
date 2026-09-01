@@ -518,3 +518,32 @@ Also ran the game itself rather than critiquing from a source read: `docker-comp
 8. **Business analyst — the original track is genuinely unchanged as a composition, which is what "i like the level 1 music" actually constrains.** Its `.mid` is byte-identical by sha256 to the file logged on 2026-08-07 (`50dd87f6...228def`). Its `.ogg` is not, and Composer's entry says so rather than glossing it: it is a re-render of that identical `.mid` differing only by the linear gain from finding 1. I verified there is no other difference — same duration, same trim, same fade, same note data — so "the developer's approved track, louder" is an accurate description of what shipped.
 
 **Overall verdict: clears the gate, with one finding fixed inside this pass and one left deliberately open.** One BLOCKING finding was found and resolved (the 27 dB deficit — and it is worth stating that the ticket would have shipped and *appeared* to work without this pass, since nothing Composer could check from inside a single file would have surfaced it). Two MAJOR findings remain, neither of which further analysis can close: whether the siblings actually read as variations rather than different songs, and the honest framing that three loops reduce repetition rather than solving it. Both are developer-ear questions. The file-level deliverable, the wiring, and the rotation logic are all sound.
+
+## 2026-08-31 — Issue #207 six-persona elemental roster review
+
+The full persona reports and preserved disagreements live in the Task 7 SDD evidence bundle.
+Initial disposition was HOLD: player/accessibility reviewers found the elemental system untaught,
+the 2px frame motifs indistinguishable in mixed normal-scale/CVD views, and the boss's two
+resistances visible only after a wasted cast; QA found fractional counts could soft-lock progress,
+malformed resistance objects could throw, boss flags were under-constrained, and fixed slots were
+not exact. Business review also blocked release readiness without reproducible final-boss
+evidence.
+
+Implementation disposition: all code/document findings above are resolved with focused RED/GREEN
+tests and a reproducible capture contract. Automated verification is green at 43 Vitest files / 532
+tests plus 6 catalog tests, typecheck, and build. The remaining gate is deliberately human:
+Reynaldo must identify all four filled badges in normal/grayscale/protanopia/deuteranopia captures
+and review the final-boss recording. Reynaldo later approved that reviewed evidence and authorized
+the Issue #207 pull request and merge; unchecked live-play observations remain separate from this
+code-review disposition.
+
+### 2026-08-31 fix-loop addendum
+
+Independent review caught two MAJOR integration gaps after the first Task 7 commit: the trial HUD
+looked across the whole campaign and leaked the future unique-boss resistance cue into phases 1/2,
+while direct `debugWave=5` entry skipped trial initialization because the previous authored phase
+was also a boss phase. The fix binds presentation to the current wave and treats direct debug entry
+as initialization of the selected authored phase. A pure regression proves ordinary phase 1/2 show
+no unique-boss plate, normal phase 3 shows it without replaying initialization, and direct phase-3
+entry both initializes and shows it. Non-boolean `is_boss` values now also fail validation instead
+of activating runtime truthiness. Human visual acceptance remains open; these code findings close.

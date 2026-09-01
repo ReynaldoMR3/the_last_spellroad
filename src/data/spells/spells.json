@@ -7,6 +7,7 @@
     "base_power": 3,
     "base_targets": 2,
     "master_discount": "cooldown",
+    "effect": { "kind": "stun", "duration_ms": 500, "reapply_lockout_ms": 1500, "max_stacks": 1 },
     "default_loadout_slot": 1
   },
   {
@@ -17,6 +18,7 @@
     "base_power": 5,
     "base_targets": 2,
     "master_discount": "cost",
+    "effect": { "kind": "adjacent_pressure", "range_tiles": 1, "bonus_damage": 2, "max_applications_per_target": 1 },
     "default_loadout_slot": 2
   },
   {
@@ -27,6 +29,7 @@
     "base_power": 7,
     "base_targets": 3,
     "master_discount": "cooldown",
+    "effect": { "kind": "weaken", "outgoing_damage_multiplier": 0.8, "duration_ms": 3000, "max_stacks": 1 },
     "default_loadout_slot": 6
   },
   {
@@ -37,6 +40,7 @@
     "base_power": 4,
     "base_targets": 1,
     "master_discount": "cooldown",
+    "effect": { "kind": "single_target_burst", "bonus_damage": 3, "max_targets": 1 },
     "default_loadout_slot": 3
   },
   {
@@ -46,7 +50,8 @@
     "weight": "light",
     "base_power": 2,
     "base_targets": 2,
-    "master_discount": "cost"
+    "master_discount": "cost",
+    "effect": { "kind": "adjacent_pressure", "range_tiles": 1, "bonus_damage": 2, "max_applications_per_target": 1 }
   },
   {
     "id": "spark_ring",
@@ -55,7 +60,8 @@
     "weight": "light",
     "base_power": 2,
     "base_targets": 4,
-    "master_discount": "cooldown"
+    "master_discount": "cooldown",
+    "effect": { "kind": "stun", "duration_ms": 500, "reapply_lockout_ms": 1500, "max_stacks": 1 }
   },
   {
     "id": "glacial_shard",
@@ -64,7 +70,8 @@
     "weight": "standard",
     "base_power": 4,
     "base_targets": 3,
-    "master_discount": "cost"
+    "master_discount": "cost",
+    "effect": { "kind": "weaken", "outgoing_damage_multiplier": 0.8, "duration_ms": 3000, "max_stacks": 1 }
   },
   {
     "id": "rubble_burst",
@@ -73,7 +80,8 @@
     "weight": "standard",
     "base_power": 3,
     "base_targets": 3,
-    "master_discount": "cost"
+    "master_discount": "cost",
+    "effect": { "kind": "single_target_burst", "bonus_damage": 3, "max_targets": 1 }
   },
   {
     "id": "thunder_dome",
@@ -83,6 +91,7 @@
     "base_power": 5,
     "base_targets": 4,
     "master_discount": "cooldown",
+    "effect": { "kind": "stun", "duration_ms": 500, "reapply_lockout_ms": 1500, "max_stacks": 1 },
     "default_loadout_slot": 4
   },
   {
@@ -93,6 +102,7 @@
     "base_power": 9,
     "base_targets": 1,
     "master_discount": "cost",
+    "effect": { "kind": "adjacent_pressure", "range_tiles": 1, "bonus_damage": 2, "max_applications_per_target": 1 },
     "default_loadout_slot": 5
   },
   {
@@ -102,7 +112,8 @@
     "weight": "heavy",
     "base_power": 6,
     "base_targets": 4,
-    "master_discount": "cooldown"
+    "master_discount": "cooldown",
+    "effect": { "kind": "weaken", "outgoing_damage_multiplier": 0.8, "duration_ms": 3000, "max_stacks": 1 }
   },
   {
     "id": "tremor_field",
@@ -111,6 +122,7 @@
     "weight": "heavy",
     "base_power": 5,
     "base_targets": 6,
-    "master_discount": "cost"
+    "master_discount": "cost",
+    "effect": { "kind": "single_target_burst", "bonus_damage": 3, "max_targets": 1 }
   }
 ]

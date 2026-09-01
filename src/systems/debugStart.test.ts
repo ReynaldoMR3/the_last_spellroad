@@ -31,8 +31,18 @@ describe("resolveDebugStartWave", () => {
     expect(resolveDebugStartWave(waves, "?debugLevel=2")).toBe(3);
   });
 
-  it("resolves the boss level (5) to its first phase", () => {
+  it("resolves Level 5 to its first ordinary wave", () => {
     expect(resolveDebugStartWave(waves, "?debugLevel=5")).toBe(5);
+  });
+
+  it("resolves a validated debugWave within the requested level", () => {
+    expect(resolveDebugStartWave(waves, "?debugLevel=5&debugWave=1")).toBe(6);
+  });
+
+  it("does not let debugWave escape the requested level or parse malformed values", () => {
+    expect(resolveDebugStartWave(waves, "?debugLevel=2&debugWave=5")).toBe(0);
+    expect(resolveDebugStartWave(waves, "?debugLevel=5&debugWave=1.5")).toBe(0);
+    expect(resolveDebugStartWave(waves, "?debugWave=1")).toBe(0);
   });
 
   it("falls back to wave index 0 for a level with no matching wave", () => {

@@ -8,8 +8,15 @@ export type ShapeHitTest = (enemyX: number, enemyY: number) => boolean;
 
 export interface CastResult {
   spellId: string;
-  power: number;
+  masteryPowerBonus: number;
   maxTargets: number;
+  /** Caster for line/cone; the clamped circle centre for circle. */
+  primaryOrigin: { x: number; y: number };
+  hitTest: ShapeHitTest;
+}
+
+interface CastGeometry {
+  primaryOrigin: { x: number; y: number };
   hitTest: ShapeHitTest;
 }
 
@@ -96,50 +103,60 @@ export class SpellCaster {
     }
     this.cooldownsMs.set(spell.id, cooldownMs);
 
+    const geometry = this.buildCastGeometry(spell, casterX, casterY, targetX, targetY);
     return {
       spellId: spell.id,
-      power: spell.base_power + scaling.powerBonus,
+      masteryPowerBonus: scaling.powerBonus,
       maxTargets: spell.base_targets + scaling.targetsBonus,
-      hitTest: this.buildHitTest(spell, casterX, casterY, targetX, targetY)
+      ...geometry
     };
   }
 
-  private buildHitTest(
+  private buildCastGeometry(
     spell: SpellDefinition,
     casterX: number,
     casterY: number,
     targetX: number,
     targetY: number
-  ): ShapeHitTest {
+  ): CastGeometry {
     const toTarget = new Phaser.Math.Vector2(targetX - casterX, targetY - casterY);
     const direction = toTarget.length() === 0 ? new Phaser.Math.Vector2(1, 0) : toTarget.clone().normalize();
 
     if (spell.shape === "line") {
       const angle = Math.atan2(direction.y, direction.x);
-      return (enemyX, enemyY) => {
-        const relative = new Phaser.Math.Vector2(enemyX - casterX, enemyY - casterY).rotate(-angle);
-        return relative.x >= 0 && relative.x <= LINE_LENGTH && Math.abs(relative.y) <= LINE_WIDTH / 2;
+      return {
+        primaryOrigin: { x: casterX, y: casterY },
+        hitTest: (enemyX, enemyY) => {
+          const relative = new Phaser.Math.Vector2(enemyX - casterX, enemyY - casterY).rotate(-angle);
+          return relative.x >= 0 && relative.x <= LINE_LENGTH && Math.abs(relative.y) <= LINE_WIDTH / 2;
+        }
       };
     }
 
     if (spell.shape === "cone") {
       const facingDeg = Phaser.Math.RadToDeg(Math.atan2(direction.y, direction.x));
-      return (enemyX, enemyY) => {
-        const toEnemy = new Phaser.Math.Vector2(enemyX - casterX, enemyY - casterY);
-        const dist = toEnemy.length();
-        if (dist === 0 || dist > CONE_RADIUS) {
-          return false;
+      return {
+        primaryOrigin: { x: casterX, y: casterY },
+        hitTest: (enemyX, enemyY) => {
+          const toEnemy = new Phaser.Math.Vector2(enemyX - casterX, enemyY - casterY);
+          const dist = toEnemy.length();
+          if (dist === 0 || dist > CONE_RADIUS) {
+            return false;
+          }
+          const enemyDeg = Phaser.Math.RadToDeg(Math.atan2(toEnemy.y, toEnemy.x));
+          const delta = Math.abs(Phaser.Math.Angle.ShortestBetween(facingDeg, enemyDeg));
+          return delta <= CONE_HALF_ANGLE_DEG;
         }
-        const enemyDeg = Phaser.Math.RadToDeg(Math.atan2(toEnemy.y, toEnemy.x));
-        const delta = Math.abs(Phaser.Math.Angle.ShortestBetween(facingDeg, enemyDeg));
-        return delta <= CONE_HALF_ANGLE_DEG;
       };
     }
 
     // circle: centered on the confirmed placement point, clamped to a max range from the caster.
     const distance = Math.min(toTarget.length(), CIRCLE_MAX_PLACEMENT_RANGE);
     const center = new Phaser.Math.Vector2(casterX, casterY).add(direction.clone().scale(distance));
-    return (enemyX, enemyY) => Phaser.Math.Distance.Between(enemyX, enemyY, center.x, center.y) <= CIRCLE_RADIUS;
+    return {
+      primaryOrigin: { x: center.x, y: center.y },
+      hitTest: (enemyX, enemyY) => Phaser.Math.Distance.Between(enemyX, enemyY, center.x, center.y) <= CIRCLE_RADIUS
+    };
   }
 }
 

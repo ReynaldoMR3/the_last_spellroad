@@ -113,6 +113,19 @@ export function prepareGameProgress(
   return prepareLoadedGameProgress(startData.load.save, spellIds, waves);
 }
 
+/** Resolves the encounter checkpoint used after a death. Ordinary waves restart at the first
+ * wave of their level. A death during a multi-phase boss trial restarts at that level's first
+ * `is_boss` phase, so ordinary waves that precede the trial are not replayed. */
+export function resolveDeathRestartWaveIndex(waves: WaveDefinition[], currentWaveIndex: number): number {
+  const currentWave = waves[currentWaveIndex];
+  if (!currentWave) return 0;
+
+  const restartIndex = waves.findIndex((wave) =>
+    wave.level === currentWave.level && (!currentWave.is_boss || wave.is_boss === true)
+  );
+  return restartIndex >= 0 ? restartIndex : 0;
+}
+
 export function buildSaveBlob(
   metadata: PersistentMetadata,
   discoveredSpellIds: string[],

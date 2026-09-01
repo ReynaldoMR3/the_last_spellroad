@@ -54,28 +54,20 @@ export function computeDebuffMagnitude(
 }
 
 /**
- * Formats the HUD lines for the current debuff state, or `[]` when inactive (the HUD element
- * should show nothing at all rather than an empty "0% drain" line when no Debuffer has landed
- * a pulse yet). `sourceName` is the display name of whatever applied the debuff — currently
- * always `archetypeDisplayName("debuffer")` (`enemyStatusOverlay.ts`), the same seam already
- * used for the enemy's own overlay label, and the exact spot Lorena's "the Tarrywright" naming
- * work (backlog 4.2 / issue #57's other half) slots into: changing what that function returns
- * for "debuffer" updates this HUD line and the enemy nameLabel together, with no HUD-side
- * change required.
+ * Formats the HUD lines for the current debuff state, or `[]` when inactive. It intentionally
+ * reports the mechanic without identifying the enemy that applied it: silhouettes and their
+ * wave element communicate combat readability, while the HUD stays nameless.
  */
-export function formatDebuffHudLines(magnitude: DebuffMagnitude, sourceName: string): string[] {
+export function formatDebuffHudLines(magnitude: DebuffMagnitude): string[] {
   if (!magnitude.active) {
     return [];
   }
-  // Heckler critique, 2026-08-02 (8), MAJOR 2: the old lead-in ("until wave clears") was
-  // timing-accurate but implied killing the visible source would end the drain. It doesn't —
+  // The lead-in makes the persistence clear without turning the source into a player-facing
+  // named identity. Killing the visible source does not end the drain —
   // `removeEnemy` never touches `this.debuff`, and `DebuffSystem` has no per-source tracking at
   // all, only two aggregate counters zeroed exclusively by `clear()` (wave start or player
-  // death, see this file's header comment). A player who kills the Tarrywright and keeps
-  // reading this line with no Tarrywright on screen has every reason to read it as a stale/
-  // buggy leftover — the same "reads as broken" complaint issue #57 was filed to fix in the
-  // first place. Naming that outcome explicitly, not just the "until wave clears" timing.
-  const lines = [`${sourceName} pulse active (outlives this enemy — until wave clears)`];
+  // death, see this file's header comment). Naming the timing avoids a stale/broken readout.
+  const lines = ["Debuff active (outlives the source — until wave clears)"];
   if (magnitude.speedStacks > 0) {
     lines.push(`  Speed -${magnitude.speedDrainPercent}%  (${magnitude.speedStacks}/${MAX_STACKS} stacks)`);
   }

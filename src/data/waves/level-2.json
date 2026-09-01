@@ -1,13 +1,11 @@
 [
   {
-    "_variant_schedule": "issue #162: glint_archer (introduced Level 1 Wave 1) recurs here, splitting hexbow_skirmisher x2 into hexbow_skirmisher x1 + glint_archer x1 -- same total Ranged=2, budget-neutral. See docs/agents/warden/log.md (2026-08-12).",
     "level": 2,
     "wave_index": 0,
     "enemies": [
-      { "type": "spellbound_thug", "count": 3, "spawn_delay_ms": 0 },
-      { "type": "hexbow_skirmisher", "count": 1, "spawn_delay_ms": 1200 },
-      { "type": "glint_archer", "count": 1, "spawn_delay_ms": 1200 },
-      { "type": "creeping_bramble", "count": 1, "spawn_delay_ms": 1800 }
+      { "type": "monster_m02", "archetype": "melee", "element": "ice", "count": 3, "spawn_delay_ms": 0 },
+      { "type": "monster_r02", "archetype": "ranged", "element": "ice", "count": 2, "spawn_delay_ms": 1200 },
+      { "type": "monster_d02", "archetype": "debuffer", "element": "ice", "count": 1, "spawn_delay_ms": 1800 }
     ],
     "hp_modifier": 1.08,
     "damage_modifier": 1.08
@@ -16,23 +14,23 @@
     "level": 2,
     "wave_index": 1,
     "enemies": [
-      { "type": "spellbound_thug", "count": 2, "spawn_delay_ms": 0 },
-      { "type": "hexbow_skirmisher", "count": 3, "spawn_delay_ms": 900 },
-      { "type": "murmur_wisp", "count": 1, "spawn_delay_ms": 1600 }
+      { "type": "monster_m01", "archetype": "melee", "element": "fire", "count": 1, "spawn_delay_ms": 0 },
+      { "type": "monster_m02", "archetype": "melee", "element": "ice", "count": 2, "spawn_delay_ms": 0 },
+      { "type": "monster_r01", "archetype": "ranged", "element": "fire", "count": 1, "spawn_delay_ms": 900 },
+      { "type": "monster_r02", "archetype": "ranged", "element": "ice", "count": 1, "spawn_delay_ms": 900 },
+      { "type": "monster_d02", "archetype": "debuffer", "element": "ice", "count": 1, "spawn_delay_ms": 1600 }
     ],
     "hp_modifier": 1.09,
     "damage_modifier": 1.09
   },
   {
-    "_variant_schedule": "issue #162: ash_footman (introduced Level 1 Wave 2) recurs here, splitting spellbound_thug x3 into spellbound_thug x2 + ash_footman x1 -- same total Melee=3, budget-neutral. See docs/agents/warden/log.md (2026-08-12).",
     "level": 2,
     "wave_index": 2,
     "enemies": [
-      { "type": "spellbound_thug", "count": 2, "spawn_delay_ms": 0 },
-      { "type": "ash_footman", "count": 1, "spawn_delay_ms": 0 },
-      { "type": "hexbow_skirmisher", "count": 2, "spawn_delay_ms": 1100 },
-      { "type": "creeping_bramble", "count": 1, "spawn_delay_ms": 1600 },
-      { "type": "murmur_wisp", "count": 1, "spawn_delay_ms": 2000 }
+      { "type": "monster_m02", "archetype": "melee", "element": "ice", "count": 3, "spawn_delay_ms": 0 },
+      { "type": "monster_r01", "archetype": "ranged", "element": "fire", "count": 1, "spawn_delay_ms": 1100 },
+      { "type": "monster_r02", "archetype": "ranged", "element": "ice", "count": 1, "spawn_delay_ms": 1100 },
+      { "type": "monster_d02", "archetype": "debuffer", "element": "fire", "count": 1, "spawn_delay_ms": 1700 }
     ],
     "hp_modifier": 1.1,
     "damage_modifier": 1.1

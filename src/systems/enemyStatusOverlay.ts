@@ -1,28 +1,7 @@
-import type { EnemyArchetype } from "../data/types";
-
 /**
- * Pure, Phaser-free logic backing the live per-enemy name+HP-bar overlay (backlog 2.19 /
- * issue #26) — same seam convention as `waveThreatBudget.ts`: the actual testable
- * arithmetic/lookup lives here; the Phaser GameObject wiring (positioning a Text + Graphics
- * pair above a moving sprite every frame, attaching/destroying them on despawn) has no
- * meaningful Vitest seam in this project and is verified via typecheck/build/dev-server
- * instead, per `docs/agents/_reference/docker-testing-contract.md`.
+ * Pure, Phaser-free logic backing the live per-enemy HP bar — same seam convention as
+ * `waveThreatBudget.ts`: the arithmetic lives here while the Phaser drawing stays in Enemy.
  */
-
-/** All three archetypes now carry a Lorena-authored road-epithet, per `lore-premise.md`'s
- * Established Named Facts (issue #109 closes the melee/ranged gap this comment used to
- * document): "debuffer" -> "The Tarrywright" (backlog 4.2 / issue #57), "melee" ->
- * "The Nearblade", "ranged" -> "The Farlance". No archetype falls back to a bare capitalized
- * string anymore. */
-const ARCHETYPE_DISPLAY_NAME: Record<EnemyArchetype, string> = {
-  melee: "The Nearblade",
-  ranged: "The Farlance",
-  debuffer: "The Tarrywright"
-};
-
-export function archetypeDisplayName(archetype: EnemyArchetype): string {
-  return ARCHETYPE_DISPLAY_NAME[archetype];
-}
 
 /** Remaining-HP fraction, clamped to [0, 1] so an overkill hit (hp driven negative) or a
  * malformed non-positive maxHp never renders a negative-width or overflowing bar. */

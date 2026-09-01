@@ -44,3 +44,24 @@ After approval, implement the proposal through the repository's normal code or T
 
 Run the normal typecheck, tests, and production build. Then playtest the changed level or binding in the game, with particular attention to combat-lane readability, silhouette and icon recognition, VFX timing, audio balance/codec support, and asset provenance. The developer playtest remains the final acceptance gate.
 
+## Elemental monster roster proposals
+
+The Art Board is a proposal surface, not the elemental source of truth. For a new or reassigned
+monster silhouette:
+
+1. Review the CC0 asset, provenance, normal-size silhouette, and intended existing archetype in
+   the board. Never invent a fourth archetype.
+2. Export the proposal for review; do not let the board write `MONSTER_REGISTRY`, wave JSON, or
+   production bindings.
+3. After explicit approval, update `src/data/monsterRegistry.ts` and the authored wave entry
+   together. The registry is the supported place to reassign a silhouette's archetype; per-wave
+   archetype text must match it. The wave entry separately owns the active element.
+4. Run the content/test/build gates, then capture normal, grayscale, protanopia, and deuteranopia
+   evidence at the normal 960×540 game viewport. Confirm the filled triangle, diamond, square,
+   and zigzag badges remain identifiable in a mixed cluster without relying on hue.
+5. For the capstone, use `?debugLevel=5&debugWave=5` and verify the persistent `▲ Fire` plus
+   `◎ Resists ◆ Ice + ϟ Lightning` trial affordance is visible before the first boss hit.
+
+The review checklist lives in the
+[Issue #207 implementation plan](../superpowers/plans/2026-08-31-elemental-monster-roster.md)
+so a later reviewer can reproduce the same frame.

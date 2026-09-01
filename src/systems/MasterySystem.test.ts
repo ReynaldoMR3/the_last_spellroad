@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MasterySystem } from "./MasterySystem";
+import spellsData from "../data/spells/spells.json";
+import type { SpellDefinition } from "../data/types";
 
 /**
  * Issue #117 — developer playtest: "its also not clear when you advanced on the spells
@@ -196,5 +198,20 @@ describe("MasterySystem", () => {
       expect(mastery.getTier("ember_lance")).toBe("novice");
       expect(mastery.exportState()).toEqual({ ember_lance: { tier: "novice", landedCasts: 1 } });
     });
+  });
+});
+
+describe("shipped spell Mastery remains universal despite elemental effects", () => {
+  const spells = spellsData as SpellDefinition[];
+
+  it("applies the shared Novice/Adept/Master +power/+targets table to every effect identity", () => {
+    for (const spell of spells) {
+      const mastery = new MasterySystem();
+      expect(mastery.getScaling(spell.id), `${spell.id} Novice`).toEqual({ powerBonus: 0, targetsBonus: 0 });
+      for (let i = 0; i < LANDED_CASTS_PER_TIER; i++) mastery.recordLandedCast(spell.id);
+      expect(mastery.getScaling(spell.id), `${spell.id} Adept`).toEqual({ powerBonus: 1, targetsBonus: 1 });
+      for (let i = 0; i < LANDED_CASTS_PER_TIER; i++) mastery.recordLandedCast(spell.id);
+      expect(mastery.getScaling(spell.id), `${spell.id} Master`).toEqual({ powerBonus: 2, targetsBonus: 2 });
+    }
   });
 });

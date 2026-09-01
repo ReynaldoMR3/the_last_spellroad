@@ -856,3 +856,24 @@ rows.
 **Verification:** spell costs/damage numbers and the win-message call site checked directly
 against `spells.json`, `ManaSystem.ts`, and `SpellroadScene.ts` before filing; no code
 changed this entry, so no typecheck/test/build run.
+
+## 2026-08-31 — Issue #207 Task 7 review disposition
+
+Six Heckler personas reviewed the elemental roster and returned player-facing BLOCKING findings
+for an untaught matchup system, unreadable normal-scale frame motifs, and hidden boss resistance,
+plus MAJOR fail-open validator paths. Loomwright resolved those findings test-first: the opening
+card now teaches ▲/◆/■/ϟ, the counter cycle, result glyphs, and four effects; enemies carry large
+filled geometry badges; the trial HUD persistently announces fire plus ice/lightning resistance;
+and content validation rejects fractional/non-finite numbers, malformed resistance types, illegal
+boss phases, and non-1–6 fixed slots. Exact `debugWave` entry and the documented accessibility
+capture procedure make the final boss review reproducible.
+
+Agent status: Frieren `shipped-and-validated` (effect identities remain exact and are taught);
+Pato `shipped-and-validated` (numeric contracts plus strict finite/range gates); Warden
+`shipped-and-validated` (authored progression/boss suffix passes strict content tests); Tilesmith
+`in-progress-with-owner` (source/provenance and code-native badges pass, normal/CVD human visual
+acceptance belongs to Reynaldo); Loomwright `in-progress-with-owner` (mechanical gates pass, but
+the actual developer live playtest required by ADR-0001 remains open). The post-fix visual
+evidence was reviewed by Reynaldo, who authorized the Issue #207 pull request and merge. The
+developer gate catches perceptual/readability/playfeel defects that automated schema/build checks
+cannot; unchecked live-play observations remain distinct from the verified code gate.

@@ -52,6 +52,21 @@ For repository art-direction reviews, use the local Art Board and follow the
 review artifacts only; production map and binding changes still require
 explicit approval, normal implementation, and a game playtest.
 
+### Elemental roster authoring and review
+
+The authoritative combat rules live in
+[`docs/agents/_reference/elemental-template.md`](docs/agents/_reference/elemental-template.md).
+To add or reassign a nameless silhouette, update `MONSTER_REGISTRY` first, author the matching
+`type`/`archetype`/`element` wave entry, and let the strict content gate reject drift. A wave owns
+the active element; sprite pixels never do. Pato validates balance independently from elemental
+spell effectiveness, because wave threat remains an enemy-side measure.
+
+For visual acceptance, run the game at normal scale, capture normal/grayscale/protanopia/
+deuteranopia views, and identify triangle/fire, diamond/ice, square/earth, and zigzag/lightning
+without using hue. Use `?debugLevel=5&debugWave=5` on the local development server to enter the
+final boss phase reproducibly. The full capture checklist and evidence manifest are in
+the [Issue #207 implementation plan](docs/superpowers/plans/2026-08-31-elemental-monster-roster.md).
+
 Build the production image:
 
 ```bash

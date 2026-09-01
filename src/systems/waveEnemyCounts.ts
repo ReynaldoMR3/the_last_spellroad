@@ -1,11 +1,11 @@
 import type { WaveDefinition } from "../data/types";
-import type { EnemyRegistryEntry } from "../data/enemyRegistry";
+import type { MonsterRegistryEntry } from "../data/monsterRegistry";
 
 /**
  * Pure, Phaser-free logic backing the wave-completion spawn count (issue #71's soft-lock
  * fix) — same seam convention as `waveThreatBudget.ts`/`autoAim.ts`: the actual testable
  * arithmetic lives here; `WaveLoader.spawnWave`'s own skip (unknown `type`, not in
- * `ENEMY_REGISTRY`) and `SpellroadScene`'s `enemiesRemainingToSpawn` field are the Phaser-side
+ * `MONSTER_REGISTRY`) and `SpellroadScene`'s `enemiesRemainingToSpawn` field are the Phaser-side
  * wiring around it.
  *
  * The audit (`docs/audits/2026-08-02-json-content-architecture.md`, finding #3) found
@@ -19,7 +19,7 @@ import type { EnemyRegistryEntry } from "../data/enemyRegistry";
  */
 export function countSpawnableEnemies(
   wave: WaveDefinition,
-  registry: Record<string, EnemyRegistryEntry>
+  registry: Record<string, MonsterRegistryEntry>
 ): number {
   return wave.enemies.reduce((sum, entry) => (registry[entry.type] ? sum + entry.count : sum), 0);
 }

@@ -179,3 +179,25 @@ Combined with the pre-existing `dread_reaver`/`storm_lancer` (Level 3 Wave 2) an
 **Every variant introduction is a same-count split of an existing line, never an addition — budget-neutral by construction, not by re-check.** E.g. Level 1 Wave 1's `hexbow_skirmisher` x3 became `hexbow_skirmisher` x2 + `glint_archer` x1 (still Ranged=3 total); Level 3 Wave 0's `spellbound_thug` x3 became `spellbound_thug` x2 + `bonecage_brute` x1 (still Melee=3 total). `computeThreatBudget` only reads `{melee, ranged}` totals (confirmed again by reading the function, same check the 2026-08-06 Debuffer-trim entry ran) — a same-archetype split at the same total count cannot move a wave's raw budget at all, so none of Pato's per-wave verification table (`pato/log.md`, 2026-08-12) needed to account for a composition change on top of the modifier curve. Total enemy count per level is also unchanged (Level 1=16, Level 2=19, Level 3=19, Level 4=20 — identical to the post-3.12-trim figures), so `MasterySystem.ts`'s `k=24` derivation needs no re-check either.
 
 **This has been validated by Pato in the same cycle** (`pato/log.md`, 2026-08-12) — PASS on every wave's modifier-scaled budget against its level's scaled band, PASS on the boss's cumulative check, PASS on composition-neutrality (no Mastery re-derivation needed). Self-verified independently before that: `docker-compose run --rm game npm test`/`typecheck`/`build` output pasted in the PR description for issue #162.
+
+## 2026-08-31 — Issue #207 elemental encounter progression and Level 5 final boss
+
+Migrated every authored enemy line from a player-facing variant name to a `MONSTER_REGISTRY` ID with an explicit matching `archetype` and one active `element`. The mechanical vocabulary remains exactly Melee/Ranged/Debuffer. Level 1 Wave 0 stays the fire-only onboarding exception at M=2/R=1. Level 1 Wave 1 retains its M=2/R=3 direct-threat composition but removes the Debuffer; Wave 2 retains M=3/R=2 and introduces one fire Debuffer, so the first control mechanic arrives without simultaneously adding an element mixture or a second Debuffer. Levels 2, 3, and 4 introduce ice-only, earth-only, and lightning-only openers respectively, then mix elements on later waves; Level 3 ends on three elements and both late Level 4 waves sustain three elements.
+
+Added three ordinary Level 5 waves. Their shared difficulty scalar uses Pato's now-explicit Level 5 regular-wave authority at 1.32/1.33/1.34; the separate boss/trial remains 1.00/1.05/1.10 against `BOSS_TRIAL_BAND`. Across those three regular waves all twelve regular visual IDs appear; the first two waves stop at three elements and Wave 2 is the first ordinary four-element composition. The Melee/Ranged totals remain one of the two validated pairs (M=3/R=2 or M=2/R=3), Debuffers remain zero in `computeThreatBudget`, and automated checks keep every modifier-scaled wave inside its level band. Default-loadout validation independently proves every mixed wave has redundant neutral-or-better coverage, an ordinary 1.25 counter per active regular element, and no single mandatory spell; elemental effectiveness is never passed into threat arithmetic.
+
+Kept `boss-1.json` as the final three Level 5 trial phases, renumbered after the three ordinary waves. This is the smallest coherent migration of the already-validated M=5/R=11/D=3 cumulative trial: phases stay M1/R3/D1, M2/R4/D1, M2/R4/D1 with modifiers 1.00/1.05/1.10. In the last phase, one existing Melee slot becomes exactly one `monster_boss_01`; it is active fire with `resistant_elements: ["ice", "lightning"]`. No earlier wave contains that ID. The scene now detects the first boss phase by campaign position rather than assuming `wave_index: 0`, preserving the three-phase HP/theme/recovery lifecycle after the renumbering.
+
+**Gate:** strict shipped-wave validation requires exactly one boss and fails missing resistance, invalid IDs/elements/archetypes, authored name fields, duplicate bosses, or non-final placement. Focused schema/progression/fairness/threat tests, Docker typecheck, build, and full suite are the mechanical gate for this batch; developer playtest remains the feel gate.
+
+## 2026-08-31 — Issue #207 Task 7 progression handoff
+
+Status `shipped-and-validated` for authored content and Pato-validated numeric data: strict validation now makes Level 5 boss phases
+a contiguous suffix, rejects `is_boss` outside Level 5, and preserves the unique final boss in the
+last runtime position. `?debugLevel=5&debugWave=5` resolves against the authored indices so review
+can enter that phase without stale assumptions. Enemy-side threat remains the numeric authority;
+the documented player-facing pass, not a loadout-dependent threat mutation, owns the claim that
+the elemental curve feels progressively harder. Review correction: the active visual-identity
+curve now matches 3 / 5 / 7 / 9 / 12 without changing archetype totals or threat. Level 1 Wave 2
+merges its ranged count under one visual ID, while Levels 2 and 3 reuse already-active compatible
+debuffer silhouettes in their final waves.

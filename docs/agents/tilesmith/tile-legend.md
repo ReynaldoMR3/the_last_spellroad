@@ -84,3 +84,37 @@ show the same green zombie sprite.
   later work.
 - License/source for both packs is unchanged from the 2026-07-30 sign-off entry in
   `docs/agents/tilesmith/log.md` -- referenced here rather than re-verified, per this ticket's scope.
+
+---
+
+## 2026-08-31 — Elemental monster roster (Issue #207, Task 3)
+
+Task 3 adds no binary assets. It reuses thirteen distinct, individually-loadable files already
+committed under `public/assets/third-party/tiny-creatures/Tiles/`; the registry records the exact
+URL for each. All source files are from OpenGameArt's [Tiny Creatures](https://opengameart.org/content/tiny-creatures)
+pack by Clint Bellanger, under CC0 1.0 Universal (`License.txt`). The pack was developer-approved
+for acquisition on 2026-07-30. Tile numbers below are Tiny Creatures' 1-indexed filenames;
+`tile index` is the corresponding 0-indexed packed-sheet position.
+
+| Internal visual ID | Role/archetype | Tile index | Source filename | Provenance |
+| --- | --- | ---: | --- | --- |
+| `monster_m01` | melee | 127 | `tile_0128.png` | Existing CC0 Tiny Creatures Golem pick |
+| `monster_m02` | melee | 140 | `tile_0141.png` | Existing CC0 Tiny Creatures tile |
+| `monster_m03` | melee | 141 | `tile_0142.png` | Existing CC0 Tiny Creatures tile |
+| `monster_m04` | melee | 142 | `tile_0143.png` | Existing CC0 Tiny Creatures tile |
+| `monster_r01` | ranged | 32 | `tile_0033.png` | Existing CC0 Tiny Creatures Harpy pick |
+| `monster_r02` | ranged | 36 | `tile_0037.png` | Existing CC0 Tiny Creatures Faerie pick |
+| `monster_r03` | ranged | 130 | `tile_0131.png` | Existing CC0 Tiny Creatures Harpy alternate |
+| `monster_r04` | ranged | 168 | `tile_0169.png` | Existing CC0 Tiny Creatures tile |
+| `monster_d01` | debuffer | 4 | `tile_0005.png` | Existing CC0 Tiny Creatures hooded pick |
+| `monster_d02` | debuffer | 66 | `tile_0067.png` | Existing CC0 Tiny Creatures Witch pick |
+| `monster_d03` | debuffer | 75 | `tile_0076.png` | Existing CC0 Tiny Creatures Banshee pick |
+| `monster_d04` | debuffer | 86 | `tile_0087.png` | Existing CC0 Tiny Creatures Shadow pick |
+| `monster_boss_01` | boss / melee mechanics | 170 | `tile_0171.png` | Existing CC0 Tiny Creatures distinct boss silhouette |
+
+The role column is internal combat behavior only. It is not an on-screen name or a statement that
+a weapon-shaped pixel determines that behavior. In the game, the active **wave element** supplies
+the following explicit metadata independently of sprite pixels: a dark neutral outline (`0x14161f`),
+an accent color, and a non-color motif: fire flame-spikes, ice crystal, earth corners, and lightning
+zigzag. Task 3's automated tests validate that metadata and the actual source URLs; grayscale and
+color-vision screenshot evidence is deferred to Task 7 live visual QA.

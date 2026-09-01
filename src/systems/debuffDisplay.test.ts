@@ -43,37 +43,32 @@ describe("computeDebuffMagnitude", () => {
 
 describe("formatDebuffHudLines", () => {
   it("returns no lines at all when inactive, not an empty/zero line", () => {
-    const lines = formatDebuffHudLines(computeDebuffMagnitude(0, 0, 5), "Debuffer");
+    const lines = formatDebuffHudLines(computeDebuffMagnitude(0, 0, 5));
     expect(lines).toEqual([]);
   });
 
-  it("names the source and shows only the speed line when only speed stacks are active", () => {
-    const lines = formatDebuffHudLines(computeDebuffMagnitude(1, 0, 5), "Debuffer");
-    expect(lines[0]).toContain("Debuffer");
+  it("shows only the speed line when only speed stacks are active, without naming an enemy", () => {
+    const lines = formatDebuffHudLines(computeDebuffMagnitude(1, 0, 5));
+    expect(lines[0]).toBe("Debuff active (outlives the source — until wave clears)");
     expect(lines.some((l) => l.includes("Speed -12%"))).toBe(true);
     expect(lines.some((l) => l.includes("Mana regen"))).toBe(false);
   });
 
   it("shows only the mana-regen line when only mana-regen stacks are active", () => {
-    const lines = formatDebuffHudLines(computeDebuffMagnitude(0, 1, 8), "Debuffer");
+    const lines = formatDebuffHudLines(computeDebuffMagnitude(0, 1, 8));
     expect(lines.some((l) => l.includes("Speed"))).toBe(false);
     expect(lines.some((l) => l.includes("Mana regen 5.6/s"))).toBe(true);
   });
 
   it("shows both lines when both variants are active", () => {
-    const lines = formatDebuffHudLines(computeDebuffMagnitude(2, 2, 8), "Debuffer");
+    const lines = formatDebuffHudLines(computeDebuffMagnitude(2, 2, 8));
     expect(lines.some((l) => l.includes("Speed -24%"))).toBe(true);
     expect(lines.some((l) => l.includes("Mana regen 3.2/s"))).toBe(true);
   });
 
-  it("plugs in whatever source name it's given, ready for Lorena's lore-name wiring", () => {
-    const lines = formatDebuffHudLines(computeDebuffMagnitude(1, 0, 5), "the Tarrywright");
-    expect(lines[0]).toContain("the Tarrywright");
-  });
-
-  it("tells the player the drain outlives the source enemy, not just that it lasts until wave clears (Heckler 2026-08-02 (8), MAJOR 2)", () => {
-    const lines = formatDebuffHudLines(computeDebuffMagnitude(1, 0, 5), "the Tarrywright");
-    expect(lines[0]).toContain("outlives this enemy");
+  it("tells the player the drain outlives its source, not just that it lasts until wave clears", () => {
+    const lines = formatDebuffHudLines(computeDebuffMagnitude(1, 0, 5));
+    expect(lines[0]).toContain("outlives the source");
     expect(lines[0]).toContain("until wave clears");
   });
 });

@@ -1,6 +1,8 @@
 import Phaser from "phaser";
-import type { DebuffVariant, EnemyArchetype } from "../data/types";
-import { archetypeDisplayName, computeHpBarColor, computeHpFraction } from "../systems/enemyStatusOverlay";
+import type { DebuffVariant, Element, EnemyArchetype } from "../data/types";
+import { EnemyCombatState, type AppliedElementalHit } from "../systems/EnemyCombatState";
+import type { ResolvedElementalHit } from "../systems/elementalDamage";
+import { computeHpBarColor, computeHpFraction } from "../systems/enemyStatusOverlay";
 import { RANGED_STRAFE_SPEED, computeStrafeDirection } from "../systems/rangedStrafe";
 import {
   ENEMY_SEPARATION_DISTANCE,
@@ -9,7 +11,12 @@ import {
   type Point
 } from "../systems/enemySeparation";
 import { resolveWallSlideWantsNegativeY } from "../systems/wallSlideDirection";
-import { enemySpriteKey } from "../systems/characterArt";
+import {
+  ELEMENTAL_BADGE_PRESENTATION,
+  defaultMonsterVisualId,
+  monsterSprite,
+  monsterVisual
+} from "../systems/characterArt";
 
 /** hp-template.md, "Enemy Archetype Per-Hit Damage" — fixed, never invented per-encounter. */
 export const ARCHETYPE_DAMAGE: Record<EnemyArchetype, number> = {
@@ -81,9 +88,9 @@ const MELEE_STRAFE_SPEED = 18;
  *
  * Measured over 60 headless encounters (3 real Level 1 wave compositions x 20 spawn-jitter
  * seeds, integrating this exact velocity model): worst-case gap between any two settled enemies
- * went 0.5px -> 23.6px, and worst-case gap between a Nearblade and a Farlance specifically went
+ * went 0.5px -> 23.6px, and worst-case gap between melee and ranged enemies specifically went
  * 0.3px -> 23.6px, against the 26x26 sprite footprint. The structural fixes below/above
- * contribute too (cross-archetype alone moved the Nearblade/Farlance case 0.3 -> 9.8) but could
+ * contribute too (cross-archetype alone moved that case 0.3 -> 9.8) but could
  * not on their own overcome the force imbalance.
  *
  * Verified not to break what these enemies are *for*: the fraction of settled frames with at
@@ -215,7 +222,7 @@ const PLACEHOLDER_ENEMY_HP: Record<EnemyArchetype, number> = {
 };
 
 /**
- * backlog 2.19 / issue #26 — live name+HP-bar overlay geometry. The sprite itself is a
+ * Live HP-bar overlay geometry. The sprite itself is a
  * generated 26x26 texture centered on (x, y) (see `ensureTexture`), so these are small
  * fixed offsets from that center rather than anything derived from a per-archetype size
  * (every archetype currently shares the same 26x26 footprint).
@@ -223,7 +230,6 @@ const PLACEHOLDER_ENEMY_HP: Record<EnemyArchetype, number> = {
 const STATUS_BAR_WIDTH = 28;
 const STATUS_BAR_HEIGHT = 4;
 const STATUS_BAR_OFFSET_Y = -20;
-const STATUS_LABEL_OFFSET_Y = -28;
 let nextSeparationId = 1;
 
 export interface EnemyCallbacks {
@@ -240,21 +246,16 @@ export interface EnemyCallbacks {
 }
 
 export class Enemy extends Phaser.Physics.Arcade.Sprite {
-  /** Issues #110/#138 — stable tie-breaker for enemies spawned at the exact same point. */
-  public readonly separationId = nextSeparationId++;
+  /** Stable construction/spawn order drives both separation and elemental-primary ties. */
+  public readonly spawnOrder = nextSeparationId++;
+  public readonly separationId = this.spawnOrder;
   public readonly archetype: EnemyArchetype;
   public readonly maxHp: number;
-  public hp: number;
   /** Issue #71 — the spawning wave's `damage_modifier`, applied by the scene's own damage
-   * callbacks (`ARCHETYPE_DAMAGE[archetype] * enemy.damageModifier`) rather than here, since
-   * `ARCHETYPE_DAMAGE` is a flat per-archetype constant read at hit time, not per-enemy state. */
+   * callbacks through `outgoingDamage(ARCHETYPE_DAMAGE[archetype])`. Ice weaken is the only
+   * temporary factor layered onto that existing authored value. */
   public readonly damageModifier: number;
   private attackCooldownMs = 0;
-  /** Issue #237 — non-null while the Debuffer's visible wind-up tell is counting down;
-   * `null` means no telegraph is in progress. Counting this down separately from
-   * `attackCooldownMs` (which is reset the moment the tell begins, not when it ends) is what
-   * lets the tell/travel window sit "inside" the existing cooldown instead of extending it. */
-  private debuffTelegraphMs: number | null = null;
   private readonly debuffVariant: DebuffVariant;
   /** backlog/issue #95 — which way this enemy is currently strafing while holding its
    * preferred range (ranged) or attack range (melee, issue #110); randomized per-enemy so
@@ -265,29 +266,31 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
    * `null` means no wall-slide episode is in progress; cleared whenever the retreat branch
    * isn't wall-blocked on a given frame, per `wallSlideDirection.ts`'s own doc comment. */
   private wallSlideWantsNegativeY: boolean | null = null;
-  /** backlog 2.19 / issue #26 — sibling GameObjects, not children of this Sprite (Phaser
-   * Arcade Sprites don't support a display-container parent/child relationship the way
-   * Containers do). Phaser does NOT destroy these automatically just because this sprite
-   * gets destroyed, so `destroy()` below is overridden to clean them up explicitly. */
-  private readonly nameLabel: Phaser.GameObjects.Text;
+  /** Sibling graphics rather than Sprite children, so their lifecycle is explicitly owned here. */
   private readonly statusBar: Phaser.GameObjects.Graphics;
+  private readonly elementalFrame: Phaser.GameObjects.Graphics;
+  private readonly effectOverlay: Phaser.GameObjects.Graphics;
+  private readonly combatState: EnemyCombatState;
 
   constructor(
     scene: Phaser.Scene,
     x: number,
     y: number,
     archetype: EnemyArchetype,
+    public readonly element: Element,
+    public readonly resistantElements: readonly Element[],
     debuffVariant: DebuffVariant = "speed",
     private readonly lane: Phaser.Geom.Rectangle = new Phaser.Geom.Rectangle(0, 0, Infinity, Infinity),
     /** Issue #71 — `WaveDefinition.hp_modifier`/`.damage_modifier`, previously authored but
      * never read. Defaults to 1 (unscaled) so every existing call site stays correct as-is. */
     hpModifier = 1,
-    damageModifier = 1
+    damageModifier = 1,
+    private readonly monsterId = defaultMonsterVisualId(archetype)
   ) {
-    super(scene, x, y, Enemy.ensureTexture(scene, archetype));
+    super(scene, x, y, Enemy.ensureTexture(scene, archetype, monsterId));
     this.archetype = archetype;
     this.maxHp = Math.round(PLACEHOLDER_ENEMY_HP[archetype] * hpModifier);
-    this.hp = this.maxHp;
+    this.combatState = new EnemyCombatState(this.maxHp);
     this.damageModifier = damageModifier;
     this.debuffVariant = debuffVariant;
     this.attackCooldownMs = Phaser.Math.Between(
@@ -313,31 +316,24 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     // previously only had the full-canvas default, and could wander outside the visible lane.
     (this.body as Phaser.Physics.Arcade.Body).setBoundsRectangle(this.lane);
 
-    // backlog 2.19 / issue #26 — name label + live HP bar, drawn once here so a freshly
-    // spawned enemy already shows full HP instead of waiting for its first `update()` call.
-    this.nameLabel = scene.add.text(x, y + STATUS_LABEL_OFFSET_Y, archetypeDisplayName(archetype), {
-      color: "#f3e7c2",
-      fontFamily: "monospace",
-      fontSize: "10px"
-    });
-    this.nameLabel.setOrigin(0.5, 1);
     this.statusBar = scene.add.graphics();
+    this.elementalFrame = scene.add.graphics().setDepth(-1);
+    this.effectOverlay = scene.add.graphics().setDepth(2);
     this.refreshStatusOverlay();
   }
 
   /**
    * Issue #163 — real sprite art (`characterArt.ts`, one CC0 Tiny Creatures tile per
    * archetype) replaces the old `fillRoundedRect` flat-color-square placeholder. The scene's
-   * own `preload()` loads each archetype's key via `this.load.image(enemySpriteKey(a), ...)`
-   * before any wave can spawn an `Enemy`, so the normal path here is just "the key already
+   * own `preload()` loads each registry key before any wave can spawn an `Enemy`, so the normal path here is just "the key already
    * exists in the texture cache, return it." The `fillRoundedRect` fallback is kept, not
    * deleted, for the one case that isn't true — a caller that never ran that preload (e.g. a
    * future isolated unit test constructing an `Enemy` directly against a bare Scene) — so a
    * missing preload degrades to the old flat-color square instead of Phaser throwing on a
    * missing texture key.
    */
-  private static ensureTexture(scene: Phaser.Scene, archetype: EnemyArchetype): string {
-    const key = enemySpriteKey(archetype);
+  private static ensureTexture(scene: Phaser.Scene, archetype: EnemyArchetype, monsterId: string): string {
+    const key = monsterSprite(monsterId).key;
     if (scene.textures.exists(key)) {
       return key;
     }
@@ -351,13 +347,40 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   /** @returns true if this hit reduced the enemy to 0 HP or below. */
   takeDamage(amount: number): boolean {
-    this.hp -= amount;
-    return this.hp <= 0;
+    return this.combatState.applyElementalHit({
+      directDamage: amount,
+      effectDamage: 0,
+      totalDamage: amount,
+      outcome: "neutral"
+    }).killed;
+  }
+
+  get hp(): number {
+    return this.combatState.hp;
+  }
+
+  get defeated(): boolean {
+    return this.combatState.defeated;
+  }
+
+  get isStunned(): boolean {
+    return this.combatState.isStunned;
+  }
+
+  get isWeakened(): boolean {
+    return this.combatState.isWeakened;
+  }
+
+  applyElementalHit(hit: ResolvedElementalHit): AppliedElementalHit {
+    return this.combatState.applyElementalHit(hit);
+  }
+
+  outgoingDamage(authoredDamage: number): number {
+    return this.combatState.outgoingDamage(authoredDamage, this.damageModifier);
   }
 
   /**
-   * backlog 2.19 / issue #26 — repositions the name label + HP bar above the sprite's
-   * current position and redraws the bar's fill from current `hp`/`maxHp`. Called once from
+   * Repositions the live HP bar above the sprite and redraws its fill from current `hp`/`maxHp`. Called once from
    * the constructor (so a freshly spawned enemy already shows full HP) and once per frame
    * from `update()` below (so the bar tracks both movement and any damage landed since the
    * last frame — `takeDamage` itself only mutates `hp`, it doesn't touch the overlay).
@@ -365,8 +388,6 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
    * method is purely the Phaser-side wiring (position two GameObjects, draw two rects).
    */
   private refreshStatusOverlay(): void {
-    this.nameLabel.setPosition(this.x, this.y + STATUS_LABEL_OFFSET_Y);
-
     const fraction = computeHpFraction(this.hp, this.maxHp);
     const fillColor = computeHpBarColor(fraction);
     const barX = this.x - STATUS_BAR_WIDTH / 2;
@@ -381,20 +402,125 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
     this.statusBar.lineStyle(1, 0x000000, 0.6);
     this.statusBar.strokeRect(barX, barY, STATUS_BAR_WIDTH, STATUS_BAR_HEIGHT);
+    this.refreshElementalFrame();
+    this.refreshEffectOverlay();
+  }
+
+  /** Applies the explicit wave-element presentation around a silhouette. The four motifs carry
+   * identity when hue is unavailable; the dark frame stays neutral for contrast. */
+  private refreshElementalFrame(): void {
+    const presentation = monsterVisual(this.monsterId, this.element);
+    const badge = ELEMENTAL_BADGE_PRESENTATION[this.element];
+    const frame = this.elementalFrame;
+    frame.clear();
+    frame.fillStyle(presentation.outline.color, 1);
+    frame.fillRoundedRect(this.x - 15, this.y - 15, 30, 30, 5);
+    frame.lineStyle(2, presentation.accentColor, 1);
+    switch (presentation.motif) {
+      case "flame-spikes":
+        frame.strokeTriangle(this.x - 12, this.y - 13, this.x - 6, this.y - 19, this.x, this.y - 13);
+        frame.strokeTriangle(this.x, this.y - 13, this.x + 6, this.y - 19, this.x + 12, this.y - 13);
+        break;
+      case "ice-crystal":
+        frame.strokePoints([
+          new Phaser.Geom.Point(this.x, this.y - 19),
+          new Phaser.Geom.Point(this.x + 5, this.y - 14),
+          new Phaser.Geom.Point(this.x, this.y - 9),
+          new Phaser.Geom.Point(this.x - 5, this.y - 14)
+        ], true);
+        break;
+      case "earth-corners":
+        frame.lineBetween(this.x - 15, this.y - 9, this.x - 15, this.y - 15);
+        frame.lineBetween(this.x - 15, this.y - 15, this.x - 9, this.y - 15);
+        frame.lineBetween(this.x + 15, this.y + 9, this.x + 15, this.y + 15);
+        frame.lineBetween(this.x + 15, this.y + 15, this.x + 9, this.y + 15);
+        break;
+      case "lightning-zigzag":
+        frame.strokePoints([
+          new Phaser.Geom.Point(this.x + 2, this.y - 19),
+          new Phaser.Geom.Point(this.x - 3, this.y - 13),
+          new Phaser.Geom.Point(this.x + 2, this.y - 13),
+          new Phaser.Geom.Point(this.x - 2, this.y - 8)
+        ], false);
+        break;
+    }
+
+    // Task 7 accessibility gate: a 16px (22px boss) filled badge sits outside the silhouette,
+    // so overlapping neutral frames cannot erase the tactical cue. Geometry—not hue—carries
+    // identity: triangle/fire, diamond/ice, square/earth, zigzag/lightning.
+    const diameter = this.monsterId === "monster_boss_01" ? badge.bossDiameter : badge.regularDiameter;
+    const radius = diameter / 2;
+    const badgeX = this.x + 18;
+    const badgeY = this.y - 14;
+    frame.fillStyle(presentation.outline.color, 1);
+    frame.fillCircle(badgeX, badgeY, radius + 2);
+    frame.fillStyle(presentation.accentColor, 1);
+    frame.lineStyle(3, 0xffffff, 1);
+    switch (badge.shape) {
+      case "triangle":
+        frame.fillTriangle(badgeX, badgeY - radius + 2, badgeX - radius + 2, badgeY + radius - 2, badgeX + radius - 2, badgeY + radius - 2);
+        frame.strokeTriangle(badgeX, badgeY - radius + 2, badgeX - radius + 2, badgeY + radius - 2, badgeX + radius - 2, badgeY + radius - 2);
+        break;
+      case "diamond":
+        frame.fillPoints([
+          new Phaser.Geom.Point(badgeX, badgeY - radius + 1),
+          new Phaser.Geom.Point(badgeX + radius - 1, badgeY),
+          new Phaser.Geom.Point(badgeX, badgeY + radius - 1),
+          new Phaser.Geom.Point(badgeX - radius + 1, badgeY)
+        ], true);
+        break;
+      case "square":
+        frame.fillRect(badgeX - radius + 2, badgeY - radius + 2, diameter - 4, diameter - 4);
+        frame.strokeRect(badgeX - radius + 2, badgeY - radius + 2, diameter - 4, diameter - 4);
+        break;
+      case "zigzag":
+        frame.lineStyle(5, 0xffffff, 1);
+        frame.strokePoints([
+          new Phaser.Geom.Point(badgeX + 3, badgeY - radius + 1),
+          new Phaser.Geom.Point(badgeX - 3, badgeY - 1),
+          new Phaser.Geom.Point(badgeX + 2, badgeY - 1),
+          new Phaser.Geom.Point(badgeX - 3, badgeY + radius - 1)
+        ], false);
+        break;
+    }
+  }
+
+  /** Compact status motifs keep the authored ice/lightning effects readable without a monster
+   * name: falling cyan chevrons mean weakened output; a gold cross-bolt means stunned. */
+  private refreshEffectOverlay(): void {
+    const overlay = this.effectOverlay;
+    overlay.clear();
+    if (this.isWeakened) {
+      overlay.lineStyle(2, 0x8dd8ff, 1);
+      overlay.lineBetween(this.x - 12, this.y + 18, this.x - 7, this.y + 22);
+      overlay.lineBetween(this.x - 7, this.y + 22, this.x - 2, this.y + 18);
+      overlay.lineBetween(this.x + 2, this.y + 18, this.x + 7, this.y + 22);
+      overlay.lineBetween(this.x + 7, this.y + 22, this.x + 12, this.y + 18);
+    }
+    if (this.isStunned) {
+      overlay.lineStyle(3, 0xf4c430, 1);
+      overlay.strokePoints([
+        new Phaser.Geom.Point(this.x - 10, this.y - 20),
+        new Phaser.Geom.Point(this.x - 2, this.y - 24),
+        new Phaser.Geom.Point(this.x + 2, this.y - 18),
+        new Phaser.Geom.Point(this.x + 10, this.y - 22)
+      ], false);
+    }
   }
 
   /**
-   * Phaser does not automatically destroy manually-added sibling GameObjects (the name
-   * label/HP bar) just because this Sprite gets destroyed — they aren't children of it, just
-   * two other GameObjects this class happens to keep positioned above it. Every current
+   * Phaser does not automatically destroy manually-added sibling GameObjects (the HP bar and
+   * elemental/effect overlays) just because this Sprite gets destroyed — they aren't children
+   * of it, just two other GameObjects this class keeps positioned around it. Every current
    * despawn path (`SpellroadScene.removeEnemy` and the death-reset `forEach` in
    * `handleDeath`) calls `enemy.destroy()` directly, so overriding it here is the one place
    * that guarantees the overlay never outlives the enemy it was drawn for, regardless of
    * which call site triggered the destroy.
    */
   destroy(fromScene?: boolean): void {
-    this.nameLabel.destroy();
     this.statusBar.destroy();
+    this.elementalFrame.destroy();
+    this.effectOverlay.destroy();
     super.destroy(fromScene);
   }
 
@@ -427,15 +553,23 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
      */
     nearbyEnemies: Point[] = []
   ): void {
+    const { debuffTelegraphCompleted } = this.combatState.tick(deltaMs);
     this.refreshStatusOverlay();
     this.attackCooldownMs = Math.max(0, this.attackCooldownMs - deltaMs);
     const body = this.body as Phaser.Physics.Arcade.Body;
+    if (this.isStunned) {
+      body.setVelocity(0, 0);
+      return;
+    }
+    if (debuffTelegraphCompleted) {
+      callbacks.onDebuffFire?.(this.x, this.y, targetX, targetY, this.debuffVariant);
+    }
     const toTarget = new Phaser.Math.Vector2(targetX - this.x, targetY - this.y);
     const distance = toTarget.length();
     const direction = distance === 0 ? new Phaser.Math.Vector2(0, 0) : toTarget.clone().normalize();
 
     /**
-     * Issue #167 — developer playtest: Farlance (ranged) and Nearblade (melee) enemies still
+     * Issue #167 — developer playtest: ranged and melee enemies still
      * stacked on top of each other instead of surrounding the mage, even though #110/#95's
      * separation and strafe systems were merged and green in isolation. Two gaps, both in this
      * method's *invocation* of them rather than in their arithmetic:
@@ -449,8 +583,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
      *      archetype's fixed speed toward the same mage — so same-speed peers converge back onto
      *      a single point during the entire approach and only ever un-stacked after arriving.
      *      That approach is most of what the player actually watches.
-     *   2. Separation was applied only against same-archetype peers, so a Nearblade could stand
-     *      exactly inside a Farlance (and did, every time one ran through the other's hold band
+     *   2. Separation was applied only against same-archetype peers, so a melee enemy could stand
+     *      exactly inside a ranged enemy (and did, every time one ran through the other's hold band
      *      on its way to the mage) with zero mutual push.
      *
      * Fix: hoist separation out of the individual branches into one post-processing step applied
@@ -565,26 +699,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       if (this.archetype === "ranged") {
         this.attackCooldownMs = RANGED_COOLDOWN_MS;
         callbacks.onRangedFire?.(this.x, this.y, targetX, targetY);
-      } else if (this.debuffTelegraphMs === null) {
+      } else if (this.combatState.beginDebuffTelegraph(DEBUFFER_TELEGRAPH_MS)) {
         // Issue #237 — reset the cooldown here, the same instant the old code fired
         // instantly, so the wind-up/travel added below sits inside the existing cadence
         // rather than lengthening it (see this file's `DEBUFFER_TELEGRAPH_MS` comment).
         this.attackCooldownMs = DEBUFFER_COOLDOWN_MS;
-        this.debuffTelegraphMs = DEBUFFER_TELEGRAPH_MS;
         callbacks.onDebuffTelegraphStart?.(this.x, this.y, this.debuffVariant);
-      }
-    }
-
-    // Issue #237 — counts down independently of `attackCooldownMs` (already reset above,
-    // the instant the tell began) so the wind-up always finishes and actually fires the
-    // projectile, even on a frame where the in-range check above no longer passes (e.g. the
-    // mage retreated out of band mid-tell) -- a started tell always resolves, matching how a
-    // real wind-up reads (the enemy already committed, it can't be aborted by moving away).
-    if (this.debuffTelegraphMs !== null) {
-      this.debuffTelegraphMs -= deltaMs;
-      if (this.debuffTelegraphMs <= 0) {
-        this.debuffTelegraphMs = null;
-        callbacks.onDebuffFire?.(this.x, this.y, targetX, targetY, this.debuffVariant);
       }
     }
   }

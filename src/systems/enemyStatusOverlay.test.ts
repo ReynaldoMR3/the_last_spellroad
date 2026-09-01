@@ -1,19 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { archetypeDisplayName, computeHpFraction, computeHpBarColor, HP_BAR_COLOR } from "./enemyStatusOverlay";
-
-describe("archetypeDisplayName", () => {
-  it("returns the Nearblade's established lore name for melee (issue #109)", () => {
-    expect(archetypeDisplayName("melee")).toBe("The Nearblade");
-  });
-
-  it("returns the Farlance's established lore name for ranged (issue #109)", () => {
-    expect(archetypeDisplayName("ranged")).toBe("The Farlance");
-  });
-
-  it("returns the Tarrywright's established lore name for debuffer (backlog 4.2 / issue #57)", () => {
-    expect(archetypeDisplayName("debuffer")).toBe("The Tarrywright");
-  });
-});
+import { computeHpFraction, computeHpBarColor, HP_BAR_COLOR } from "./enemyStatusOverlay";
 
 describe("computeHpFraction", () => {
   it("returns 1 at full HP", () => {

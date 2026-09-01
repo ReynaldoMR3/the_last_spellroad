@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { computeCastCooldownMs, computeCastManaCost } from "./spellCost";
 import type { SpellDefinition } from "../data/types";
+import spellsData from "../data/spells/spells.json";
 
 /**
  * backlog 2.28 / issue #54 — `computeCastManaCost` is the Mana-cost formula
@@ -13,12 +14,14 @@ function makeSpell(overrides: Partial<SpellDefinition> = {}): SpellDefinition {
   return {
     id: "test_spell",
     shape: "circle",
+    element: "fire",
     weight: "standard",
     base_power: 10,
     base_targets: 1,
     master_discount: "cooldown",
+    effect: { kind: "adjacent_pressure", range_tiles: 1, bonus_damage: 2, max_applications_per_target: 1 },
     ...overrides
-  } as SpellDefinition;
+  };
 }
 
 describe("computeCastManaCost", () => {
@@ -63,5 +66,33 @@ describe("computeCastCooldownMs", () => {
 
   it("leaves cooldown at the full base when master_discount is 'cost', even at Master tier", () => {
     expect(computeCastCooldownMs(makeSpell({ weight: "standard", master_discount: "cost" }), "master")).toBe(4000);
+  });
+});
+
+describe("shipped spell economy remains independent of elemental effects", () => {
+  const spells = spellsData as SpellDefinition[];
+  const expectedByWeight = {
+    light: { cost: 10, cooldownMs: 2000 },
+    standard: { cost: 20, cooldownMs: 4000 },
+    heavy: { cost: 35, cooldownMs: 8000 }
+  } as const;
+
+  it("keeps every authored spell on its Pato weight-class Mana and cooldown baseline", () => {
+    for (const spell of spells) {
+      expect(computeCastManaCost(spell, "novice"), `${spell.id} Mana`).toBe(expectedByWeight[spell.weight].cost);
+      expect(computeCastCooldownMs(spell, "novice"), `${spell.id} cooldown`).toBe(expectedByWeight[spell.weight].cooldownMs);
+    }
+  });
+
+  it("applies the unchanged Master discount to exactly the authored stat", () => {
+    for (const spell of spells) {
+      const baseline = expectedByWeight[spell.weight];
+      expect(computeCastManaCost(spell, "master"), `${spell.id} Mana`).toBe(
+        spell.master_discount === "cost" ? Math.round(baseline.cost * 0.9) : baseline.cost
+      );
+      expect(computeCastCooldownMs(spell, "master"), `${spell.id} cooldown`).toBe(
+        spell.master_discount === "cooldown" ? Math.round(baseline.cooldownMs * 0.9) : baseline.cooldownMs
+      );
+    }
   });
 });
