@@ -56,12 +56,12 @@ monster silhouette:
 3. After explicit approval, update `src/data/monsterRegistry.ts` and the authored wave entry
    together. The registry is the supported place to reassign a silhouette's archetype; per-wave
    archetype text must match it. The wave entry separately owns the active element.
-4. Run the content/test/build gates, then capture normal, grayscale, protanopia, and deuteranopia
-   evidence at the normal 960×540 game viewport. Confirm the filled triangle, diamond, square,
+4. Run the content/test/build gates, then inspect the normal 960×540 game viewport in normal,
+   grayscale, protanopia, and deuteranopia views. Confirm the filled triangle, diamond, square,
    and zigzag badges remain identifiable in a mixed cluster without relying on hue.
 5. For the capstone, use `?debugLevel=5&debugWave=5` and verify the persistent `▲ Fire` plus
    `◎ Resists ◆ Ice + ϟ Lightning` trial affordance is visible before the first boss hit.
 
-The review checklist lives in the
+The acceptance criteria live in the
 [Issue #207 implementation plan](../superpowers/plans/2026-08-31-elemental-monster-roster.md)
-so a later reviewer can reproduce the same frame.
+so later changes use the same visual gate.

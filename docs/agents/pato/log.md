@@ -473,39 +473,3 @@ wave composition nor kill counts nor casts-to-kill ratios, so the existing 24-ki
 — results recorded in the PR (`pato/235-mana-retune-wave3`). **Gate pending:** developer
 playtest re-confirming wave 3 pacing feels right — this cannot be self-verified by Pato, per the
 issue's own gate.
-
-## 2026-08-31 — Issue #207 Task 5 spell-content validation
-
-**Verdict: PASS.** Checked all twelve `src/data/spells/spells.json` entries against the retained
-elemental-template proposal, `mana-template.md`, and `mastery-template.md`.
-
-| Check | Result |
-| --- | --- |
-| `weight`, Mana cost, cooldown | PASS — Light 10/2s, Standard 20/4s, Heavy 35/8s; no authored weight changed. |
-| `base_power`, `base_targets` | PASS — all 12 exactly retain the Task 1 proposal; no flagged diff. |
-| `master_discount` | PASS — every entry remains exactly `cost` or `cooldown` as proposed; Master applies 10% only to that stat. |
-| Elemental payload | PASS — fire `{range_tiles:1, bonus_damage:2, max_applications_per_target:1}`; ice `{0.8, 3000ms, 1 stack}`; lightning `{500ms, 1500ms, 1 stack}`; earth `{bonus_damage:3, max_targets:1}`. |
-| Matchup / heavy-option gate | PASS — favorable-matchup direct damage, effect utility, control duration, and target coverage leave no Heavy spell strictly dominated by a Light/Standard option. |
-
-**Flagged fields:** none. Runtime effect resolution is explicitly deferred to Task 6; this PASS
-validates authored content and unchanged economic/Mastery contracts only.
-
-## 2026-08-31 — Issue #207 Task 7 strict content gate
-
-Status `shipped-and-validated`: validator regressions now reject non-finite/non-positive spell
-power, fractional/non-positive targets and enemy counts, non-finite or out-of-range level/wave/
-modifier/delay fields, malformed non-array resistance payloads, illegal boss-phase placement, and
-fixed default slots other than exactly 1–6. These tests catch the soft-lock/crash/content-drift
-class before runtime. Player-facing progression remains a separate recorded playtest gate; spell
-effectiveness was not folded into enemy threat arithmetic.
-
-## 2026-08-31 — Issue #207 Level 5 numeric-authority review
-
-**Verdict: PASS.** `hp-template.md` now explicitly authorizes the Level 5 **regular-wave** band
-multiplier `1.32` and the authored regular-wave scalars `1.32 / 1.33 / 1.34`. These values continue
-the fixed +0.08 level-band step and +0.01 within-level step implemented by
-`LEVEL_BAND_MULTIPLIER[5]` and `level-5.json`. The Level 5 **boss/trial** remains a separate
-calculation against `BOSS_TRIAL_BAND`, with phase scalars `1.00 / 1.05 / 1.10`; it does not inherit
-the regular-wave multiplier. The review-only visual-ID substitutions preserve every archetype
-count, element, spawn delay, HP modifier, and damage modifier, so the previously passing threat
-and fairness arithmetic is unchanged.

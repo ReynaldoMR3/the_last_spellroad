@@ -710,7 +710,7 @@ export class SpellroadScene extends Phaser.Scene {
    * a later, unrelated confirm-gated banner to accidentally co-fire alongside. */
   private bossBannerConfirmListener: (() => void) | null = null;
   /** Persistent, neutral boss-trial marker shown only during the Level 5 encounter. */
-  private bossNameText?: Phaser.GameObjects.Text;
+  private bossAffordanceText?: Phaser.GameObjects.Text;
   /** backlog 4.11 / issue #97 — the currently-playing boss-theme instance, or `undefined` if
    * none is active. Tracked (not just fire-and-forget `this.sound.play()`) so `stopBossTheme`
    * can stop this exact instance — the track loops for the whole multi-phase encounter, so
@@ -1427,7 +1427,7 @@ export class SpellroadScene extends Phaser.Scene {
     // top-left stat block or the top-right Level/Wave readout. Empty (no visible element)
     // outside the Level 5 encounter — `startWave`/`updateEnemies` are the only two call
     // sites that ever set/clear its text.
-    this.bossNameText = this.add.text(CANVAS_WIDTH / 2, 16, "", {
+    this.bossAffordanceText = this.add.text(CANVAS_WIDTH / 2, 16, "", {
       color: MESSAGE_WARNING_COLOR,
       fontFamily: "Georgia, serif",
       fontStyle: "bold",
@@ -1435,11 +1435,11 @@ export class SpellroadScene extends Phaser.Scene {
       backgroundColor: "#1c1330",
       padding: { x: 12, y: 6 }
     });
-    this.bossNameText.setOrigin(0.5, 0);
-    this.bossNameText.setDepth(UI_DEPTH);
+    this.bossAffordanceText.setOrigin(0.5, 0);
+    this.bossAffordanceText.setDepth(UI_DEPTH);
     // Same empty-background behavior as `tierUpText` above: outside Level 5, the blank boss
     // plate must not leave a 24x32 dark block at the top-center of the HUD.
-    this.bossNameText.setVisible(false);
+    this.bossAffordanceText.setVisible(false);
 
     // backlog 2.31 / issue #57 — debuff-magnitude/duration HUD line, directly below the
     // Level/Wave readout above (same fixed top-right column). Left empty by default;
@@ -1981,7 +1981,7 @@ export class SpellroadScene extends Phaser.Scene {
 
     if (wave.is_boss) {
       const bossPresentation = resolveBossWavePresentation(this.waves, index, options.directDebugEntry === true);
-      this.bossNameText
+      this.bossAffordanceText
         ?.setText(bossPresentation.affordanceText ?? "")
         .setVisible(bossPresentation.affordanceText !== undefined);
       if (bossPresentation.initializeTrial) {
@@ -2463,7 +2463,7 @@ export class SpellroadScene extends Phaser.Scene {
           requireConfirm: true
         });
         // The fight is over; clear the persistent trial marker before the next regular level.
-        this.bossNameText?.setText("").setVisible(false);
+        this.bossAffordanceText?.setText("").setVisible(false);
       }
       this.time.delayedCall(1200, () => {
         // If the player died during this 1200ms gap (a ranged shot already in flight when the

@@ -51,31 +51,3 @@ Authored tremor_field — earth/circle/Heavy, tradeoff: the widest target count 
   {"id": "tremor_field", "element": "earth", "shape": "circle", "weight": "heavy", "base_power": 5, "base_targets": 6, "master_discount": "cost"}
 ]
 ```
-
-## 2026-08-31 — Issue #207 Task 5: elemental tactical identities
-
-Authored the required element-matched `effect` payload for every existing spell, without changing
-`base_power`, `base_targets`, `weight`, `shape`, or `master_discount` from Pato's retained proposal.
-
-- `arc_lance` — lightning stun: fast, inexpensive lane control, but low power and only a narrow two-target line.
-- `flame_sweep` — fire adjacent pressure: strong close cone pressure, but its +2 bonus disappears at range and the cone limits safe coverage.
-- `frost_nova` — ice weaken: broad defensive weakening and high power cost a heavy cooldown/Mana commitment.
-- `stone_spike` — earth single-target burst: cheap precise burst is excellent on one target but has no crowd coverage.
-- `flare_jab` — fire adjacent pressure: rapid close-range cleanup trades very low base power and short cone reach for its adjacency bonus.
-- `spark_ring` — lightning stun: cheap emergency crowd stop gives up direct power and cannot repeatedly lock a target.
-- `glacial_shard` — ice weaken: reaches a lane of attackers and softens return damage, but has standard pacing and modest base power.
-- `rubble_burst` — earth single-target burst: a cone can tag a group while its damage payoff stays concentrated on one priority target.
-- `thunder_dome` — lightning stun: reliable area control is paid for with standard cost/cooldown and deliberate anti-stun-lock timing.
-- `magma_lance` — fire adjacent pressure: the highest base single-target fire hit rewards dangerous close commitment but has heavy pacing and one target.
-- `frost_breath` — ice weaken: wide defensive control can protect against a rush but is slower, costly, and weaker per target than magma's burst.
-- `tremor_field` — earth single-target burst: the largest area reaches a crowd, while the earth payoff remains one deliberate priority burst at heavy cost.
-
-Pato gate: PASS, recorded separately in `docs/agents/pato/log.md`. Runtime resolution remains Task 6's scope.
-
-## 2026-08-31 — Issue #207 Task 7 teachability gate
-
-Status `shipped-and-validated`: the approved four effect identities are now taught in the compact
-first-use legend with their exact player-facing consequences (fire close +2, ice weaken 3s, earth
-primary +3, lightning stun 0.5s). A focused text contract test prevents the tactical distinctions
-from disappearing while preserving the no-monster-name rule. Numeric authority remains Pato's
-elemental template; no spell values changed in this pass.

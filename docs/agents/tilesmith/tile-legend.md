@@ -116,5 +116,5 @@ The role column is internal combat behavior only. It is not an on-screen name or
 a weapon-shaped pixel determines that behavior. In the game, the active **wave element** supplies
 the following explicit metadata independently of sprite pixels: a dark neutral outline (`0x14161f`),
 an accent color, and a non-color motif: fire flame-spikes, ice crystal, earth corners, and lightning
-zigzag. Task 3's automated tests validate that metadata and the actual source URLs; grayscale and
-color-vision screenshot evidence is deferred to Task 7 live visual QA.
+zigzag. Task 3's automated tests validate that metadata and the actual source URLs; normal-scale
+and color-vision readability remain live visual-QA checks.

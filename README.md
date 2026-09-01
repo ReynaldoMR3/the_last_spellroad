@@ -61,11 +61,11 @@ To add or reassign a nameless silhouette, update `MONSTER_REGISTRY` first, autho
 the active element; sprite pixels never do. Pato validates balance independently from elemental
 spell effectiveness, because wave threat remains an enemy-side measure.
 
-For visual acceptance, run the game at normal scale, capture normal/grayscale/protanopia/
-deuteranopia views, and identify triangle/fire, diamond/ice, square/earth, and zigzag/lightning
-without using hue. Use `?debugLevel=5&debugWave=5` on the local development server to enter the
-final boss phase reproducibly. The full capture checklist and evidence manifest are in
-the [Issue #207 implementation plan](docs/superpowers/plans/2026-08-31-elemental-monster-roster.md).
+For visual acceptance, run the game at normal scale and verify triangle/fire, diamond/ice,
+square/earth, and zigzag/lightning remain identifiable without using hue, including under common
+color-vision simulations. Use `?debugLevel=5&debugWave=5` on the local development server to enter
+the final boss phase reproducibly. The acceptance criteria live in the
+[Issue #207 implementation plan](docs/superpowers/plans/2026-08-31-elemental-monster-roster.md).
 
 Build the production image:
 
